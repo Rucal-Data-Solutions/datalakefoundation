@@ -3,6 +3,7 @@ package datalake.metadata
 import datalake.processing._
 import datalake.utils._
 
+import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
@@ -69,13 +70,18 @@ class Connection(
 
 class Environment(
   name: String,
-  root_folder: String
+  root_folder: String,
+  timezone: String
 ){
-    def Name(): String =
+    def Name: String =
     this.name
 
-    def RootFolder(): String =
+    def RootFolder: String =
       this.root_folder
+
+    def Timezone: TimeZone = 
+      TimeZone.getTimeZone(timezone)
+
 }
 
 class Entity(
@@ -108,6 +114,9 @@ class Entity(
   def Connection(): Connection =
     metadata.getConnection(this.connection)
 
+  def Environment():Environment =
+    metadata.getEnvironment()
+
   def Columns(): List[EntityColumn] =
     this.columns
 
@@ -137,7 +146,7 @@ class Entity(
     val _connection = this.Connection()
     val _securehandling = this.Secure()
 
-    val root_folder: String = env.RootFolder()
+    val root_folder: String = env.RootFolder
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
     val silverPath = new StringBuilder(s"$root_folder/silver")
 

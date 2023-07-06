@@ -17,7 +17,8 @@ import datalake.utils._
 import org.apache.spark.sql.SaveMode
 
 // Bronze(Source) -> Silver(Target)
-class Processing(entity: datalake.metadata.Entity, sliceFile: String) {
+class Processing(entity: Entity, sliceFile: String) {
+  val environment = entity.Environment()
   val primaryKeyColumnName: String = s"PK_${entity.Name()}"
   val columns = entity.Columns()
   val paths = entity.getPaths
@@ -39,7 +40,7 @@ class Processing(entity: datalake.metadata.Entity, sliceFile: String) {
     
     var dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
-    val timezoneId = TimeZone.getTimeZone("Europe/Amsterdam").toZoneId
+    val timezoneId = environment.Timezone.toZoneId
     val now = LocalDateTime.now(timezoneId)
 
     // Check for HashColumn(SourceHash) in slice and add if it doesnt exits. (This must come first, the rest of fields are calculated)
