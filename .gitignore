@@ -15,6 +15,9 @@ project/project/
 project/target/
 target/
 
+#databricks
+.databricks
+
 # mac
 .DS_Store
 
