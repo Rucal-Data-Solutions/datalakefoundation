@@ -1,0 +1,102 @@
+{
+	"environment_settings": {
+		"name": "development",
+		"root_folder": "/mnt"
+	},
+	"connections": [
+		{
+			"name": "example_1",
+			"enabled": true,
+			"settings": {}
+		},
+		{
+			"name": "example_2",
+			"enabled": false
+		},
+		{
+			"name": "example_3"
+		},
+		{
+			"name": "test_api",
+			"enabled": true,
+			"processing_start": "raw",
+			"settings": {
+				"baseurl": "https://tst.example.com/api",
+				"tokenpath": "/auth/token",
+				"allow_unsecure": false,
+				"stalerecordage": 90,
+				"maxstalerecords": 250,
+				"apipartitions": 4,
+				"bronzepath_UIT": "${today}/${entity}",
+				"file_type": "json",
+				"multiline": false,
+				"raw_transformations": [
+					{
+						"function": "HndlComplexData",
+						"order": 1
+					}
+				]
+			}
+		}
+	],
+	"entities": [
+		{
+			"id": 1,
+			"name": "ent1",
+			"enabled": true,
+			"connection": "example_1",
+			"processtype": "full",
+			"columns": [],
+			"settings": [
+				{
+					"schema": "dbo",
+					"table": "test_zaak",
+					"frequency": {
+						"interval": "weekly",
+						"value": [
+							"Sat"
+						]
+					},
+					"type": "test"
+				}
+			]
+		},
+		{
+			"id": 2,
+			"name": "ent2",
+			"enabled": true,
+			"secure": false,
+			"connection": "test_api",
+			"processtype": "delta",
+			"columns": [
+				{
+					"name": "id",
+					"datatype": "integer",
+					"fieldrole": "businesskey"
+				},
+				{
+					"name": "name",
+					"datatype": "string",
+					"fieldrole": "data"
+				},
+				{
+					"name": "dec_value",
+					"newname": "decimal_value",
+					"datatype": "decimal(38,1)",
+					"fieldrole": "data"
+				}
+			],
+			"settings": [
+				{
+					"frequency": {
+						"interval": "weekly",
+						"value": [
+							"Sat"
+						]
+					},
+					"type": "test"
+				}
+			]
+		}
+	]
+}
