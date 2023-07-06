@@ -1,0 +1,7 @@
+{
+  "host": "https://adb-2227373278189395.15.azuredatabricks.net/",
+  "authType": "azure-cli",
+  "tenantId": "60f0d2b8-b7fe-40e2-a389-7cc9603f00b0",
+  "clusterId": "0331-213115-5nmdr9hi",
+  "workspacePath": "/Users/ruben@rucal.nl/.ide/sparklinglake-4b770224"
+}
