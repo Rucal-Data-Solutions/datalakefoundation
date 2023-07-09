@@ -18,9 +18,9 @@ import org.apache.spark.sql.SaveMode
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
-  val environment = entity.Environment()
-  val primaryKeyColumnName: String = s"PK_${entity.Name()}"
-  val columns = entity.Columns()
+  val environment = entity.Environment
+  val primaryKeyColumnName: String = s"PK_${entity.Name}"
+  val columns = entity.Columns
   val paths = entity.getPaths
   val sliceFileFullPath: String = s"${paths.BronzePath}/${sliceFile}"
   val destination: String = paths.SilverPath
@@ -81,7 +81,7 @@ class Processing(entity: Entity, sliceFile: String) {
     dfSlice
   }
 
-  def process(stategy: ProcessStrategy = entity.ProcessType()) {
+  def process(stategy: ProcessStrategy = entity.ProcessType) {
     stategy.process(this)
   }
 }
