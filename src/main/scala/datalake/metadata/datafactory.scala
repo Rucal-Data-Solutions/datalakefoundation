@@ -9,7 +9,7 @@ object DataFactory {
     def getConfigItems(connection: Connection): String ={
         implicit val formats: Formats = DefaultFormats + FieldSerializer[Entity]() + FieldSerializer[EntityColumn]()
 
-        val _entities = connection.getEntities().filter(p => p.isEnabled() == true)
+        val _entities = connection.getEntities.filter(p => p.isEnabled() == true)
 
         write(_entities)
 
