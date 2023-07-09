@@ -27,7 +27,6 @@ object DatalakeApp {
 
     val metadatasettings = new SqlMetadataSettings()
     metadatasettings.initialize(new SqlServerSettings("<SERVER>", 1433, "<DATABASE>", "<USER>", "<PASSWORD>"))
-
     val metadata = new Metadata(metadatasettings)
 
     val connection = metadata.getConnection("1")
