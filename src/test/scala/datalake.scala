@@ -26,7 +26,7 @@ object DatalakeApp {
   def main(args: Array[String]): Unit = {
 
     val metadatasettings = new SqlMetadataSettings()
-    metadatasettings.initialize(new SqlServerSettings("2ssdataplatformserver.database.windows.net", 1433, "2SSTB-DATAPLATFORM-SQL-MGMT", "<USER>", "<PASSWORD>"))
+    metadatasettings.initialize(new SqlServerSettings("<SERVER>", 1433, "<DATABASE>", "<USER>", "<PASSWORD>"))
 
     val metadata = new Metadata(metadatasettings)
 
