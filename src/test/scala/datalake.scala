@@ -25,11 +25,15 @@ object DatalakeApp {
 
   def main(args: Array[String]): Unit = {
 
-    val metadatasettings = new JsonMetadataSettings()
-    metadatasettings.initialize("./src/test/scala/example/metadata.json")
+    val metadatasettings = new SqlMetadataSettings()
+    metadatasettings.initialize(new SqlServerSettings("<SERVER>", 1433, "<DATABASE>", "<USER>", "<PASSWORD>"))
 
     val metadata = new Metadata(metadatasettings)
-    val entity = metadata.getEntity(1)
+
+    val connection = metadata.getConnection("1")
+    // val env = metadata.getEnvironment
+
+    val entity = metadata.getEntity(39)
 
     val proc = new Processing(entity, "test.parquet")
     

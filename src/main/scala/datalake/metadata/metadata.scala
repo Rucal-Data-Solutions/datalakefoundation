@@ -21,11 +21,11 @@ import org.apache.arrow.flatbuf.Bool
 trait DatalakeMetadataSettings {
   type initParam
   def initialize(initParameter: initParam)
-  def isInitialized(): Boolean
+  def isInitialized: Boolean
   def setMetadata(metadata: Metadata): Unit
   def getEntity(id: Int): Option[Entity]
-  def getConnection(name: String): Option[Connection]
-  def getEnvironment(): Environment
+  def getConnection(connectionCode: String): Option[Connection]
+  def getEnvironment: Environment
 }
 case class Paths(BronzePath: String, SilverPath: String) extends Serializable
 
@@ -36,6 +36,7 @@ case class ProcessStrategyNotSupportedException(message: String) extends Excepti
 
 class Connection(
     metadata: Metadata,
+    code: String,
     name: String,
     enabled: Option[Boolean],
     settings: Map[String, Any],
@@ -45,13 +46,13 @@ class Connection(
   override def toString(): String =
     s"Connection_name:${this.name}"
 
-  def Name(): String =
+  def Name: String =
     this.name
 
-  def isEnabled(): Boolean =
+  def isEnabled: Boolean =
     this.enabled.getOrElse(true)
 
-  def getSettings(): Map[String, Any] =
+  def getSettings: Map[String, Any] =
     this.settings
 
   def getSettingAs[T](name: String): T = {
@@ -62,7 +63,7 @@ class Connection(
       case None        => None.asInstanceOf[T]
     }
   }
-  def getEntities(): List[Entity] = {
+  def getEntities: List[Entity] = {
     this.entities
   } 
 }
@@ -99,29 +100,29 @@ class Entity(
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
 
-  def Id(): Int =
+  def Id: Int =
     this.id
 
-  def Name(): String =
+  def Name: String =
     this.name
 
   def isEnabled(): Boolean =
     this.enabled
 
-  def Secure(): Boolean =
+  def Secure: Boolean =
     this.secure.getOrElse(false)
 
-  def Connection(): Connection =
+  def Connection: Connection =
     metadata.getConnection(this.connection)
 
-  def Environment():Environment =
-    metadata.getEnvironment()
+  def Environment:Environment =
+    metadata.getEnvironment
 
-  def Columns(): List[EntityColumn] =
+  def Columns: List[EntityColumn] =
     this.columns
 
-  def ProcessType(): ProcessStrategy =
-    this.processtype match {
+  def ProcessType: ProcessStrategy =
+    this.processtype.toLowerCase match {
       case "full"  => Full
       case "delta" => Delta
       case _ => throw ProcessStrategyNotSupportedException(
@@ -129,22 +130,22 @@ class Entity(
         )
     }
 
-  def Settings(): JsonAST.JArray =
+  def Settings: JsonAST.JArray =
     this.settings
 
-  def getSchema(): StructType =
+  def getSchema: StructType =
     StructType(
       this.columns.map(row => StructField(row.Name, row.DataType, true))
     )
 
   def getPaths(): Paths = {
-    val env: Environment = metadata.getEnvironment()
+    val env: Environment = metadata.getEnvironment
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
     val _settings = this.Settings
-    val _connection = this.Connection()
-    val _securehandling = this.Secure()
+    val _connection = this.Connection
+    val _securehandling = this.Secure
 
     val root_folder: String = env.RootFolder
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
@@ -245,7 +246,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  if (!metadataSettings.isInitialized()) {
+  if (!metadataSettings.isInitialized) {
     throw new MetadataNotInitializedException("Config is not initialized")
   }
 
@@ -267,8 +268,8 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     }
   }
 
-  def getEnvironment(): Environment ={
-    val environment = metadataSettings.getEnvironment()
+  def getEnvironment: Environment ={
+    val environment = metadataSettings.getEnvironment
     environment
   }
 

@@ -2,7 +2,7 @@
 	"environment_settings": {
 		"name": "development",
 		"timezone": "Europe/Amsterdam",
-		"root_folder": "/mnt"
+		"root_folder": "D:/Datalake"
 	},
 	"connections": [
 		{

@@ -36,6 +36,7 @@ class ConnectionDeserializer(metadata: Metadata, entities: List[Entity])
         { case j: JObject =>
           new Connection(
             metadata = metadata,
+            code = (j \ "name").extract[String],
             name = (j \ "name").extract[String],
             enabled = (j \ "enabled").extract[Option[Boolean]],
             settings = (j \ "settings").extract[Map[String, Any]],
@@ -98,12 +99,12 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
       .map(j => j.extract[Entity])
   }
 
-  def getConnection(name: String): Option[Connection] = {
-    val _entities = getEntities(name)
+  def getConnection(code: String): Option[Connection] = {
+    val _entities = getEntities(code)
     implicit var formats: Formats =
       DefaultFormats + new ConnectionDeserializer(_metadata, _entities)
     val connection =
-      _connections.find(j => (j \ "name").extract[String] == name).map(j => j.extract[Connection])
+      _connections.find(j => (j \ "name").extract[String] == code).map(j => j.extract[Connection])
     connection
   }
 
