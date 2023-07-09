@@ -256,7 +256,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     val entity = metadataSettings.getEntity(id)
     entity match {
       case Some(entity) => entity
-      case None         => throw EntityNotFoundException("Entity not found")
+      case None         => throw EntityNotFoundException(s"Entity (${id}) not found")
     }
   }
 
@@ -264,7 +264,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     val connection = metadataSettings.getConnection(connectionName)
     connection match {
       case Some(connection) => connection
-      case None             => throw ConnectionNotFoundException("Connection not found")
+      case None             => throw ConnectionNotFoundException(s"Connection (${connectionName}) not found")
     }
   }
 

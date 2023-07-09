@@ -60,8 +60,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     _isInitialized
 
   def getEntity(id: Int): Option[Entity] = {
-    val entityRow = _entities.filter(col("EntityID") === id).first()
-    
+    val entityRow = _entities.filter(col("EntityID") === id).collect.headOption
+
     val entitySettings = _entitySettings
       .filter(col("EntityID") === id)
       .collect()
@@ -71,7 +71,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     val entityColumns = _entityColumns
       .filter(col("EntityID") === id)
       .collect()
-      .map(r => 
+      .map(r =>
         new EntityColumn(
           r.getAs[String]("ColumnName"),
           Some(r.getAs[String]("NewColumnName")),
@@ -81,39 +81,53 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       )
       .toList
 
-    Some(new Entity(
-      _metadata,
-      entityRow.getAs[Int]("EntityID"),
-      entityRow.getAs[String]("EntityName"),
-      entityRow.getAs[Boolean]("EntityEnabled"),
-      None,
-      entityRow.getAs[Int]("EntityConnectionID").toString,
-      entityRow.getAs[String]("EntityProcessType"),
-      entityColumns,
-      JsonAST.JArray(entitySettings.toList.map(t => JsonAST.JString(t._1 + ":" + t._2)))
-    ))
+    entityRow match {
+      case Some(row) =>
+        Some(
+          new Entity(
+            _metadata,
+            row.getAs[Int]("EntityID"),
+            row.getAs[String]("EntityName"),
+            row.getAs[Boolean]("EntityEnabled"),
+            None,
+            row.getAs[Int]("EntityConnectionID").toString,
+            row.getAs[String]("EntityProcessType"),
+            entityColumns,
+            JsonAST.JArray(entitySettings.toList.map(t => JsonAST.JString(t._1 + ":" + t._2)))
+          )
+        )
+        case None => None
+    }
+
   }
 
   def getConnection(connectionCode: String): Option[Connection] = {
-    val connectionRow = _connections.filter(col("EntityConnectionID") === connectionCode).first()
+    val connectionRow =
+      _connections.filter(col("EntityConnectionID") === connectionCode).collect().headOption
 
-    Some(new Connection(
-      _metadata,
-      connectionRow.getAs[Int]("EntityConnectionID").toString(),
-      connectionRow.getAs[String]("EntityConnection"),
-      Some(connectionRow.getAs[Boolean]("EntityConnectionEnabled")),
-      Map.empty[String, Any], // Settings can be fetched similar to entity settings
-      getEntities(connectionRow.getAs[Int]("EntityConnectionID").toString)
-    ))
+    connectionRow match {
+      case Some(row) =>
+        Some(
+          new Connection(
+            _metadata,
+            row.getAs[Int]("EntityConnectionID").toString(),
+            row.getAs[String]("EntityConnection"),
+            Some(row.getAs[Boolean]("EntityConnectionEnabled")),
+            Map.empty[String, Any], // Settings can be fetched similar to entity settings
+            getEntities(row.getAs[Int]("EntityConnectionID").toString)
+          )
+        )
+      case None => None
+    }
+
   }
 
-  private def getEntities(connectionCode: String): List[Entity] = {
+  private def getEntities(connectionCode: String): List[Entity] =
     _entities
       .filter(col("EntityConnectionID") === connectionCode)
       .collect()
       .flatMap(r => getEntity(r.getAs[Int]("EntityID")))
       .toList
-  }
 
   def getEnvironment: Environment = {
     val environmentRow = _environment.first()
@@ -124,4 +138,3 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     )
   }
 }
-
