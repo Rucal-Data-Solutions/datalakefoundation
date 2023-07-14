@@ -103,9 +103,9 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
 
   }
 
-  def getConnection(connectionCode: String): Option[Connection] = {
+  def getConnection(connectionName: String): Option[Connection] = {
     val connectionRow =
-      _connections.filter(col("EntityConnectionID") === connectionCode).collect().headOption
+      _connections.filter(col("EntityConnection") === connectionName).collect().headOption
 
     connectionRow match {
       case Some(row) =>
@@ -116,7 +116,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             row.getAs[String]("EntityConnection"),
             Some(row.getAs[Boolean]("EntityConnectionEnabled")),
             Map.empty[String, Any], // Settings can be fetched similar to entity settings
-            getEntities(row.getAs[Int]("EntityConnectionID").toString)
+            getEntities(row.getAs[Int]("EntityConnectionID").toString())
           )
         )
       case None => None
@@ -124,12 +124,14 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
 
   }
 
-  private def getEntities(connectionCode: String): List[Entity] =
+  private def getEntities(connectionCode: String): List[Entity] = {
+
     _entities
       .filter(col("EntityConnectionID") === connectionCode)
       .collect()
       .flatMap(r => getEntity(r.getAs[Int]("EntityID")))
       .toList
+  }
 
   def getEnvironment: Environment = {
     val environmentRow = _environment.first()

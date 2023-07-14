@@ -18,15 +18,7 @@ import org.apache.arrow.flatbuf.Bool
 // import org.json4s._
 // import org.json4s.jackson.JsonMethods._
 
-trait DatalakeMetadataSettings {
-  type initParam
-  def initialize(initParameter: initParam)
-  def isInitialized: Boolean
-  def setMetadata(metadata: Metadata): Unit
-  def getEntity(id: Int): Option[Entity]
-  def getConnection(connectionCode: String): Option[Connection]
-  def getEnvironment: Environment
-}
+
 case class Paths(BronzePath: String, SilverPath: String) extends Serializable
 
 case class MetadataNotInitializedException(message: String) extends Exception(message)
