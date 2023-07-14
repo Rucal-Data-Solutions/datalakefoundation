@@ -99,12 +99,12 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
       .map(j => j.extract[Entity])
   }
 
-  def getConnection(code: String): Option[Connection] = {
-    val _entities = getEntities(code)
+  def getConnection(connectionName: String): Option[Connection] = {
+    val _entities = getEntities(connectionName)
     implicit var formats: Formats =
       DefaultFormats + new ConnectionDeserializer(_metadata, _entities)
     val connection =
-      _connections.find(j => (j \ "name").extract[String] == code).map(j => j.extract[Connection])
+      _connections.find(j => (j \ "name").extract[String] == connectionName).map(j => j.extract[Connection])
     connection
   }
 
