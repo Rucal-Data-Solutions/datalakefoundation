@@ -46,11 +46,19 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     }
   }
 
-  def getConnection(connectionName: String): Connection = {
-    val connection = metadataSettings.getConnection(connectionName)
+  def getConnection(connectionCode: String): Connection = {
+    val connection = metadataSettings.getConnection(connectionCode)
     connection match {
       case Some(connection) => connection
-      case None             => throw ConnectionNotFoundException(s"Connection (${connectionName}) not found")
+      case None             => throw ConnectionNotFoundException(s"ConnectionId (${connectionCode}) not found")
+    }
+  }
+
+  def getConnectionByName(connectionName: String): Connection = {
+    val connection = metadataSettings.getConnectionByName(connectionName)
+    connection match {
+      case Some(connection) => connection
+      case None             => throw ConnectionNotFoundException(s"ConnectionName (${connectionName}) not found")
     }
   }
 

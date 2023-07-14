@@ -40,8 +40,9 @@ class Entity(
   def Secure: Boolean =
     this.secure.getOrElse(false)
 
-  def Connection: Connection =
+  def Connection: Connection = {
     metadata.getConnection(this.connection)
+  }
 
   def Environment:Environment =
     metadata.getEnvironment

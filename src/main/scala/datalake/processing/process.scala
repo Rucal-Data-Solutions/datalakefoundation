@@ -16,6 +16,10 @@ import datalake.implicits._
 import datalake.utils._
 import org.apache.spark.sql.SaveMode
 
+trait ProcessStrategy {
+  def process(processing: Processing)
+}
+
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
   val environment = entity.Environment
@@ -86,9 +90,7 @@ class Processing(entity: Entity, sliceFile: String) {
   }
 }
 
-trait ProcessStrategy {
-  def process(processing: Processing)
-}
+
 
 
 

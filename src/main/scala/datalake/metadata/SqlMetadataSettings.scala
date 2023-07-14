@@ -95,17 +95,21 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             row.getAs[Int]("EntityConnectionID").toString,
             row.getAs[String]("EntityProcessType"),
             entityColumns,
-            JsonAST.JArray(entitySettings.toList.map(t => JsonAST.JObject(JsonAST.JField(t._1, JsonAST.JString(t._2) ) ) ) )
+            JsonAST.JArray(
+              entitySettings.toList.map(t =>
+                JsonAST.JObject(JsonAST.JField(t._1, JsonAST.JString(t._2)))
+              )
+            )
           )
         )
-        case None => None
+      case None => None
     }
 
   }
 
-  def getConnection(connectionName: String): Option[Connection] = {
+  def getConnection(connectionCode: String): Option[Connection] = {
     val connectionRow =
-      _connections.filter(col("EntityConnection") === connectionName).collect().headOption
+      _connections.filter(col("EntityConnectionID") === connectionCode).collect().headOption
 
     connectionRow match {
       case Some(row) =>
@@ -124,14 +128,32 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
 
   }
 
-  private def getEntities(connectionCode: String): List[Entity] = {
+  def getConnectionByName(connectionName: String): Option[Connection] = {
+    val connectionRow =
+      _connections.filter(col("EntityConnection") === connectionName).collect().headOption
+      
+    connectionRow match {
+      case Some(row) =>
+        Some(
+          new Connection(
+            _metadata,
+            row.getAs[Int]("EntityConnectionID").toString(),
+            row.getAs[String]("EntityConnection"),
+            Some(row.getAs[Boolean]("EntityConnectionEnabled")),
+            Map.empty[String, Any], // Settings can be fetched similar to entity settings
+            getEntities(row.getAs[Int]("EntityConnectionID").toString())
+          )
+        )
+      case None => None
+    }
+  }
 
+  private def getEntities(connectionCode: String): List[Entity] =
     _entities
       .filter(col("EntityConnectionID") === connectionCode)
       .collect()
       .flatMap(r => getEntity(r.getAs[Int]("EntityID")))
       .toList
-  }
 
   def getEnvironment: Environment = {
     val environmentRow = _environment.first()
