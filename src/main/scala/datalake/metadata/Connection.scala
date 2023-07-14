@@ -29,7 +29,7 @@ class Connection(
     this.code
 
   def Name: String =
-    this.name
+    this.name.toLowerCase()
 
   def isEnabled: Boolean =
     this.enabled.getOrElse(true)

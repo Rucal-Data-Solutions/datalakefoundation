@@ -32,7 +32,7 @@ class Entity(
     this.id
 
   def Name: String =
-    this.name
+    this.name.toLowerCase()
 
   def isEnabled(): Boolean =
     this.enabled
