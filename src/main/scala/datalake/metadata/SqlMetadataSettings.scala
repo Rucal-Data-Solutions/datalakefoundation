@@ -11,6 +11,8 @@ import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
 import org.json4s.JsonAST
 import org.apache.spark.sql.{ Encoder, Encoders }
+import org.apache.avro.data.Json
+import org.apache.jute.compiler.JString
 
 case class SqlServerSettings(
     server: String,
@@ -76,7 +78,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
           r.getAs[String]("ColumnName"),
           Some(r.getAs[String]("NewColumnName")),
           r.getAs[String]("DataType"),
-          r.getAs[String]("FieldRole")
+          r.getAs[String]("FieldRoles").split(",")
         )
       )
       .toList
@@ -93,7 +95,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             row.getAs[Int]("EntityConnectionID").toString,
             row.getAs[String]("EntityProcessType"),
             entityColumns,
-            JsonAST.JArray(entitySettings.toList.map(t => JsonAST.JString(t._1 + ":" + t._2)))
+            JsonAST.JArray(entitySettings.toList.map(t => JsonAST.JObject(JsonAST.JField(t._1, JsonAST.JString(t._2) ) ) ) )
           )
         )
         case None => None
@@ -134,7 +136,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     new Environment(
       environmentRow.getAs[String]("name"),
       environmentRow.getAs[String]("root_folder"),
-      environmentRow.getAs[String]("timezone")
+      environmentRow.getAs[String]("timezone"),
+      environmentRow.getAs[String]("watermark_location")
     )
   }
 }

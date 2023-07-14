@@ -26,11 +26,11 @@ object DatalakeApp {
   def main(args: Array[String]): Unit = {
 
     val metadatasettings = new SqlMetadataSettings()
-    metadatasettings.initialize(new SqlServerSettings("<SERVER>", 1433, "<DATABASE>", "<USER>", "<PASSWORD>"))
+    metadatasettings.initialize(new SqlServerSettings("2ssdataplatformserver.database.windows.net", 1433, "2SSTB-DATAPLATFORM-SQL-MGMT", "databricks_acc", "L7ekvIKVmhe4GI1NJE1S"))
     val metadata = new Metadata(metadatasettings)
 
     val connection = metadata.getConnection("1")
-    // val env = metadata.getEnvironment
+    val dfItems = DataFactory.getConfigItems(connection)
 
     val entity = metadata.getEntity(39)
 
