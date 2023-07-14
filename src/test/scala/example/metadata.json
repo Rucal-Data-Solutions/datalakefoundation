@@ -2,7 +2,8 @@
 	"environment_settings": {
 		"name": "development",
 		"timezone": "Europe/Amsterdam",
-		"root_folder": "D:/Datalake"
+		"root_folder": "D:/Datalake",
+		"watermark_folder": "D:/Datalake/log/watermark"
 	},
 	"connections": [
 		{
@@ -73,7 +74,7 @@
 				{
 					"name": "id",
 					"datatype": "integer",
-					"fieldrole": "businesskey"
+					"fieldrole": ["businesskey", "watermark"]
 				},
 				{
 					"name": "name",
