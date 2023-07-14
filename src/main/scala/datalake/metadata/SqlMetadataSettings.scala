@@ -89,11 +89,11 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
           new Entity(
             _metadata,
             row.getAs[Int]("EntityID"),
-            row.getAs[String]("EntityName"),
+            row.getAs[String]("EntityName").toLowerCase(),
             row.getAs[Boolean]("EntityEnabled"),
             None,
             row.getAs[Int]("EntityConnectionID").toString,
-            row.getAs[String]("EntityProcessType"),
+            row.getAs[String]("EntityProcessType").toLowerCase(),
             entityColumns,
             JsonAST.JArray(
               entitySettings.toList.map(t =>
