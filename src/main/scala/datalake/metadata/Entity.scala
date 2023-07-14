@@ -84,8 +84,8 @@ class Entity(
       silverPath ++= "-secure"
     }
 
-    bronzePath ++= s"/${_connection.Code}"
-    silverPath ++= s"/${_connection.Code}"
+    bronzePath ++= s"/${_connection.Name}"
+    silverPath ++= s"/${_connection.Name}"
 
     // overrides for bronze
     _connection.getSettings.get("bronzepath") match {

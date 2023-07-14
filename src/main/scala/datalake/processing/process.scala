@@ -90,52 +90,6 @@ trait ProcessStrategy {
   def process(processing: Processing)
 }
 
-final object Full extends ProcessStrategy {
 
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
 
-  def process(processing: Processing) {
-    val source: DataFrame = processing.getSource()
-    FileOperations.remove(processing.destination, true)
-    source.write.format("delta").mode(SaveMode.Overwrite).save(processing.destination)
-  }
-}
 
-final object Delta extends ProcessStrategy {
-
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
-  spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "false")
-
-  def process(processing: Processing) = {
-    val source: DataFrame = processing.getSource()
-
-    // first time? Do A full load
-    if (FileOperations.exists(processing.destination) == false) {
-      Full.process(processing)
-    } else {
-      val deltaTable = DeltaTable.forPath(processing.destination)
-
-      deltaTable
-        .as("target")
-        .merge(
-          source.as("source"),
-          "source." + processing.primaryKeyColumnName + " = target." + processing.primaryKeyColumnName
-        )
-        .whenMatched("source.deleted = true")
-        .update(Map("deleted" -> lit("true")))
-        .whenMatched("source.SourceHash != target.SourceHash")
-        .updateAll
-        .whenMatched("source.SourceHash == target.SourceHash")
-        .update(Map("lastSeen" -> col("source.lastSeen")))
-        .whenNotMatched("source.deleted = false")
-        .insertAll
-        .execute()
-
-    }
-
-  }
-}
