@@ -26,7 +26,7 @@ object DatalakeApp {
   def main(args: Array[String]): Unit = {
 
     val metadatasettings = new SqlMetadataSettings()
-    metadatasettings.initialize(new SqlServerSettings("***REMOVED***", 1433, "***REMOVED***", "***REMOVED***", "***REMOVED***"))
+
     val metadata = new Metadata(metadatasettings)
 
     val connection = metadata.getConnection("1")
