@@ -15,11 +15,11 @@ class EntityDeserializer(metadata: Metadata)
           new Entity(
             metadata = metadata,
             id = (j \ "id").extract[Int],
-            name = (j \ "name").extract[String],
+            name = (j \ "name").extract[String].toLowerCase(),
             enabled = (j \ "enabled").extract[Boolean],
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
-            processtype = (j \ "processtype").extract[String],
+            processtype = (j \ "processtype").extract[String].toLowerCase(),
             columns = (j \ "columns").extract[List[EntityColumn]],
             settings = (j \ "settings").extract[JArray]
           )
@@ -37,7 +37,7 @@ class ConnectionDeserializer(metadata: Metadata, entities: List[Entity])
           new Connection(
             metadata = metadata,
             code = (j \ "name").extract[String],
-            name = (j \ "name").extract[String],
+            name = (j \ "name").extract[String].toLowerCase(),
             enabled = (j \ "enabled").extract[Option[Boolean]],
             settings = (j \ "settings").extract[Map[String, Any]],
             entities = entities
@@ -99,12 +99,21 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
       .map(j => j.extract[Entity])
   }
 
-  def getConnection(code: String): Option[Connection] = {
-    val _entities = getEntities(code)
+  def getConnection(connectionCode: String): Option[Connection] = {
+    val _entities = getEntities(connectionCode)
     implicit var formats: Formats =
       DefaultFormats + new ConnectionDeserializer(_metadata, _entities)
     val connection =
-      _connections.find(j => (j \ "name").extract[String] == code).map(j => j.extract[Connection])
+      _connections.find(j => (j \ "name").extract[String] == connectionCode).map(j => j.extract[Connection])
+    connection
+  }
+
+  def getConnectionByName(connectionName: String): Option[Connection] = {
+    val _entities = getEntities(connectionName)
+    implicit var formats: Formats =
+      DefaultFormats + new ConnectionDeserializer(_metadata, _entities)
+    val connection =
+      _connections.find(j => (j \ "name").extract[String] == connectionName).map(j => j.extract[Connection])
     connection
   }
 

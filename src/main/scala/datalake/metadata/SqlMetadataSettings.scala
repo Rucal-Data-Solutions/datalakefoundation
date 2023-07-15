@@ -11,6 +11,8 @@ import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
 import org.json4s.JsonAST
 import org.apache.spark.sql.{ Encoder, Encoders }
+import org.apache.avro.data.Json
+import org.apache.jute.compiler.JString
 
 case class SqlServerSettings(
     server: String,
@@ -76,7 +78,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
           r.getAs[String]("ColumnName"),
           Some(r.getAs[String]("NewColumnName")),
           r.getAs[String]("DataType"),
-          r.getAs[String]("FieldRole")
+          r.getAs[String]("FieldRoles").split(",")
         )
       )
       .toList
@@ -87,16 +89,20 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
           new Entity(
             _metadata,
             row.getAs[Int]("EntityID"),
-            row.getAs[String]("EntityName"),
+            row.getAs[String]("EntityName").toLowerCase(),
             row.getAs[Boolean]("EntityEnabled"),
             None,
             row.getAs[Int]("EntityConnectionID").toString,
-            row.getAs[String]("EntityProcessType"),
+            row.getAs[String]("EntityProcessType").toLowerCase(),
             entityColumns,
-            JsonAST.JArray(entitySettings.toList.map(t => JsonAST.JString(t._1 + ":" + t._2)))
+            JsonAST.JArray(
+              entitySettings.toList.map(t =>
+                JsonAST.JObject(JsonAST.JField(t._1, JsonAST.JString(t._2)))
+              )
+            )
           )
         )
-        case None => None
+      case None => None
     }
 
   }
@@ -114,12 +120,32 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             row.getAs[String]("EntityConnection"),
             Some(row.getAs[Boolean]("EntityConnectionEnabled")),
             Map.empty[String, Any], // Settings can be fetched similar to entity settings
-            getEntities(row.getAs[Int]("EntityConnectionID").toString)
+            getEntities(row.getAs[Int]("EntityConnectionID").toString())
           )
         )
       case None => None
     }
 
+  }
+
+  def getConnectionByName(connectionName: String): Option[Connection] = {
+    val connectionRow =
+      _connections.filter(col("EntityConnection") === connectionName).collect().headOption
+      
+    connectionRow match {
+      case Some(row) =>
+        Some(
+          new Connection(
+            _metadata,
+            row.getAs[Int]("EntityConnectionID").toString(),
+            row.getAs[String]("EntityConnection"),
+            Some(row.getAs[Boolean]("EntityConnectionEnabled")),
+            Map.empty[String, Any], // Settings can be fetched similar to entity settings
+            getEntities(row.getAs[Int]("EntityConnectionID").toString())
+          )
+        )
+      case None => None
+    }
   }
 
   private def getEntities(connectionCode: String): List[Entity] =
@@ -134,7 +160,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     new Environment(
       environmentRow.getAs[String]("name"),
       environmentRow.getAs[String]("root_folder"),
-      environmentRow.getAs[String]("timezone")
+      environmentRow.getAs[String]("timezone"),
+      environmentRow.getAs[String]("watermark_location")
     )
   }
 }
