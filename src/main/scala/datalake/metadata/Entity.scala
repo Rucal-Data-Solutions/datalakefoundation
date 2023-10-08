@@ -23,7 +23,7 @@ class Entity(
     processtype: String,
     watermark: List[Watermark],
     columns: List[EntityColumn],
-    settings: JsonAST.JArray
+    settings: JsonAST.JObject
 ) extends Serializable {
 
   implicit val environment:Environment = metadata.getEnvironment
@@ -64,7 +64,7 @@ class Entity(
         )
     }
 
-  def Settings: JsonAST.JArray =
+  def Settings: JsonAST.JObject =
     this.settings
 
   def getSchema: StructType =

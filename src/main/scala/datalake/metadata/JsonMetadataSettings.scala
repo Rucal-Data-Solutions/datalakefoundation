@@ -30,7 +30,7 @@ class EntitySerializer(metadata: Metadata)
             processtype = (j \ "processtype").extract[String].toLowerCase(),
             watermark = watermarkJson.extract[List[Watermark]],
             columns = (j \ "columns").extract[List[EntityColumn]],
-            settings = (j \ "settings").extract[JArray]
+            settings = (j \ "settings").extract[JObject]
           )
 
         },

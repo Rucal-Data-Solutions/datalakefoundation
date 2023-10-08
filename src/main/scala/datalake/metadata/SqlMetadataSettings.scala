@@ -56,6 +56,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     _entityColumns = spark.read.jdbc(connectionString, "cfg.EntityColumn", connectionProperties)
     _connections = spark.read.jdbc(connectionString, "cfg.EntityConnection", connectionProperties)
     _entitySettings = spark.read.jdbc(connectionString, "cfg.EntitySetting", connectionProperties)
+    _connectionSettings = spark.read.jdbc(connectionString, "cfg.EntityConnectionSetting", connectionProperties)
     _environment = spark.read.jdbc(connectionString, "cfg.Environment", connectionProperties)
     _watermark = spark.read.jdbc(connectionString, "cfg.Watermark", connectionProperties)
 
@@ -74,8 +75,9 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     val entitySettings = _entitySettings
       .filter(col("EntityID") === id)
       .collect()
-      .map(r => (r.getAs[String]("Name"), r.getAs[String]("Value")))
-      .toMap
+      .map(r => JsonAST.JField(r.getAs[String]("Name"), JsonAST.JString(r.getAs[String]("Value"))))
+      .toList
+    val entitySettingsArray = JsonAST.JObject(entitySettings)
 
     val entityColumns = _entityColumns
       .filter(col("EntityID") === id)
@@ -119,11 +121,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             row.getAs[String]("EntityProcessType").toLowerCase(),
             watermark,
             entityColumns,
-            JsonAST.JArray(
-              entitySettings.toList.map(t =>
-                JsonAST.JObject(JsonAST.JField(t._1, JsonAST.JString(t._2)))
-              )
-            )
+            entitySettingsArray
           )
         )
       case None => None
@@ -143,7 +141,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             row.getAs[Int]("EntityConnectionID").toString(),
             row.getAs[String]("EntityConnection"),
             Some(row.getAs[Boolean]("EntityConnectionEnabled")),
-            Map.empty[String, Any], // Settings can be fetched similar to entity settings
+            getConnectionSettings(row.getAs[Int]("EntityConnectionID")),
             getEntities(row.getAs[Int]("EntityConnectionID").toString())
           )
         )
@@ -171,6 +169,13 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       case None => None
     }
   }
+
+  private def getConnectionSettings(connectionId: Int): Map[String, String] =
+   return _connectionSettings
+      .filter(col("EntityConnectionID") === connectionId.toString())
+      .collect()
+      .map(r => r.getAs[String]("Name")-> r.getAs[String]("Value"))
+      .toMap
 
   private def getEntities(connectionCode: String): List[Entity] =
     _entities

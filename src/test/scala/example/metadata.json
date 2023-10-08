@@ -64,19 +64,17 @@
 					]
 				}
 			],
-			"settings": [
-				{
-					"schema": "dbo",
-					"table": "test_zaak",
-					"frequency": {
-						"interval": "weekly",
-						"value": [
-							"Sat"
-						]
-					},
-					"type": "test"
-				}
-			]
+			"settings": {
+				"schema": "dbo",
+				"table": "test_zaak",
+				"frequency": {
+					"interval": "weekly",
+					"value": [
+						"Sat"
+					]
+				},
+				"type": "test"
+			}
 		},
 		{
 			"id": 2,
@@ -98,7 +96,8 @@
 					"name": "id",
 					"datatype": "integer",
 					"fieldroles": [
-						"businesskey", "data"
+						"businesskey",
+						"data"
 					]
 				},
 				{
@@ -117,17 +116,15 @@
 					]
 				}
 			],
-			"settings": [
-				{
-					"frequency": {
-						"interval": "weekly",
-						"value": [
-							"Sat"
-						]
-					},
-					"type": "test"
-				}
-			]
+			"settings": {
+				"frequency": {
+					"interval": "weekly",
+					"value": [
+						"Sat"
+					]
+				},
+				"type": "test"
+			}
 		}
 	]
 }
