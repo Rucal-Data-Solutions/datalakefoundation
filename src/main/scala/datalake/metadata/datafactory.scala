@@ -10,6 +10,7 @@ object DataFactory {
 
   def watermarkFunction: PartialFunction[(String, Any), Option[(String, Any)]] = {
     case ("environment", _) => None
+    case ("entity_id", _) => None
     case ("function", f)    => Some(("function", f))
   }
 
