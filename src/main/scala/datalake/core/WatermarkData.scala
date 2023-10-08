@@ -19,9 +19,11 @@ final class WatermarkData(implicit environment: Environment)
     ) {
 
   def getLastValue(entity_id: Integer, column_name: String): Option[String] = {
+    val df: Option[DataFrame] = this.getDataFrame
+
     val lastValue: Option[String] =
       try {
-        val firstRow = this.getDataFrame
+        val firstRow = df.get
           .filter((col("entity_id") === entity_id) && (col("column_name") === column_name))
           .sort(col("timestamp").desc)
           .agg(max(col("value")).alias("last_value"))

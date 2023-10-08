@@ -55,15 +55,17 @@ final object Delta extends ProcessStrategy {
         .insertAll
         .execute()
 
+        // Write the watermark values to system table
+        val watermarkData: WatermarkData = new WatermarkData
+        val timezoneId = env.Timezone.toZoneId
+        val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+        val current_watermark = datalake_source.watermark_values.get.map( wm => Row(processing.entity_id, wm._1, timestamp_now, wm._2.toString()))
+        watermarkData.Append(current_watermark.toSeq)
+
     }
     
-    // Write the watermark values to system table
-    val watermarkData: WatermarkData = new WatermarkData
-    val timezoneId = env.Timezone.toZoneId
-    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
 
-    val current_watermark = datalake_source.watermark_values.get.map( wm => Row(processing.entity_id, wm._1, timestamp_now, wm._2.toString()))
-    watermarkData.Append(current_watermark.toSeq)
 
   }
 }

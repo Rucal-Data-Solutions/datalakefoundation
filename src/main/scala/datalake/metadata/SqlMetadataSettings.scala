@@ -31,6 +31,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
   private var _entityColumns: DataFrame = _
   private var _entitySettings: DataFrame = _
   private var _environment: DataFrame = _
+  private var _watermark: DataFrame = _
   private var _metadata: Metadata = _
 
   private val spark: SparkSession =
@@ -56,6 +57,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     _connections = spark.read.jdbc(connectionString, "cfg.EntityConnection", connectionProperties)
     _entitySettings = spark.read.jdbc(connectionString, "cfg.EntitySetting", connectionProperties)
     _environment = spark.read.jdbc(connectionString, "cfg.Environment", connectionProperties)
+    _watermark = spark.read.jdbc(connectionString, "cfg.Watermark", connectionProperties)
+
 
     _isInitialized = true
   }
@@ -64,6 +67,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     _isInitialized
 
   def getEntity(id: Int): Option[Entity] = {
+    implicit val environment: Environment = _metadata.getEnvironment
+
     val entityRow = _entities.filter(col("EntityID") === id).collect.headOption
 
     val entitySettings = _entitySettings
@@ -85,9 +90,24 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       )
       .toList
 
+      val watermark = _watermark
+        .filter(col("EntityID") === id)
+        .collect()
+        .map(r =>
+          new Watermark(
+            environment,
+            id,
+            r.getAs[String]("ColumnName"),
+            r.getAs[String]("Operation"),
+            r.getAs[Option[Integer]]("OperationGroup"),
+            r.getAs[String]("Function")
+          )
+        )
+        .toList
+
     entityRow match {
       case Some(row) =>
-        implicit val environment: Environment = _metadata.getEnvironment
+
         Some(
           new Entity(
             _metadata,
@@ -97,7 +117,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             None,
             row.getAs[Int]("EntityConnectionID").toString,
             row.getAs[String]("EntityProcessType").toLowerCase(),
-            List.empty[Watermark],
+            watermark,
             entityColumns,
             JsonAST.JArray(
               entitySettings.toList.map(t =>

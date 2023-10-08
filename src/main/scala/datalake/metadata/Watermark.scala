@@ -18,9 +18,13 @@ class Watermark(
 
   def Function: String = {
     val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
-    Utils.EvaluateText(this.function, params)
-  }
+
+    params match {
+      case Some(eval_pars) => Utils.EvaluateText(this.function, eval_pars)
+      case None => this.function
+    }
     
+  }
 
   def Column_Name: String =
     column_name
@@ -28,14 +32,15 @@ class Watermark(
 
 object Watermark {
 
-  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Map[String, String] = {
+  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Option[Map[String, String]] = {
     implicit val env: Environment = environment
     val wmd = new WatermarkData
     val lastvalue = wmd.getLastValue(entity_id, column_name)
 
     lastvalue match {
-      case Some(lv) => Map(("last_value", lv))
-      case None => Map.empty[String, String]
+      case Some(value) => Some(Map(("last_value", value)))
+      case None => None
     }
+    
   }
 }

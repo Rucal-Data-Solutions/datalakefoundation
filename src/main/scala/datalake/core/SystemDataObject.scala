@@ -47,7 +47,12 @@ class SystemDataObject(table_definition: SystemDataTable_Definition)(implicit en
     this.Append(rows)
   }
 
-  final def getDataFrame: DataFrame =
-    spark.read.format("delta").load(deltaTablePath)
+  final def getDataFrame: Option[DataFrame] =
+    try {
+      Some(spark.read.format("delta").load(deltaTablePath))
+    }
+    catch {
+      case e: Throwable => None
+    }
 
 }

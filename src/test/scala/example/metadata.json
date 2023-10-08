@@ -1,9 +1,8 @@
 {
 	"environment_settings": {
-		"name": "development",
+		"name": "Local Dev",
 		"timezone": "Europe/Amsterdam",
-		"root_folder": "D:/Datalake",
-		"watermark_folder": "D:/Datalake/log/watermark"
+		"root_folder": "D:/Datalake"
 	},
 	"connections": [
 		{
@@ -48,7 +47,23 @@
 			"enabled": true,
 			"connection": "example_1",
 			"processtype": "full",
-			"columns": [],
+			"watermark": [
+				{
+					"column_name": "id",
+					"operation": "or",
+					"operation_group": null,
+					"function": "(${last_value} - 10000)"
+				}
+			],
+			"columns": [
+				{
+					"name": "id",
+					"datatype": "integer",
+					"fieldroles": [
+						"businesskey"
+					]
+				}
+			],
 			"settings": [
 				{
 					"schema": "dbo",
@@ -70,22 +85,36 @@
 			"secure": false,
 			"connection": "test_api",
 			"processtype": "delta",
+			"watermark": [
+				{
+					"column_name": "id",
+					"operation": "or",
+					"operation_group": null,
+					"function": "(${last_value} - 10000)"
+				}
+			],
 			"columns": [
 				{
 					"name": "id",
 					"datatype": "integer",
-					"fieldrole": ["businesskey", "watermark"]
+					"fieldroles": [
+						"businesskey", "data"
+					]
 				},
 				{
 					"name": "name",
 					"datatype": "string",
-					"fieldrole": "data"
+					"fieldroles": [
+						"data"
+					]
 				},
 				{
 					"name": "dec_value",
 					"newname": "decimal_value",
 					"datatype": "decimal(38,1)",
-					"fieldrole": "data"
+					"fieldroles": [
+						"data"
+					]
 				}
 			],
 			"settings": [
