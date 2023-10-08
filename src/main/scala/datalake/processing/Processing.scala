@@ -12,20 +12,24 @@ import java.sql.Timestamp
 import io.delta.tables._
 
 import datalake.metadata._
-import datalake.implicits._
-import datalake.utils._
+import datalake.core.implicits._
 import org.apache.spark.sql.SaveMode
+import datalake.core.Utils
 
 trait ProcessStrategy {
   def process(processing: Processing)
 }
 
+case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]])
+
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
   val environment = entity.Environment
+  val entity_id = entity.Id
   val primaryKeyColumnName: String = s"PK_${entity.Name}"
   val columns = entity.Columns
   val paths = entity.getPaths
+  val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
   val sliceFileFullPath: String = s"${paths.BronzePath}/${sliceFile}"
   val destination: String = paths.SilverPath
 
@@ -38,10 +42,9 @@ class Processing(entity: Entity, sliceFile: String) {
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  def getSource(): DataFrame = {
+  def getSource: DatalakeSource = {
 
     println(f"loading slice: ${sliceFileFullPath}")
-    
     var dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
     val timezoneId = environment.Timezone.toZoneId
@@ -57,7 +60,7 @@ class Processing(entity: Entity, sliceFile: String) {
 
     // Check PK in slice, add if it doesnt exits.
     if (primaryKeyColumnName != null && Utils.hasColumn(dfSlice, primaryKeyColumnName) == false) {
-      val pkColumns = List(entity.getBusinessKey() map col: _*)
+      val pkColumns = List(entity.getBusinessKey map col: _*)
       dfSlice = dfSlice.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
     }
 
@@ -68,6 +71,11 @@ class Processing(entity: Entity, sliceFile: String) {
         col(s"`${column.Name}`").cast(column.DataType)
       )
     }
+
+    val watermark_values = if (watermarkColumns.nonEmpty) 
+      Some(watermarkColumns.map(colName => (colName, dfSlice.agg(max(colName)).head().get(0))))
+    else
+      None
 
     // Rename columns that need renaming
     dfSlice = dfSlice.select(
@@ -82,7 +90,7 @@ class Processing(entity: Entity, sliceFile: String) {
     // finaly, add lastseen date
     dfSlice = dfSlice.withColumn("lastSeen", to_timestamp(lit(now.toString)))
 
-    dfSlice
+    new DatalakeSource(dfSlice, watermark_values)
   }
 
   def process(stategy: ProcessStrategy = entity.ProcessType) {

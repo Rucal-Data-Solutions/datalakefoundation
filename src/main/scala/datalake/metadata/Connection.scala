@@ -1,7 +1,7 @@
 package datalake.metadata
 
 import datalake.processing._
-import datalake.utils._
+import datalake.core._
 import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._

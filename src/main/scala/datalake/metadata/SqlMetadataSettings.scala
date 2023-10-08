@@ -13,6 +13,8 @@ import org.json4s.JsonAST
 import org.apache.spark.sql.{ Encoder, Encoders }
 import org.apache.avro.data.Json
 import org.apache.jute.compiler.JString
+import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.AsyncProcessor.list_roles
+import org.apache.spark.sql.execution.streaming.WatermarkSupport
 
 case class SqlServerSettings(
     server: String,
@@ -85,6 +87,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
 
     entityRow match {
       case Some(row) =>
+        implicit val environment: Environment = _metadata.getEnvironment
         Some(
           new Entity(
             _metadata,
@@ -94,6 +97,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             None,
             row.getAs[Int]("EntityConnectionID").toString,
             row.getAs[String]("EntityProcessType").toLowerCase(),
+            List.empty[Watermark],
             entityColumns,
             JsonAST.JArray(
               entitySettings.toList.map(t =>
@@ -160,8 +164,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     new Environment(
       environmentRow.getAs[String]("name"),
       environmentRow.getAs[String]("root_folder"),
-      environmentRow.getAs[String]("timezone"),
-      environmentRow.getAs[String]("watermark_location")
+      environmentRow.getAs[String]("timezone")
     )
   }
 }

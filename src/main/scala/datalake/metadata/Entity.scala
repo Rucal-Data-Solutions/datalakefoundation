@@ -1,7 +1,6 @@
 package datalake.metadata
 
 import datalake.processing._
-import datalake.utils._
 import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -10,8 +9,9 @@ import org.apache.spark.sql.types._
 import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
-import scala.tools.cmd.Meta
-import org.apache.arrow.flatbuf.Bool
+import org.apache.commons.lang.NotImplementedException
+import datalake.processing.ProcessStrategy
+import datalake.core.Utils
 
 class Entity(
     metadata: Metadata,
@@ -21,9 +21,12 @@ class Entity(
     secure: Option[Boolean],
     connection: String,
     processtype: String,
+    watermark: List[Watermark],
     columns: List[EntityColumn],
     settings: JsonAST.JArray
 ) extends Serializable {
+
+  implicit val environment:Environment = metadata.getEnvironment
 
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
@@ -40,15 +43,17 @@ class Entity(
   def Secure: Boolean =
     this.secure.getOrElse(false)
 
-  def Connection: Connection = {
+  def Connection: Connection =
     metadata.getConnection(this.connection)
-  }
 
-  def Environment:Environment =
+  def Environment: Environment =
     metadata.getEnvironment
 
   def Columns: List[EntityColumn] =
     this.columns
+
+  def Watermark: List[Watermark] =
+    this.watermark
 
   def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
@@ -67,8 +72,7 @@ class Entity(
       this.columns.map(row => StructField(row.Name, row.DataType, true))
     )
 
-  def getPaths(): Paths = {
-    val env: Environment = metadata.getEnvironment
+  def getPaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
@@ -76,7 +80,7 @@ class Entity(
     val _connection = this.Connection
     val _securehandling = this.Secure
 
-    val root_folder: String = env.RootFolder
+    val root_folder: String = environment.RootFolder
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
     val silverPath = new StringBuilder(s"$root_folder/silver")
 
@@ -122,15 +126,20 @@ class Entity(
     return Paths(retBronzePath, retSilverPath)
   }
 
-  def getBusinessKey(): Array[String] =
+  def getBusinessKey: Array[String] = {
     this.columns
       .filter(c => c.FieldRoles.contains("businesskey"))
-      .map(column => column.Name())
+      .map(column => column.Name)
       .toArray
+  }
 
   def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
       .filter(c => c.NewName != "")
       .map(c => (c.Name, c.NewName))
       .toMap
+
+  def getWatermark: Unit =
+    throw new NotImplementedException
+
 }

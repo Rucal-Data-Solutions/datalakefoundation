@@ -10,9 +10,9 @@ import java.time.format.DateTimeFormatter
 import java.sql.Timestamp
 import io.delta.tables._
 import datalake.metadata._
-import datalake.implicits._
-import datalake.utils._
+import datalake.core.implicits._
 import org.apache.spark.sql.SaveMode
+import datalake.core.FileOperations
 
 final object Full extends ProcessStrategy {
 
@@ -21,7 +21,7 @@ final object Full extends ProcessStrategy {
   import spark.implicits._
 
   def process(processing: Processing) {
-    val source: DataFrame = processing.getSource()
+    val source: DataFrame = processing.getSource.source
     FileOperations.remove(processing.destination, true)
     source.write.format("delta").mode(SaveMode.Overwrite).save(processing.destination)
   }
