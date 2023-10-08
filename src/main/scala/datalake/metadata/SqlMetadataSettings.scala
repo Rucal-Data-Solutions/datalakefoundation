@@ -30,6 +30,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
   private var _entities: DataFrame = _
   private var _entityColumns: DataFrame = _
   private var _entitySettings: DataFrame = _
+  private var _connectionSettings: DataFrame = _
   private var _environment: DataFrame = _
   private var _watermark: DataFrame = _
   private var _metadata: Metadata = _
