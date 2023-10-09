@@ -8,10 +8,10 @@ import org.json4s.jackson.Serialization.{ read, write }
 
 object DataFactory {
 
-  def watermarkFunction: PartialFunction[(String, Any), Option[(String, Any)]] = {
+  private def watermarkFunction: PartialFunction[(String, Any), Option[(String, Any)]] = {
     case ("environment", _) => None
     case ("entity_id", _) => None
-    case ("function", f)    => Some(("function", f))
+    case ("function", f) => Some(("function", f))
   }
 
   def getConfigItems(connection: Connection): String = {

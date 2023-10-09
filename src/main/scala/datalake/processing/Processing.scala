@@ -1,9 +1,8 @@
 package datalake.processing
 
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{ DataFrame, Column }
+import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession }
 
 import java.util.TimeZone
 import java.time.LocalDateTime
@@ -11,10 +10,10 @@ import java.time.format.DateTimeFormatter
 import java.sql.Timestamp
 import io.delta.tables._
 
+import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
-import org.apache.spark.sql.SaveMode
-import datalake.core.Utils
+
 
 trait ProcessStrategy {
   def process(processing: Processing)
@@ -24,7 +23,7 @@ case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Stri
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
-  val environment = entity.Environment
+  implicit val environment = entity.Environment
   val entity_id = entity.Id
   val primaryKeyColumnName: String = s"PK_${entity.Name}"
   val columns = entity.Columns
@@ -71,7 +70,7 @@ class Processing(entity: Entity, sliceFile: String) {
         col(s"`${column.Name}`").cast(column.DataType)
       )
     }
-
+    
     val watermark_values = if (watermarkColumns.nonEmpty) 
       Some(watermarkColumns.map(colName => (colName, dfSlice.agg(max(colName)).head().get(0))))
     else
@@ -93,9 +92,25 @@ class Processing(entity: Entity, sliceFile: String) {
     new DatalakeSource(dfSlice, watermark_values)
   }
 
+  def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit ={
+    // Write the watermark values to system table
+    val watermarkData: WatermarkData = new WatermarkData
+    val timezoneId = environment.Timezone.toZoneId
+    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+    val current_watermark = watermark_values match {
+      case Some(watermarkList) =>
+        val data = watermarkList.map(wm => Row(entity_id, wm._1, timestamp_now, wm._2.toString()))
+        watermarkData.Append(data.toSeq)
+      case None => println("no watermark defined")
+    }
+  }
+
   def process(stategy: ProcessStrategy = entity.ProcessType) {
     stategy.process(this)
   }
+
+  
 }
 
 

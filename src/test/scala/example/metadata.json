@@ -47,14 +47,6 @@
 			"enabled": true,
 			"connection": "example_1",
 			"processtype": "full",
-			"watermark": [
-				{
-					"column_name": "id",
-					"operation": "or",
-					"operation_group": null,
-					"function": "(${last_value} - 10000)"
-				}
-			],
 			"columns": [
 				{
 					"name": "id",
@@ -88,7 +80,7 @@
 					"column_name": "id",
 					"operation": "or",
 					"operation_group": null,
-					"function": "(${last_value} - 10000)"
+					"function": "(${last_value} - 5)"
 				}
 			],
 			"columns": [
