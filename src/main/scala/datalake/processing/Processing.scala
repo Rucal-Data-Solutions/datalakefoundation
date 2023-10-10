@@ -63,6 +63,11 @@ class Processing(entity: Entity, sliceFile: String) {
       dfSlice = dfSlice.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
     }
 
+    val watermark_values = if (watermarkColumns.nonEmpty) 
+      Some(watermarkColumns.map(colName => (colName, dfSlice.agg(max(colName)).head().get(0))))
+    else
+      None
+
     // Cast all columns according to metadata (if available)
     dfSlice = columns.foldLeft(dfSlice) { (tempdf, column) =>
       tempdf.withColumn(
@@ -70,11 +75,6 @@ class Processing(entity: Entity, sliceFile: String) {
         col(s"`${column.Name}`").cast(column.DataType)
       )
     }
-    
-    val watermark_values = if (watermarkColumns.nonEmpty) 
-      Some(watermarkColumns.map(colName => (colName, dfSlice.agg(max(colName)).head().get(0))))
-    else
-      None
 
     // Rename columns that need renaming
     dfSlice = dfSlice.select(
