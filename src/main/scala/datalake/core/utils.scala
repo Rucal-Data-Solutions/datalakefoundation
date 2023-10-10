@@ -31,7 +31,7 @@ object FileOperations {
   import spark.implicits._
 
   // Create Hadoop Configuration from Spark
-  val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+  private val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
   def remove(path: Path, force: Boolean) {
     // To Delete File
@@ -53,4 +53,5 @@ object FileOperations {
     val _path = new Path(path)
     fs.exists(_path)
   }
+
 }
