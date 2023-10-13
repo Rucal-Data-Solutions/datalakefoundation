@@ -13,8 +13,7 @@ import org.json4s.JsonAST
 import org.apache.spark.sql.{ Encoder, Encoders }
 import org.apache.avro.data.Json
 import org.apache.jute.compiler.JString
-import org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.AsyncProcessor.list_roles
-import org.apache.spark.sql.execution.streaming.WatermarkSupport
+
 
 case class SqlServerSettings(
     server: String,
