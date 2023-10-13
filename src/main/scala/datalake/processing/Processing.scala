@@ -16,7 +16,7 @@ import datalake.core.implicits._
 
 
 trait ProcessStrategy {
-  def process(processing: Processing)
+  def process(processing: Processing): Unit
 }
 
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]])
@@ -106,7 +106,7 @@ class Processing(entity: Entity, sliceFile: String) {
     }
   }
 
-  def process(stategy: ProcessStrategy = entity.ProcessType) {
+  def process(stategy: ProcessStrategy = entity.ProcessType): Unit = {
     stategy.process(this)
   }
 

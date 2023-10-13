@@ -102,7 +102,10 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             id,
             r.getAs[String]("ColumnName"),
             r.getAs[String]("Operation"),
-            r.getAs[Option[Integer]]("OperationGroup"),
+            r.getAs[Integer]("OperationGroup") match {
+              case value: Integer => Some(value)
+              case _ => None
+            },
             r.getAs[String]("Function")
           )
         )

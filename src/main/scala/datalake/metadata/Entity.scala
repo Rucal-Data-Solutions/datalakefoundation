@@ -1,17 +1,23 @@
 package datalake.metadata
 
+import datalake.core._
 import datalake.processing._
+
 import java.util.TimeZone
+import scala.util.Try
+import scala.reflect.runtime._
+
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
-import scala.util.Try
-import scala.reflect.runtime._
-import org.json4s.JsonAST
-import org.apache.commons.lang.NotImplementedException
-import datalake.processing.ProcessStrategy
-import datalake.core.Utils
+
+
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+
+
+
 
 class Entity(
     metadata: Metadata,
@@ -23,7 +29,7 @@ class Entity(
     processtype: String,
     watermark: List[Watermark],
     columns: List[EntityColumn],
-    settings: JsonAST.JObject
+    settings: JObject
 ) extends Serializable {
 
   implicit val environment:Environment = metadata.getEnvironment
@@ -64,7 +70,7 @@ class Entity(
         )
     }
 
-  def Settings: JsonAST.JObject =
+  def Settings: JObject =
     this.settings
 
   def getSchema: StructType =
@@ -140,6 +146,36 @@ class Entity(
       .toMap
 
   def getWatermark: Unit =
-    throw new NotImplementedException
+    throw new org.apache.commons.lang.NotImplementedException
 
 }
+
+class EntitySerializer(metadata: Metadata)
+    extends CustomSerializer[Entity](implicit formats =>
+      (
+        { case j: JObject =>
+          val entity_id = (j \ "id").extract[Int]
+          val watermarkJson = (j \ "watermark") map {
+            case JObject(fields) => JObject(("entity_id", JInt(entity_id)) :: fields)
+            case other           => other
+          }
+
+          new Entity(
+            metadata = metadata,
+            id = entity_id,
+            name = (j \ "name").extract[String].toLowerCase(),
+            enabled = (j \ "enabled").extract[Boolean],
+            secure = (j \ "secure").extract[Option[Boolean]],
+            connection = (j \ "connection").extract[String],
+            processtype = (j \ "processtype").extract[String].toLowerCase(),
+            watermark = watermarkJson.extract[List[Watermark]],
+            columns = (j \ "columns").extract[List[EntityColumn]],
+            settings = (j \ "settings").extract[JObject]
+          )
+
+        },
+        { case _: Entity =>
+          JObject()
+        }
+      )
+    )

@@ -9,74 +9,7 @@ import org.json4s.jackson.JsonMethods._
 import scala.reflect.runtime.universe._
 import java.io.File
 
-class EntitySerializer(metadata: Metadata)
-    extends CustomSerializer[Entity](implicit formats =>
-      (
-        { case j: JObject =>
-          val entity_id = (j \ "id").extract[Int]          
-          val watermarkJson = (j \ "watermark") map {
-            case JObject(fields) => JObject(("entity_id", JInt(entity_id)) :: fields)
-            case other => other
-          }
 
-
-          new Entity(
-            metadata = metadata,
-            id = entity_id,
-            name = (j \ "name").extract[String].toLowerCase(),
-            enabled = (j \ "enabled").extract[Boolean],
-            secure = (j \ "secure").extract[Option[Boolean]],
-            connection = (j \ "connection").extract[String],
-            processtype = (j \ "processtype").extract[String].toLowerCase(),
-            watermark = watermarkJson.extract[List[Watermark]],
-            columns = (j \ "columns").extract[List[EntityColumn]],
-            settings = (j \ "settings").extract[JObject]
-          )
-
-        },
-        { case _: Entity =>
-          JObject()
-        }
-      )
-    )
-
-class WatermarkSerializer(metadata: Metadata)
-    extends CustomSerializer[Watermark](implicit formats =>
-      (
-        { case j: JObject =>
-          new Watermark(
-            metadata.getEnvironment,
-            (j \ "entity_id").extract[Integer],
-            (j \ "column_name").extract[String],
-            (j \ "operation").extract[String],
-            (j \ "operation_group").extract[Option[Integer]],
-            (j \ "function").extract[String]
-          )
-        },
-        { case _: Watermark =>
-          JObject()
-        }
-      )
-    )
-
-class ConnectionSerializer(metadata: Metadata, entities: List[Entity])
-    extends CustomSerializer[Connection](implicit formats =>
-      (
-        { case j: JObject =>
-          new Connection(
-            metadata = metadata,
-            code = (j \ "name").extract[String],
-            name = (j \ "name").extract[String].toLowerCase(),
-            enabled = (j \ "enabled").extract[Option[Boolean]],
-            settings = (j \ "settings").extract[Map[String, Any]],
-            entities = entities
-          )
-        },
-        { case _: Connection =>
-          JObject()
-        }
-      )
-    )
 
 class JsonMetadataSettings extends DatalakeMetadataSettings {
   private var _isInitialized: Boolean = false
@@ -123,7 +56,8 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
   }
 
   private def getEntities(connectionName: String): List[Entity] = {
-    implicit var formats: Formats = DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
     _entities
       .filter(e => (e \ "connection").extract[String] == connectionName)
       .map(j => j.extract[Entity])

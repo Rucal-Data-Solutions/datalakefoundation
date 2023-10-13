@@ -3,6 +3,8 @@ package datalake.metadata
 import scala.tools.reflect._
 import scala.reflect.runtime._
 import datalake.core._
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
 
 class Watermark(
     environment: Environment,
@@ -23,11 +25,17 @@ class Watermark(
       case Some(eval_pars) => Utils.EvaluateText(this.function, eval_pars)
       case None => this.function
     }
-    
   }
 
   def Column_Name: String =
     column_name
+
+  def Operation: String = 
+    operation
+
+  def OperationGroup: Option[Integer] =
+    operation_group
+
 }
 
 object Watermark {
@@ -44,3 +52,33 @@ object Watermark {
     
   }
 }
+
+class WatermarkSerializer(metadata: Metadata)
+    extends CustomSerializer[Watermark](implicit formats =>
+      (
+        { case j: JObject =>
+          new Watermark(
+            metadata.getEnvironment,
+            (j \ "entity_id").extract[Integer],
+            (j \ "column_name").extract[String],
+            (j \ "operation").extract[String],
+            (j \ "operation_group").extract[Option[Integer]],
+            (j \ "function").extract[String]
+          )
+        },
+        { case wm: Watermark =>
+          JObject(
+            JField("column_name", JString(wm.Column_Name)),
+            JField("operation", JString(wm.Operation)),
+            JField(
+              "operation_group",
+              wm.OperationGroup match {
+                case Some(value) => JInt(BigInt(value))
+                case None        => JNull
+              }
+            ),
+            JField("function", JString(wm.Function))
+          )
+        }
+      )
+    )
