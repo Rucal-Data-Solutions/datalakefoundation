@@ -1,7 +1,7 @@
 package datalake.metadata
 
+import datalake.core._
 import datalake.processing._
-import datalake.utils._
 import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -11,7 +11,6 @@ import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
 import scala.tools.cmd.Meta
-import org.apache.arrow.flatbuf.Bool
 
 class EntityColumn(
     name: String,
@@ -23,7 +22,7 @@ class EntityColumn(
   override def toString(): String =
     this.name
 
-  def Name(): String =
+  def Name: String =
     this.name
 
   def NewName: String =

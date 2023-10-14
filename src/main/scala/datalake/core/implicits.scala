@@ -1,13 +1,11 @@
 // Databricks notebook source
-package datalake
+package datalake.core
 
 // import org.apache.spark.sql.SparkSession
 // private val spark: SparkSession = SparkSession.builder.enableHiveSupport().getOrCreate()
 import org.apache.spark.sql.{ DataFrame, Dataset, Row }
 import org.apache.spark.sql.{ DataFrameWriter, DataFrameReader }
 import java.time.LocalDateTime
-
-final class LockTimeout(message: String) extends Exception(message)
 
 object implicits {
 

@@ -1,4 +1,4 @@
-package datalake.utils
+package datalake.core
 
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.SparkSession
@@ -15,14 +15,10 @@ object Utils {
 
   def EvaluateText(value: String, params: Map[String, String]): String = {
     val tb = currentMirror.mkToolBox()
-    val today = params.getOrElse("today", "")
-    val entity = params.getOrElse("entity", "")
-
-    val code = s""" val today = s"${today}"
-                    val entity = s"${entity}"
+    val vals = params.map(p => s"val ${p._1} = " + "\"" + p._2 + "\"").mkString("\n")
+    val code = s"""${vals}
                     s"${value}" 
-                """
-
+                    """
     tb.eval(tb.parse(code)).asInstanceOf[String]
   }
 
@@ -35,7 +31,7 @@ object FileOperations {
   import spark.implicits._
 
   // Create Hadoop Configuration from Spark
-  val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+  private val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
   def remove(path: Path, force: Boolean) {
     // To Delete File
@@ -57,4 +53,5 @@ object FileOperations {
     val _path = new Path(path)
     fs.exists(_path)
   }
+
 }

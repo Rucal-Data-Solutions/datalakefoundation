@@ -3,16 +3,15 @@ package datalake.processing
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{ DataFrame, Column }
+import org.apache.spark.sql.{ DataFrame, Column, Row }
+
 import java.util.TimeZone
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.sql.Timestamp
 import io.delta.tables._
-import datalake.metadata._
-import datalake.implicits._
-import datalake.utils._
 import org.apache.spark.sql.SaveMode
+
+import datalake.core._
+import datalake.metadata._
 
 final object Full extends ProcessStrategy {
 
@@ -21,8 +20,14 @@ final object Full extends ProcessStrategy {
   import spark.implicits._
 
   def process(processing: Processing) {
-    val source: DataFrame = processing.getSource()
+    implicit val env: Environment = processing.environment
+
+    val datalake_source = processing.getSource
+    val source: DataFrame = datalake_source.source
+
     FileOperations.remove(processing.destination, true)
     source.write.format("delta").mode(SaveMode.Overwrite).save(processing.destination)
+
+    processing.WriteWatermark(datalake_source.watermark_values)
   }
 }

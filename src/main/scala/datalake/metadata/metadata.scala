@@ -1,7 +1,7 @@
 package datalake.metadata
 
+import datalake.core._
 import datalake.processing._
-import datalake.utils._
 
 import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
@@ -13,10 +13,6 @@ import scala.reflect.runtime._
 import org.json4s.JsonAST
 import scala.tools.cmd.Meta
 import org.apache.arrow.flatbuf.Bool
-
-// import org.apache.arrow.flatbuf.Bool
-// import org.json4s._
-// import org.json4s.jackson.JsonMethods._
 
 
 case class Paths(BronzePath: String, SilverPath: String) extends Serializable
@@ -37,6 +33,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
   }
 
   metadataSettings.setMetadata(this)
+  implicit val environment: Environment = metadataSettings.getEnvironment
 
   def getEntity(id: Int): Entity = {
     val entity = metadataSettings.getEntity(id)
@@ -66,5 +63,6 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     val environment = metadataSettings.getEnvironment
     environment
   }
+
 
 }

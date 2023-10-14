@@ -27,7 +27,7 @@ object DatalakeApp {
 
     val metadatasettings = new SqlMetadataSettings()
 
-    val metadata = new Metadata(metadatasettings)
+    implicit val metadata = new Metadata(metadatasettings)
 
     val connection = metadata.getConnection("1")
     val dfItems = DataFactory.getConfigItems(connection)

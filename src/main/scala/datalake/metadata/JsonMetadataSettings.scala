@@ -1,53 +1,15 @@
 package datalake.metadata
 
-import java.io.File
+import datalake.core._
+
 import org.json4s._
+import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
+
 import scala.reflect.runtime.universe._
-import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JObject
-import java.awt
+import java.io.File
 
-class EntityDeserializer(metadata: Metadata)
-    extends CustomSerializer[Entity](implicit formats =>
-      (
-        { case j: JObject =>
-          new Entity(
-            metadata = metadata,
-            id = (j \ "id").extract[Int],
-            name = (j \ "name").extract[String].toLowerCase(),
-            enabled = (j \ "enabled").extract[Boolean],
-            secure = (j \ "secure").extract[Option[Boolean]],
-            connection = (j \ "connection").extract[String],
-            processtype = (j \ "processtype").extract[String].toLowerCase(),
-            columns = (j \ "columns").extract[List[EntityColumn]],
-            settings = (j \ "settings").extract[JArray]
-          )
-        },
-        { case _: Entity =>
-          JObject()
-        }
-      )
-    )
 
-class ConnectionDeserializer(metadata: Metadata, entities: List[Entity])
-    extends CustomSerializer[Connection](implicit formats =>
-      (
-        { case j: JObject =>
-          new Connection(
-            metadata = metadata,
-            code = (j \ "name").extract[String],
-            name = (j \ "name").extract[String].toLowerCase(),
-            enabled = (j \ "enabled").extract[Option[Boolean]],
-            settings = (j \ "settings").extract[Map[String, Any]],
-            entities = entities
-          )
-        },
-        { case _: Connection =>
-          JObject()
-        }
-      )
-    )
 
 class JsonMetadataSettings extends DatalakeMetadataSettings {
   private var _isInitialized: Boolean = false
@@ -87,13 +49,15 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
     _isInitialized
 
   def getEntity(id: Int): Option[Entity] = {
-    implicit var formats: Formats = DefaultFormats + new EntityDeserializer(_metadata)
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
     val entity = _entities.find(j => (j \ "id").extract[Int] == id).map(j => j.extract[Entity])
     entity
   }
 
   private def getEntities(connectionName: String): List[Entity] = {
-    implicit var formats: Formats = DefaultFormats + new EntityDeserializer(_metadata)
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
     _entities
       .filter(e => (e \ "connection").extract[String] == connectionName)
       .map(j => j.extract[Entity])
@@ -102,18 +66,22 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
   def getConnection(connectionCode: String): Option[Connection] = {
     val _entities = getEntities(connectionCode)
     implicit var formats: Formats =
-      DefaultFormats + new ConnectionDeserializer(_metadata, _entities)
+      DefaultFormats + new ConnectionSerializer(_metadata, _entities)
     val connection =
-      _connections.find(j => (j \ "name").extract[String] == connectionCode).map(j => j.extract[Connection])
+      _connections
+        .find(j => (j \ "name").extract[String] == connectionCode)
+        .map(j => j.extract[Connection])
     connection
   }
 
   def getConnectionByName(connectionName: String): Option[Connection] = {
     val _entities = getEntities(connectionName)
     implicit var formats: Formats =
-      DefaultFormats + new ConnectionDeserializer(_metadata, _entities)
+      DefaultFormats + new ConnectionSerializer(_metadata, _entities)
     val connection =
-      _connections.find(j => (j \ "name").extract[String] == connectionName).map(j => j.extract[Connection])
+      _connections
+        .find(j => (j \ "name").extract[String] == connectionName)
+        .map(j => j.extract[Connection])
     connection
   }
 

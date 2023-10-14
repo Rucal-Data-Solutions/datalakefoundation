@@ -1,17 +1,22 @@
 package datalake.metadata
 
+import datalake.core._
 import datalake.processing._
-import datalake.utils._
+
 import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
+
 import scala.util.Try
 import scala.reflect.runtime._
+
 import org.json4s.JsonAST
-import scala.tools.cmd.Meta
-import org.apache.arrow.flatbuf.Bool
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+
+
 
 class Connection(
     metadata: Metadata,
@@ -49,3 +54,22 @@ class Connection(
     this.entities
   } 
 }
+
+class ConnectionSerializer(metadata: Metadata, entities: List[Entity])
+    extends CustomSerializer[Connection](implicit formats =>
+      (
+        { case j: JObject =>
+          new Connection(
+            metadata = metadata,
+            code = (j \ "name").extract[String],
+            name = (j \ "name").extract[String].toLowerCase(),
+            enabled = (j \ "enabled").extract[Option[Boolean]],
+            settings = (j \ "settings").extract[Map[String, Any]],
+            entities = entities
+          )
+        },
+        { case _: Connection =>
+          JObject()
+        }
+      )
+    )

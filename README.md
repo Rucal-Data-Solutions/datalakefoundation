@@ -1,6 +1,6 @@
 # Datalake Foundation
 
-Datalake Foundation is a library to process data, making it ready for transformation (your business logic)
+Datalake Foundation is a library to process data, making it ready for transformation (your business logic), it is founded on DataLakehouse principals, therefor fits perfect within DataLakehouse architecture. 
 It takes a data slice (parquet) from bronze and processes the data according to the config (Metadata)
 
 Features that are implemented:

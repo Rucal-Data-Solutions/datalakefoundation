@@ -9,10 +9,16 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.sql.Timestamp
 import io.delta.tables._
-import datalake.metadata._
-import datalake.implicits._
-import datalake.utils._
+
+import datalake.core._
+import datalake.core.implicits._
+
 import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.Now
+import datalake.core.FileOperations
+import org.apache.hadoop.shaded.org.apache.commons.net.ntp.TimeStamp
+import datalake.metadata.Environment
 
 final object Delta extends ProcessStrategy {
 
@@ -22,7 +28,10 @@ final object Delta extends ProcessStrategy {
   spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "false")
 
   def process(processing: Processing) = {
-    val source: DataFrame = processing.getSource()
+    implicit val env:Environment = processing.environment
+
+    val datalake_source = processing.getSource
+    val source: DataFrame = datalake_source.source
 
     // first time? Do A full load
     if (FileOperations.exists(processing.destination) == false) {
@@ -46,7 +55,10 @@ final object Delta extends ProcessStrategy {
         .insertAll
         .execute()
 
+        processing.WriteWatermark(datalake_source.watermark_values)
     }
+    
+
 
   }
 }
