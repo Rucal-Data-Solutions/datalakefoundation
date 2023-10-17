@@ -87,7 +87,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
           r.getAs[String]("ColumnName"),
           Some(r.getAs[String]("NewColumnName")),
           r.getAs[String]("DataType"),
-          r.getAs[String]("FieldRoles").split(",")
+          r.getAs[String]("FieldRoles").split(","),
+          r.getAs[String]("Formula")
         )
       )
       .toList

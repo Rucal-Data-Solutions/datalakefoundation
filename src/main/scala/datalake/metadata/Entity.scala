@@ -57,6 +57,11 @@ class Entity(
 
   def Columns: List[EntityColumn] =
     this.columns
+  
+  def Columns(fieldrole: String*): List[EntityColumn]={
+    this.columns
+      .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
+  }
 
   def Watermark: List[Watermark] =
     this.watermark
@@ -133,8 +138,7 @@ class Entity(
   }
 
   def getBusinessKey: Array[String] = {
-    this.columns
-      .filter(c => c.FieldRoles.contains("businesskey"))
+    this.Columns("businesskey")
       .map(column => column.Name)
       .toArray
   }
@@ -144,9 +148,6 @@ class Entity(
       .filter(c => c.NewName != "")
       .map(c => (c.Name, c.NewName))
       .toMap
-
-  def getWatermark: Unit =
-    throw new org.apache.commons.lang.NotImplementedException
 
 }
 

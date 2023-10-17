@@ -57,9 +57,13 @@ class Processing(entity: Entity, sliceFile: String) {
       )
     }
 
+    //Add Calculated columns
+    val calc_cols = entity.Columns("calculated")
+    dfSlice = calc_cols.foldLeft(dfSlice) { (tempdf, ec) => tempdf.withColumn(ec.Name, lit(ec.Formula)) }
+
     // Check PK in slice, add if it doesnt exits.
     if (primaryKeyColumnName != null && Utils.hasColumn(dfSlice, primaryKeyColumnName) == false) {
-      val pkColumns = List(entity.getBusinessKey map col: _*)
+      val pkColumns = entity.Columns("businesskey").map(c => col(c.Name))
       dfSlice = dfSlice.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
     }
 
