@@ -43,6 +43,10 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     }
   }
 
+  def getConnectionEntities(connection: Connection): List[Entity] = {
+    metadataSettings.getConnectionEntities(connection)
+  }
+
   def getConnection(connectionCode: String): Connection = {
     val connection = metadataSettings.getConnection(connectionCode)
     connection match {

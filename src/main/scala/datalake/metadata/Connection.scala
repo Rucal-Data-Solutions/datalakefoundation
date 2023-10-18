@@ -23,8 +23,7 @@ class Connection(
     code: String,
     name: String,
     enabled: Option[Boolean],
-    settings: Map[String, Any],
-    entities: List[Entity]
+    settings: Map[String, Any]
 ) {
 
   override def toString(): String =
@@ -51,11 +50,11 @@ class Connection(
     }
   }
   def getEntities: List[Entity] = {
-    this.entities
+    metadata.getConnectionEntities(this)
   } 
 }
 
-class ConnectionSerializer(metadata: Metadata, entities: List[Entity])
+class ConnectionSerializer(metadata: Metadata)
     extends CustomSerializer[Connection](implicit formats =>
       (
         { case j: JObject =>
@@ -64,8 +63,7 @@ class ConnectionSerializer(metadata: Metadata, entities: List[Entity])
             code = (j \ "name").extract[String],
             name = (j \ "name").extract[String].toLowerCase(),
             enabled = (j \ "enabled").extract[Option[Boolean]],
-            settings = (j \ "settings").extract[Map[String, Any]],
-            entities = entities
+            settings = (j \ "settings").extract[Map[String, Any]]
           )
         },
         { case _: Connection =>

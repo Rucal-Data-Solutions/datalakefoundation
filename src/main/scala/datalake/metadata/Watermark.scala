@@ -12,18 +12,18 @@ class Watermark(
     column_name: String,
     operation: String,
     operation_group: Option[Integer],
-    function: String
+    expression: String
 ){
 
   override def toString(): String =
     s"${operation} ${column_name} > ${Function}"
 
-  def Function: String = {
+  def Expression: String = {
     val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
 
     params match {
-      case Some(eval_pars) => Utils.EvaluateText(this.function, eval_pars)
-      case None => this.function
+      case Some(eval_pars) => Utils.EvaluateText(this.expression, eval_pars)
+      case None => s"No parameters for: ${this.expression}"
     }
   }
 
@@ -63,7 +63,7 @@ class WatermarkSerializer(metadata: Metadata)
             (j \ "column_name").extract[String],
             (j \ "operation").extract[String],
             (j \ "operation_group").extract[Option[Integer]],
-            (j \ "function").extract[String]
+            (j \ "expression").extract[String]
           )
         },
         { case wm: Watermark =>
@@ -77,7 +77,7 @@ class WatermarkSerializer(metadata: Metadata)
                 case None        => JNull
               }
             ),
-            JField("function", JString(wm.Function))
+            JField("expression", JString(wm.Expression))
           )
         }
       )
