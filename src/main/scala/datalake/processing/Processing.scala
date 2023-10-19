@@ -2,7 +2,8 @@ package datalake.processing
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession }
+import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
+import scala.util.{Try, Success, Failure}
 
 import java.util.TimeZone
 import java.time.LocalDateTime
@@ -44,55 +45,91 @@ class Processing(entity: Entity, sliceFile: String) {
   def getSource: DatalakeSource = {
 
     println(f"loading slice: ${sliceFileFullPath}")
-    var dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
+    val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
-    val timezoneId = environment.Timezone.toZoneId
-    val now = LocalDateTime.now(timezoneId)
-
-    // Check for HashColumn(SourceHash) in slice and add if it doesnt exits. (This must come first, the rest of fields are calculated)
-    if (Utils.hasColumn(dfSlice, "SourceHash") == false) {
-      dfSlice = dfSlice.withColumn(
-        "SourceHash",
-        sha2(concat_ws("", dfSlice.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
-      )
-    }
-
-    // Check PK in slice, add if it doesnt exits.
-    if (primaryKeyColumnName != null && Utils.hasColumn(dfSlice, primaryKeyColumnName) == false) {
-      val pkColumns = List(entity.getBusinessKey map col: _*)
-      dfSlice = dfSlice.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
-    }
-
-    val watermark_values = if (watermarkColumns.nonEmpty) 
+    val watermark_values = if (watermarkColumns.nonEmpty)
       Some(watermarkColumns.map(colName => (colName, dfSlice.agg(max(colName)).head().get(0))))
     else
       None
 
-    // Cast all columns according to metadata (if available)
-    dfSlice = columns.foldLeft(dfSlice) { (tempdf, column) =>
+    val transformedDF = dfSlice
+      .transform(calculateSourceHash)
+      .transform(addCalculatedColumns)
+      .transform(addPrimaryKey)
+      .transform(castColumns)
+      .transform(renameColumns)
+      .transform(addDeletedColumn)
+      .transform(addLastSeen)
+
+    new DatalakeSource(transformedDF, watermark_values)
+  }
+
+  // Check for HashColumn(SourceHash) in slice and add if it doesnt exits. (This must come first, the rest of fields are calculated)
+  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] =
+    if (Utils.hasColumn(input, "SourceHash") == false) {
+      return input.withColumn(
+        "SourceHash",
+        sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
+      )
+    } else
+      return input
+
+  // Check PK in slice, add if it doesnt exits.
+  private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
+    if (primaryKeyColumnName != null && Utils.hasColumn(input, primaryKeyColumnName) == false) {
+      val pkColumns = entity.Columns("businesskey").map(c => col(c.Name))
+      input.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
+    } else {
+      input
+    }
+
+  // Cast all columns according to metadata (if available)
+  private def castColumns(input: Dataset[Row]): Dataset[Row] =
+    columns.foldLeft(input) { (tempdf, column) =>
       tempdf.withColumn(
         column.Name,
         col(s"`${column.Name}`").cast(column.DataType)
       )
     }
 
-    // Rename columns that need renaming
-    dfSlice = dfSlice.select(
-      dfSlice.columns.map(c => col("`" + c + "`").as(columnsToRename.getOrElse(c, c))): _*
+  // Rename columns that need renaming
+  private def renameColumns(input: Dataset[Row]): Dataset[Row] =
+    input.select(
+      input.columns.map(c => col("`" + c + "`").as(columnsToRename.getOrElse(c, c))): _*
     )
 
-    // check for the deleted column (source can identify deletes with this record) add if it doesn't exist
-    if (Utils.hasColumn(dfSlice, "deleted") == false) {
-      dfSlice = dfSlice.withColumn("deleted", lit("false").cast("Boolean"))
+  // check for the deleted column (source can identify deletes with this record) add if it doesn't exist
+  private def addDeletedColumn(input: Dataset[Row]): Dataset[Row] =
+    if (Utils.hasColumn(input, "deleted") == false) {
+      input.withColumn("deleted", lit("false").cast("Boolean"))
+    } else {
+      input
     }
 
-    // finaly, add lastseen date
-    dfSlice = dfSlice.withColumn("lastSeen", to_timestamp(lit(now.toString)))
-
-    new DatalakeSource(dfSlice, watermark_values)
+  // add lastseen date
+  private def addLastSeen(input: Dataset[Row]): Dataset[Row] = {
+    val timezoneId = environment.Timezone.toZoneId
+    val now = LocalDateTime.now(timezoneId)
+    input.withColumn("lastSeen", to_timestamp(lit(now.toString)))
   }
 
-  def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit ={
+private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] = {
+  entity.Columns("calculated").foldLeft(input) { (tempdf, column) =>
+    Try {
+      tempdf.withColumn(column.Name, expr(column.Expression).cast(StringType))
+    } match {
+      case Success(newDf) => 
+        newDf
+      case Failure(e) => 
+        // Log the error message and the failing expression
+        println(s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}")
+        // Continue processing with the DataFrame as it was before the failure
+        tempdf.withColumn(column.Name, lit("CALCULATION_ERROR"))
+    }
+  }
+}
+
+  def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
     val timezoneId = environment.Timezone.toZoneId
@@ -106,15 +143,7 @@ class Processing(entity: Entity, sliceFile: String) {
     }
   }
 
-  def process(stategy: ProcessStrategy = entity.ProcessType): Unit = {
+  def process(stategy: ProcessStrategy = entity.ProcessType): Unit =
     stategy.process(this)
-  }
 
-  
 }
-
-
-
-
-
-

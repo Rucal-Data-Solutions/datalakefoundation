@@ -19,6 +19,7 @@ trait DatalakeMetadataSettings {
   def isInitialized: Boolean
   def setMetadata(metadata: Metadata): Unit
   def getEntity(id: Int): Option[Entity]
+  def getConnectionEntities(connection: Connection): List[Entity]
   def getConnection(connectionCode: String): Option[Connection]
   def getConnectionByName(connectionName: String): Option[Connection]
   def getEnvironment: Environment

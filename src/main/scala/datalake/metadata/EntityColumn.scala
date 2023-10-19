@@ -16,7 +16,8 @@ class EntityColumn(
     name: String,
     newname: Option[String],
     datatype: String,
-    fieldroles: Array[String]
+    fieldroles: Array[String],
+    expression: Option[String]
 ) {
 
   override def toString(): String =
@@ -44,4 +45,7 @@ class EntityColumn(
 
   def FieldRoles: Array[String] =
     this.fieldroles
+
+  def Expression: String =
+    this.expression.getOrElse("")
 }
