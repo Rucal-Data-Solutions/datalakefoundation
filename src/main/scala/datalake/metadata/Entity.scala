@@ -14,6 +14,7 @@ import org.apache.spark.sql.types._
 
 
 import org.json4s.CustomSerializer
+import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString, JBool}
 
@@ -78,9 +79,8 @@ class Entity(
     }
 
   def Settings: Map[String, Any] = {
-    val conSettings = this.Connection.settings
-    //conSettings.values
-    this.settings.values
+    val mergedSettings = this.Connection.settings merge this.settings
+    mergedSettings.values
   }
 
   def getSchema: StructType =
@@ -181,7 +181,7 @@ class EntitySerializer(metadata: Metadata)
 
         },
         { case entity: Entity =>
-          val s = entity.Connection.settings merge entity.settings
+          val combinedSettings = entity.Connection.settings merge entity.settings
 
           JObject(
             JField("id", JInt(entity.Id)),
@@ -189,9 +189,9 @@ class EntitySerializer(metadata: Metadata)
             JField("enabled", JBool(entity.isEnabled)),
             JField("connection", JString(entity.Connection.Code)),
             JField("processtype", JString(entity.ProcessType.Name)),
-            JField("watermark", JString(write(entity.Watermark))),
-            JField("columns", JString(write(entity.Columns))),
-            JField("settings", s)
+            JField("watermark", parse(write(entity.Watermark))),
+            JField("columns", parse(write(entity.Columns))),
+            JField("settings", combinedSettings)
           )
         }
       )
