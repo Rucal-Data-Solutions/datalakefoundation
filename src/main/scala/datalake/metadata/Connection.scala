@@ -23,7 +23,7 @@ class Connection(
     code: String,
     name: String,
     enabled: Option[Boolean],
-    settings: Map[String, Any]
+    val settings: JObject
 ) {
 
   override def toString(): String =
@@ -39,10 +39,10 @@ class Connection(
     this.enabled.getOrElse(true)
 
   def getSettings: Map[String, Any] =
-    this.settings
+    this.settings.values
 
   def getSettingAs[T](name: String): T = {
-    val setting = this.settings.get(name)
+    val setting = this.settings.values.get(name)
 
     setting match {
       case Some(value) => value.asInstanceOf[T]
@@ -63,7 +63,7 @@ class ConnectionSerializer(metadata: Metadata)
             code = (j \ "name").extract[String],
             name = (j \ "name").extract[String].toLowerCase(),
             enabled = (j \ "enabled").extract[Option[Boolean]],
-            settings = (j \ "settings").extract[Map[String, Any]]
+            settings = (j \ "settings").extract[JObject]
           )
         },
         { case _: Connection =>

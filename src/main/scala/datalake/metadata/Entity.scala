@@ -14,7 +14,9 @@ import org.apache.spark.sql.types._
 
 
 import org.json4s.CustomSerializer
-import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+import org.json4s.jackson.Serialization.{ read, write }
+import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString, JBool}
+
 
 
 
@@ -29,7 +31,7 @@ class Entity(
     processtype: String,
     watermark: List[Watermark],
     columns: List[EntityColumn],
-    settings: JObject
+    val settings: JObject
 ) extends Serializable {
 
   implicit val environment:Environment = metadata.getEnvironment
@@ -75,8 +77,11 @@ class Entity(
         )
     }
 
-  def Settings: JObject =
-    this.settings
+  def Settings: Map[String, Any] = {
+    val conSettings = this.Connection.settings
+    //conSettings.values
+    this.settings.values
+  }
 
   def getSchema: StructType =
     StructType(
@@ -108,7 +113,7 @@ class Entity(
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
         println("no bronzepath in connection")
-        _connection.getSettings.get("bronzepath") match {
+        _settings.get("bronzepath") match {
           case Some(value) => bronzePath ++= s"/$value"
           case None =>
             println("no bronzepath in entity settings")
@@ -121,7 +126,7 @@ class Entity(
       case Some(value) => silverPath ++= s"/$value"
       case None =>
         println("no silverpath in connection")
-        _connection.getSettings.get("silverpath") match {
+        _settings.get("silverpath") match {
           case Some(value) => silverPath ++= s"/$value"
           case None =>
             println("no silverpath in entity settings")
@@ -175,8 +180,19 @@ class EntitySerializer(metadata: Metadata)
           )
 
         },
-        { case _: Entity =>
-          JObject()
+        { case entity: Entity =>
+          val s = entity.Connection.settings merge entity.settings
+
+          JObject(
+            JField("id", JInt(entity.Id)),
+            JField("name", JString(entity.Name)),
+            JField("enabled", JBool(entity.isEnabled)),
+            JField("connection", JString(entity.Connection.Code)),
+            JField("processtype", JString(entity.ProcessType.Name)),
+            JField("watermark", JString(write(entity.Watermark))),
+            JField("columns", JString(write(entity.Columns))),
+            JField("settings", s)
+          )
         }
       )
     )

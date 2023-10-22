@@ -16,8 +16,12 @@ import datalake.metadata._
 import datalake.core.implicits._
 
 
-trait ProcessStrategy {
-  def process(processing: Processing): Unit
+abstract class ProcessStrategy {
+  final val Name: String = {
+    val cls = this.getClass()
+    cls.getSimpleName().dropRight(1).toLowerCase()
+  }
+  def Process(processing: Processing): Unit
 }
 
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]])
@@ -143,7 +147,7 @@ private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] = {
     }
   }
 
-  def process(stategy: ProcessStrategy = entity.ProcessType): Unit =
-    stategy.process(this)
+  def Process(stategy: ProcessStrategy = entity.ProcessType): Unit =
+    stategy.Process(this)
 
 }
