@@ -9,10 +9,9 @@ import org.apache.commons.lang.NotImplementedException
 import org.apache.spark.sql.{ SparkSession, DataFrame, Row }
 import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
-import org.json4s.JsonAST
 import org.apache.spark.sql.{ Encoder, Encoders }
-import org.apache.avro.data.Json
-import org.apache.jute.compiler.JString
+import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+
 
 case class SqlServerSettings(
     server: String,
@@ -81,12 +80,12 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     implicit val environment: Environment = _metadata.getEnvironment
     val id = row.getAs[Int]("EntityID")
 
-    val entitySettings = JsonAST.JObject(
+    val entitySettings = JObject(
       _entitySettings
         .filter(col("EntityID") === id)
         .collect()
         .map(r =>
-          JsonAST.JField(r.getAs[String]("Name"), JsonAST.JString(r.getAs[String]("Value")))
+          JField(r.getAs[String]("Name"), JString(r.getAs[String]("Value")))
         )
         .toList
     )
@@ -182,12 +181,12 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     }
   }
 
-  private def getConnectionSettings(connectionId: Int): Map[String, String] =
-    return _connectionSettings
+  private def getConnectionSettings(connectionId: Int): JObject =
+    return JObject(_connectionSettings
       .filter(col("EntityConnectionID") === connectionId.toString())
       .collect()
-      .map(r => r.getAs[String]("Name") -> r.getAs[String]("Value"))
-      .toMap
+      .map(r => JField(r.getAs[String]("Name"), JString(r.getAs[String]("Value"))))
+      .toList)
 
   private def getEntities(connectionCode: String): List[Entity] =
     _entities

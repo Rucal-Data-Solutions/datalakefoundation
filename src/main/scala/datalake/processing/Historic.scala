@@ -14,6 +14,7 @@ import datalake.core.FileOperations
 
 
 final object Historic extends ProcessStrategy {
+
   throw new org.apache.commons.lang.NotImplementedException ("Historic strategy not implemented.")
 
   private val spark: SparkSession =
@@ -21,12 +22,12 @@ final object Historic extends ProcessStrategy {
   import spark.implicits._
   spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "false")
 
-  def process(processing: Processing) = {
+  def Process(processing: Processing) = {
     val source: DataFrame = processing.getSource.source
 
     // first time? Do A full load
     if (FileOperations.exists(processing.destination) == false) {
-      Full.process(processing)
+      Full.Process(processing)
     } else {
       // Get the latest version of the destination table
       val latestVersion: Long = DeltaTable

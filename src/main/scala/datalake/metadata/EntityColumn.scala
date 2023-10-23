@@ -37,9 +37,15 @@ class EntityColumn(
       case "string"  => StringType
       case "integer" => IntegerType
       case "date"    => DateType
+      case "float"   => FloatType
+      case "double"  => DoubleType
+      case "boolean" => BooleanType
       case "decimal" =>
         DecimalType(split_datatype(1).toInt, split_datatype(2).toInt)
-      case _ => StringType
+      case unknown => {
+        println(s"Warning, unsupported type in column definition (${unknown}) casting using StringType.")
+        StringType
+      }
     }
   }
 

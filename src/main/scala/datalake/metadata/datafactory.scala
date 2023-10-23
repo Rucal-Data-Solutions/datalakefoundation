@@ -11,9 +11,7 @@ object DataFactory {
 
 
   def getConfigItems(connection: Connection)(implicit metadata: Metadata): String = {
-    implicit val formats: Formats = DefaultFormats + FieldSerializer[Entity](
-      ignore("metadata") orElse ignore("environment")
-    ) + FieldSerializer[EntityColumn]() + new WatermarkSerializer(metadata)
+    implicit val formats: Formats = DefaultFormats + FieldSerializer[EntityColumn]() + new EntitySerializer(metadata) + new WatermarkSerializer(metadata)
 
     // val _settings = write(connection.getSettings)
     val enabled_entities = connection.getEntities.filter(p => p.isEnabled() == true)

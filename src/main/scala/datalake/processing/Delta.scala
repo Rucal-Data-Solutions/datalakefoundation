@@ -27,7 +27,7 @@ final object Delta extends ProcessStrategy {
   import spark.implicits._
   spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "false")
 
-  def process(processing: Processing) = {
+  def Process(processing: Processing) = {
     implicit val env:Environment = processing.environment
 
     val datalake_source = processing.getSource
@@ -35,7 +35,7 @@ final object Delta extends ProcessStrategy {
 
     // first time? Do A full load
     if (FileOperations.exists(processing.destination) == false) {
-      Full.process(processing)
+      Full.Process(processing)
     } else {
       val deltaTable = DeltaTable.forPath(processing.destination)
 
