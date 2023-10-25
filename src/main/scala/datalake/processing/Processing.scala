@@ -3,7 +3,7 @@ package datalake.processing
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
-import scala.util.{Try, Success, Failure}
+import scala.util.{ Try, Success, Failure }
 
 import java.util.TimeZone
 import java.time.LocalDateTime
@@ -15,8 +15,8 @@ import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
 
-
 abstract class ProcessStrategy {
+
   final val Name: String = {
     val cls = this.getClass()
     cls.getSimpleName().dropRight(1).toLowerCase()
@@ -90,17 +90,20 @@ class Processing(entity: Entity, sliceFile: String) {
   // Cast all columns according to metadata (if available)
   private def castColumns(input: Dataset[Row]): Dataset[Row] =
     columns.foldLeft(input) { (tempdf, column) =>
-      tempdf.withColumn(
-        column.Name,
-        col(s"`${column.Name}`").cast(column.DataType)
-      )
+      val newDataType = column.DataType
+
+      newDataType match {
+        case Some(dtype) => tempdf.withColumn(column.Name, col(s"`${column.Name}`").cast(dtype))
+        case None        => tempdf
+      }
     }
 
   // Rename columns that need renaming
   private def renameColumns(input: Dataset[Row]): Dataset[Row] =
-    input.select(
-      input.columns.map(c => col("`" + c + "`").as(columnsToRename.getOrElse(c, c))): _*
-    )
+    columnsToRename.foldLeft(input) {(tempdb, rencol) =>
+      input.withColumnRenamed(rencol._1, rencol._2)  
+    }
+
 
   // check for the deleted column (source can identify deletes with this record) add if it doesn't exist
   private def addDeletedColumn(input: Dataset[Row]): Dataset[Row] =
@@ -117,21 +120,22 @@ class Processing(entity: Entity, sliceFile: String) {
     input.withColumn("lastSeen", to_timestamp(lit(now.toString)))
   }
 
-private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] = {
-  entity.Columns("calculated").foldLeft(input) { (tempdf, column) =>
-    Try {
-      tempdf.withColumn(column.Name, expr(column.Expression).cast(StringType))
-    } match {
-      case Success(newDf) => 
-        newDf
-      case Failure(e) => 
-        // Log the error message and the failing expression
-        println(s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}")
-        // Continue processing with the DataFrame as it was before the failure
-        tempdf.withColumn(column.Name, lit("CALCULATION_ERROR"))
+  private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
+    entity.Columns("calculated").foldLeft(input) { (tempdf, column) =>
+      Try {
+        tempdf.withColumn(column.Name, expr(column.Expression).cast(StringType))
+      } match {
+        case Success(newDf) =>
+          newDf
+        case Failure(e) =>
+          // Log the error message and the failing expression
+          println(
+            s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}"
+          )
+          // Continue processing with the DataFrame as it was before the failure
+          tempdf.withColumn(column.Name, lit("CALCULATION_ERROR"))
+      }
     }
-  }
-}
 
   def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
     // Write the watermark values to system table

@@ -15,7 +15,7 @@ import scala.tools.cmd.Meta
 class EntityColumn(
     name: String,
     newname: Option[String],
-    datatype: String,
+    datatype: Option[String],
     fieldroles: Array[String],
     expression: Option[String]
 ) {
@@ -29,24 +29,32 @@ class EntityColumn(
   def NewName: String =
     this.newname.getOrElse("")
 
-  def DataType: DataType = {
-    val split_datatype = this.datatype.split("""[\(\),]+""")
-    val base_type = split_datatype(0)
+  def DataType: Option[DataType] = {
+    this.datatype match {
+      case Some(value) => {
+        val split_datatype = value.split("""[\(\),]+""")
+        val base_type = split_datatype(0)
 
-    base_type match {
-      case "string"  => StringType
-      case "integer" => IntegerType
-      case "date"    => DateType
-      case "float"   => FloatType
-      case "double"  => DoubleType
-      case "boolean" => BooleanType
-      case "decimal" =>
-        DecimalType(split_datatype(1).toInt, split_datatype(2).toInt)
-      case unknown => {
-        println(s"Warning, unsupported type in column definition (${unknown}) casting using StringType.")
-        StringType
+        val _datatype = base_type match {
+          case "string"  => StringType
+          case "integer" => IntegerType
+          case "date"    => DateType
+          case "float"   => FloatType
+          case "double"  => DoubleType
+          case "boolean" => BooleanType
+          case "decimal" =>
+            DecimalType(split_datatype(1).toInt, split_datatype(2).toInt)
+          case unknown => {
+            println(s"Warning, unsupported type in column definition (${unknown}) casting using StringType.")
+            StringType
+          }
+        }
+        Some(_datatype)
       }
+      case None => None
     }
+    
+
   }
 
   def FieldRoles: Array[String] =

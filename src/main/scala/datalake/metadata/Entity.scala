@@ -12,15 +12,10 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
 
-
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
-import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString, JBool}
-
-
-
-
+import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
 
 class Entity(
     metadata: Metadata,
@@ -35,7 +30,7 @@ class Entity(
     val settings: JObject
 ) extends Serializable {
 
-  implicit val environment:Environment = metadata.getEnvironment
+  implicit val environment: Environment = metadata.getEnvironment
 
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
@@ -60,19 +55,18 @@ class Entity(
 
   def Columns: List[EntityColumn] =
     this.columns
-  
-  def Columns(fieldrole: String*): List[EntityColumn]={
+
+  def Columns(fieldrole: String*): List[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
-  }
 
   def Watermark: List[Watermark] =
     this.watermark
 
   def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
-      case "full"  => Full
-      case "delta" => Delta
+      case Full.Name  => Full
+      case Delta.Name => Delta
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"
         )
@@ -83,10 +77,6 @@ class Entity(
     mergedSettings.values
   }
 
-  def getSchema: StructType =
-    StructType(
-      this.columns.map(row => StructField(row.Name, row.DataType, true))
-    )
 
   def getPaths: Paths = {
     val today =
@@ -109,29 +99,19 @@ class Entity(
     silverPath ++= s"/${_connection.Name}"
 
     // overrides for bronze
-    _connection.getSettings.get("bronzepath") match {
+    _settings.get("bronzepath") match {
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
-        println("no bronzepath in connection")
-        _settings.get("bronzepath") match {
-          case Some(value) => bronzePath ++= s"/$value"
-          case None =>
-            println("no bronzepath in entity settings")
-            bronzePath ++= s"/${this.Name}"
-        }
+        println("no bronzepath in entity settings")
+        bronzePath ++= s"/${this.Name}"
     }
 
     // overrides for silver
-    _connection.getSettings.get("silverpath") match {
+    _settings.get("silverpath") match {
       case Some(value) => silverPath ++= s"/$value"
       case None =>
-        println("no silverpath in connection")
-        _settings.get("silverpath") match {
-          case Some(value) => silverPath ++= s"/$value"
-          case None =>
-            println("no silverpath in entity settings")
-            silverPath ++= s"/${this.Name}"
-        }
+        println("no silverpath in entity settings")
+        silverPath ++= s"/${this.Name}"
     }
 
     // // interpret variables
@@ -142,11 +122,11 @@ class Entity(
     return Paths(retBronzePath, retSilverPath)
   }
 
-  def getBusinessKey: Array[String] = {
-    this.Columns("businesskey")
+  def getBusinessKey: Array[String] =
+    this
+      .Columns("businesskey")
       .map(column => column.Name)
       .toArray
-  }
 
   def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
@@ -188,6 +168,7 @@ class EntitySerializer(metadata: Metadata)
             JField("name", JString(entity.Name)),
             JField("enabled", JBool(entity.isEnabled)),
             JField("connection", JString(entity.Connection.Code)),
+            JField("connection_name", JString(entity.Connection.Name)),
             JField("processtype", JString(entity.ProcessType.Name)),
             JField("watermark", parse(write(entity.Watermark))),
             JField("columns", parse(write(entity.Columns))),

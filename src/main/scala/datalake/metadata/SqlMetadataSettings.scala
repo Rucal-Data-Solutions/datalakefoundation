@@ -95,10 +95,19 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       .map(r =>
         new EntityColumn(
           r.getAs[String]("ColumnName"),
-          Some(r.getAs[String]("NewColumnName")),
-          r.getAs[String]("DataType"),
+          r.getAs[String]("NewColumnName") match {
+            case value: String => Some(value)
+            case _ => None
+          },
+          r.getAs[String]("DataType") match {
+            case value: String => Some(value)
+            case _ => None
+          },
           r.getAs[String]("FieldRoles").split(","),
-          Some(r.getAs[String]("Expression"))
+          r.getAs[String]("Expression") match {
+            case value: String => Some(value)
+            case _ => None
+          }
         )
       )
       .toList
