@@ -30,7 +30,7 @@ case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Stri
 class Processing(entity: Entity, sliceFile: String) {
   implicit val environment = entity.Environment
   val entity_id = entity.Id
-  val primaryKeyColumnName: String = s"PK_${entity.Name}"
+  val primaryKeyColumnName: String = s"PK_${entity.Destination}"
   val columns = entity.Columns
   val paths = entity.getPaths
   val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
