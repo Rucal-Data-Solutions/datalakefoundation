@@ -10,7 +10,7 @@ import org.apache.spark.sql.types._
 import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
-import scala.tools.cmd.Meta
+
 
 class EntityColumn(
     name: String,
@@ -36,12 +36,13 @@ class EntityColumn(
         val base_type = split_datatype(0)
 
         val _datatype = base_type match {
-          case "string"  => StringType
-          case "integer" => IntegerType
-          case "date"    => DateType
-          case "float"   => FloatType
-          case "double"  => DoubleType
-          case "boolean" => BooleanType
+          case "string"     => StringType
+          case "integer"    => IntegerType
+          case "date"       => DateType
+          case "timestamp"  => TimestampType
+          case "float"      => FloatType
+          case "double"     => DoubleType
+          case "boolean"    => BooleanType
           case "decimal" =>
             DecimalType(split_datatype(1).toInt, split_datatype(2).toInt)
           case unknown => {
