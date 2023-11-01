@@ -57,8 +57,8 @@ class Processing(entity: Entity, sliceFile: String) {
       None
 
     val transformedDF = dfSlice
-      .transform(calculateSourceHash)
       .transform(addCalculatedColumns)
+      .transform(calculateSourceHash)
       .transform(addPrimaryKey)
       .transform(castColumns)
       .transform(renameColumns)
@@ -123,7 +123,7 @@ class Processing(entity: Entity, sliceFile: String) {
   private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
     entity.Columns("calculated").foldLeft(input) { (tempdf, column) =>
       Try {
-        tempdf.withColumn(column.Name, expr(column.Expression).cast(StringType))
+        tempdf.withColumn(column.Name, expr(column.Expression).cast(column.DataType.getOrElse(StringType)))
       } match {
         case Success(newDf) =>
           newDf
@@ -133,7 +133,7 @@ class Processing(entity: Entity, sliceFile: String) {
             s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}"
           )
           // Continue processing with the DataFrame as it was before the failure
-          tempdf.withColumn(column.Name, lit("CALCULATION_ERROR"))
+          tempdf.withColumn(column.Name, lit(null).cast(column.DataType.getOrElse(StringType)))
       }
     }
 
