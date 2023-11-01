@@ -21,6 +21,7 @@ class Entity(
     metadata: Metadata,
     id: Int,
     name: String,
+    destination: Option[String],
     enabled: Boolean,
     secure: Option[Boolean],
     connection: String,
@@ -40,6 +41,13 @@ class Entity(
 
   def Name: String =
     this.name.toLowerCase()
+
+  /** Get the destination name for this entity
+    * @return String containing the destination name.
+    */
+  def Destination: String ={
+    this.destination.getOrElse(this.name).toLowerCase()
+  }
 
   def isEnabled(): Boolean =
     this.enabled
@@ -111,7 +119,7 @@ class Entity(
       case Some(value) => silverPath ++= s"/$value"
       case None =>
         println("no silverpath in entity settings")
-        silverPath ++= s"/${this.Name}"
+        silverPath ++= s"/${this.Destination}"
     }
 
     // // interpret variables
@@ -149,11 +157,12 @@ class EntitySerializer(metadata: Metadata)
           new Entity(
             metadata = metadata,
             id = entity_id,
-            name = (j \ "name").extract[String].toLowerCase(),
+            name = (j \ "name").extract[String],
+            destination = (j \ "destination").extract[Option[String]],
             enabled = (j \ "enabled").extract[Boolean],
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
-            processtype = (j \ "processtype").extract[String].toLowerCase(),
+            processtype = (j \ "processtype").extract[String],
             watermark = watermarkJson.extract[List[Watermark]],
             columns = (j \ "columns").extract[List[EntityColumn]],
             settings = (j \ "settings").extract[JObject]
@@ -166,6 +175,7 @@ class EntitySerializer(metadata: Metadata)
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
+            JField("destiation", JString(entity.Destination)),
             JField("enabled", JBool(entity.isEnabled)),
             JField("connection", JString(entity.Connection.Code)),
             JField("connection_name", JString(entity.Connection.Name)),

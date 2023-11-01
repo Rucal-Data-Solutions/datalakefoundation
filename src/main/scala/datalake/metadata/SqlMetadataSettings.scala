@@ -103,7 +103,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
             case value: String => Some(value)
             case _ => None
           },
-          r.getAs[String]("FieldRoles").split(","),
+          r.getAs[String]("FieldRoles").toLowerCase().split(",").map(s => s.trim()),
           r.getAs[String]("Expression") match {
             case value: String => Some(value)
             case _ => None
@@ -133,6 +133,11 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       _metadata,
       id,
       row.getAs[String]("EntityName").toLowerCase(),
+      row.getAs[String]("EntityDestination") match {
+        case null => None
+        case "" => None
+        case value: String => Some(value)
+      },
       row.getAs[Boolean]("EntityEnabled"),
       None,
       row.getAs[Int]("EntityConnectionID").toString,
