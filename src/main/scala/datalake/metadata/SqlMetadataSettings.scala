@@ -95,10 +95,19 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       .map(r =>
         new EntityColumn(
           r.getAs[String]("ColumnName"),
-          Some(r.getAs[String]("NewColumnName")),
-          r.getAs[String]("DataType"),
-          r.getAs[String]("FieldRoles").split(","),
-          Some(r.getAs[String]("Expression"))
+          r.getAs[String]("NewColumnName") match {
+            case value: String => Some(value)
+            case _ => None
+          },
+          r.getAs[String]("DataType") match {
+            case value: String => Some(value)
+            case _ => None
+          },
+          r.getAs[String]("FieldRoles").toLowerCase().split(",").map(s => s.trim()),
+          r.getAs[String]("Expression") match {
+            case value: String => Some(value)
+            case _ => None
+          }
         )
       )
       .toList
@@ -124,6 +133,11 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       _metadata,
       id,
       row.getAs[String]("EntityName").toLowerCase(),
+      row.getAs[String]("EntityDestination") match {
+        case null => None
+        case "" => None
+        case value: String => Some(value)
+      },
       row.getAs[Boolean]("EntityEnabled"),
       None,
       row.getAs[Int]("EntityConnectionID").toString,

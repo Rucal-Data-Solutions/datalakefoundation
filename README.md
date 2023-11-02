@@ -1,4 +1,4 @@
-# Datalake Foundation
+# Datalake(house) Foundation
 
 Datalake Foundation is a library to process data, making it ready for transformation (your business logic), it is founded on DataLakehouse principals, therefor fits perfect within DataLakehouse architecture. 
 It takes a data slice (parquet) from bronze and processes the data according to the config (Metadata)
@@ -15,7 +15,7 @@ Features that are implemented:
 - Data factory
   - Item generator (for loops)
 
-
+<mark>This documentation is work in progress, please dm me for details.</mark>
 
 Slice (Bronze) location:<br>
 <root_folder>/bronze/\<connection>/\<entity_name>/<slice_file>

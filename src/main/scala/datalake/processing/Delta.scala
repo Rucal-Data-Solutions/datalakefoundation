@@ -25,7 +25,6 @@ final object Delta extends ProcessStrategy {
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
-  spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "false")
 
   def Process(processing: Processing) = {
     implicit val env:Environment = processing.environment
