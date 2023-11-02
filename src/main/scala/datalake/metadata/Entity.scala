@@ -175,7 +175,7 @@ class EntitySerializer(metadata: Metadata)
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
-            JField("destiation", JString(entity.Destination)),
+            JField("destination", JString(entity.Destination)),
             JField("enabled", JBool(entity.isEnabled)),
             JField("connection", JString(entity.Connection.Code)),
             JField("connection_name", JString(entity.Connection.Name)),
