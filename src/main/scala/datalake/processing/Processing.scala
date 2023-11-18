@@ -64,6 +64,7 @@ class Processing(entity: Entity, sliceFile: String) {
       .transform(renameColumns)
       .transform(addDeletedColumn)
       .transform(addLastSeen)
+      .datalake_normalize()
 
     new DatalakeSource(transformedDF, watermark_values)
   }
