@@ -25,6 +25,7 @@ abstract class ProcessStrategy {
 }
 
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]])
+case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
@@ -83,7 +84,17 @@ class Processing(entity: Entity, sliceFile: String) {
   private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
     if (primaryKeyColumnName != null && Utils.hasColumn(input, primaryKeyColumnName) == false) {
       val pkColumns = entity.Columns("businesskey").map(c => col(c.Name))
-      input.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
+      val returnDF = input.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
+
+      //check if input contains duplicates according to the businesskey, if so, raise an error.
+      val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
+      val dupCount = duplicates.count()
+      if(dupCount > 0) {
+        duplicates.show()
+        throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
+      }
+
+      returnDF
     } else {
       input
     }

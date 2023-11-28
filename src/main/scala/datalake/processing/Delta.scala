@@ -45,7 +45,7 @@ final object Delta extends ProcessStrategy {
           "source." + processing.primaryKeyColumnName + " = target." + processing.primaryKeyColumnName
         )
         .whenMatched("source.deleted = true")
-        .update(Map("deleted" -> lit("true")))
+        .update(Map("deleted" -> lit("true"), "lastSeen" -> col("source.lastSeen")))
         .whenMatched("source.SourceHash != target.SourceHash")
         .updateAll
         .whenMatched("source.SourceHash == target.SourceHash")
