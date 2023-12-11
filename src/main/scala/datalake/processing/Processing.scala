@@ -87,11 +87,13 @@ class Processing(entity: Entity, sliceFile: String) {
       val returnDF = input.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
 
       //check if input contains duplicates according to the businesskey, if so, raise an error.
-      val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
-      val dupCount = duplicates.count()
-      if(dupCount > 0) {
-        duplicates.show()
-        throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
+      if(pkColumns.length > 0){
+        val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
+        val dupCount = duplicates.count()
+        if(dupCount > 0) {
+          duplicates.show()
+          throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
+        }
       }
 
       returnDF
@@ -149,16 +151,15 @@ class Processing(entity: Entity, sliceFile: String) {
       }
     }
 
-  def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
+  final def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
     val timezoneId = environment.Timezone.toZoneId
     val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
 
-    val current_watermark = watermark_values match {
+    watermark_values match {
       case Some(watermarkList) =>
-        val data = watermarkList.map(wm => Row(entity_id, wm._1, timestamp_now, wm._2.toString()))
-        watermarkData.Append(data.toSeq)
+        this.entity.WriteWatermark(watermarkList)
       case None => println("no watermark defined")
     }
   }

@@ -4,6 +4,7 @@ import datalake.core._
 import datalake.processing._
 
 import java.util.TimeZone
+import java.time.LocalDateTime
 import scala.util.Try
 import scala.reflect.runtime._
 
@@ -141,6 +142,19 @@ class Entity(
       .filter(c => c.NewName != "")
       .map(c => (c.Name, c.NewName))
       .toMap
+
+  def WriteWatermark(watermark_values: List[(String, Any)]): Unit = {
+    // Write the watermark values to system table
+    val watermarkData: WatermarkData = new WatermarkData
+    val timezoneId = environment.Timezone.toZoneId
+    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+    if(watermark_values.size > 0) {
+      val data = watermark_values.map(wm => Row(this.id, wm._1, timestamp_now, wm._2.toString()))
+      watermarkData.Append(data.toSeq)
+    }
+
+  }
 
 }
 
