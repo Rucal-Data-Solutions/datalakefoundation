@@ -145,11 +145,17 @@ class Entity(
     return Paths(retRawPath, retBronzePath, retSilverPath)
   }
 
-  def getBusinessKey: Array[String] =
+  def getBusinessKey: List[String] =
     this
       .Columns("businesskey")
       .map(column => column.Name)
-      .toArray
+      .toList
+
+  def getPartitionColumns: List[String] =
+    this
+      .Columns("partition")
+      .map(column => column.Name)
+      .toList
 
   def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
