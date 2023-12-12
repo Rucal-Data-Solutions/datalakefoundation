@@ -15,8 +15,6 @@ import scala.tools.cmd.Meta
 import org.apache.arrow.flatbuf.Bool
 
 
-case class Paths(BronzePath: String, SilverPath: String) extends Serializable
-
 case class MetadataNotInitializedException(message: String) extends Exception(message)
 case class EntityNotFoundException(message: String) extends Exception(message)
 case class ConnectionNotFoundException(message: String) extends Exception(message)

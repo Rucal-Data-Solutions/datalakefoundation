@@ -18,6 +18,8 @@ import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
 
+case class Paths(RawPath: String, BronzePath: String, SilverPath: String) extends Serializable
+
 class Entity(
     metadata: Metadata,
     id: Int,
@@ -96,6 +98,7 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
+    val rawPath = new StringBuilder(s"$root_folder/raw")
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
     val silverPath = new StringBuilder(s"$root_folder/silver")
 
@@ -104,31 +107,41 @@ class Entity(
       silverPath ++= "-secure"
     }
 
-    bronzePath ++= s"/${_connection.Name}"
-    silverPath ++= s"/${_connection.Name}"
+    // rawPath ++= s"/${_connection.Name}"
+    // bronzePath ++= s"/${_connection.Name}"
+    // silverPath ++= s"/${_connection.Name}"
+
+    // overrides for bronze
+    _settings.get("rawpath") match {
+      case Some(value) => rawPath ++= s"/$value"
+      case None =>
+        println("DEBUG: no rawpath in entity settings")
+        bronzePath ++= s"/${_connection.Name}/${this.Name}"
+    }
 
     // overrides for bronze
     _settings.get("bronzepath") match {
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
-        println("no bronzepath in entity settings")
-        bronzePath ++= s"/${this.Name}"
+        println("DEBUG: no bronzepath in entity settings")
+        bronzePath ++= s"/${_connection.Name}/${this.Name}"
     }
 
     // overrides for silver
     _settings.get("silverpath") match {
       case Some(value) => silverPath ++= s"/$value"
       case None =>
-        println("no silverpath in entity settings")
-        silverPath ++= s"/${this.Destination}"
+        println("DEBUG: no silverpath in entity settings")
+        silverPath ++= s"/${_connection.Name}/${this.Destination}"
     }
 
     // // interpret variables
-    val availableVars = Map("today" -> today, "entity" -> this.Name)
+    val availableVars = Map("today" -> today, "entity" -> this.Name, "connection" -> _connection.Name)
+    val retRawPath = Utils.EvaluateText(rawPath.toString, availableVars)
     val retBronzePath = Utils.EvaluateText(bronzePath.toString, availableVars)
     val retSilverPath = Utils.EvaluateText(silverPath.toString, availableVars)
 
-    return Paths(retBronzePath, retSilverPath)
+    return Paths(retRawPath, retBronzePath, retSilverPath)
   }
 
   def getBusinessKey: Array[String] =
