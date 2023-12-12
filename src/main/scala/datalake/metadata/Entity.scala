@@ -98,7 +98,7 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
-    val defaultPath = "/${connection}/${entity}"
+    val defaultPath = "/${connection}/${destination}"
     val rawPath = new StringBuilder(s"$root_folder/raw")
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
     val silverPath = new StringBuilder(s"$root_folder/silver")
@@ -137,7 +137,7 @@ class Entity(
     }
 
     // // interpret variables
-    val availableVars = Map("today" -> today, "entity" -> this.Destination, "connection" -> _connection.Name)
+    val availableVars = Map("today" -> today, "entity" -> this.Name, "destination" -> this.Destination, "connection" -> _connection.Name)
     val retRawPath = Utils.EvaluateText(rawPath.toString, availableVars)
     val retBronzePath = Utils.EvaluateText(bronzePath.toString, availableVars)
     val retSilverPath = Utils.EvaluateText(silverPath.toString, availableVars)
