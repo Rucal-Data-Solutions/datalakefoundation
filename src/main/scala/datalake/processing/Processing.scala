@@ -154,8 +154,6 @@ class Processing(entity: Entity, sliceFile: String) {
   final def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
-    val timezoneId = environment.Timezone.toZoneId
-    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
 
     watermark_values match {
       case Some(watermarkList) =>
