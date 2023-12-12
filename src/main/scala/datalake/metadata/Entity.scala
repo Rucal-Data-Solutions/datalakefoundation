@@ -98,6 +98,7 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
+    val defaultPath = "/${connection}/${entity}"
     val rawPath = new StringBuilder(s"$root_folder/raw")
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
     val silverPath = new StringBuilder(s"$root_folder/silver")
@@ -116,7 +117,7 @@ class Entity(
       case Some(value) => rawPath ++= s"/$value"
       case None =>
         println("DEBUG: no rawpath in entity settings")
-        bronzePath ++= s"/${_connection.Name}/${this.Name}"
+        bronzePath ++= defaultPath
     }
 
     // overrides for bronze
@@ -124,7 +125,7 @@ class Entity(
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
         println("DEBUG: no bronzepath in entity settings")
-        bronzePath ++= s"/${_connection.Name}/${this.Name}"
+        bronzePath ++= defaultPath
     }
 
     // overrides for silver
@@ -132,11 +133,11 @@ class Entity(
       case Some(value) => silverPath ++= s"/$value"
       case None =>
         println("DEBUG: no silverpath in entity settings")
-        silverPath ++= s"/${_connection.Name}/${this.Destination}"
+        silverPath ++= defaultPath
     }
 
     // // interpret variables
-    val availableVars = Map("today" -> today, "entity" -> this.Name, "connection" -> _connection.Name)
+    val availableVars = Map("today" -> today, "entity" -> this.Destination, "connection" -> _connection.Name)
     val retRawPath = Utils.EvaluateText(rawPath.toString, availableVars)
     val retBronzePath = Utils.EvaluateText(bronzePath.toString, availableVars)
     val retSilverPath = Utils.EvaluateText(silverPath.toString, availableVars)
