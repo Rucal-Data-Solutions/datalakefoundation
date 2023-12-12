@@ -117,7 +117,7 @@ class Entity(
       case Some(value) => rawPath ++= s"/$value"
       case None =>
         println("DEBUG: no rawpath in entity settings")
-        bronzePath ++= defaultPath
+        rawPath ++= defaultPath
     }
 
     // overrides for bronze
