@@ -98,7 +98,7 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
-    val defaultPath = "/${connection}/${destination}"
+    val defaultPath: String = environment.DefaultPath
     val rawPath = new StringBuilder(s"$root_folder/raw")
     val bronzePath = new StringBuilder(s"$root_folder/bronze")
     val silverPath = new StringBuilder(s"$root_folder/silver")
@@ -108,15 +108,10 @@ class Entity(
       silverPath ++= "-secure"
     }
 
-    // rawPath ++= s"/${_connection.Name}"
-    // bronzePath ++= s"/${_connection.Name}"
-    // silverPath ++= s"/${_connection.Name}"
-
-    // overrides for bronze
+     // overrides for bronze
     _settings.get("rawpath") match {
       case Some(value) => rawPath ++= s"/$value"
       case None =>
-        println("DEBUG: no rawpath in entity settings")
         rawPath ++= defaultPath
     }
 
@@ -124,7 +119,6 @@ class Entity(
     _settings.get("bronzepath") match {
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
-        println("DEBUG: no bronzepath in entity settings")
         bronzePath ++= defaultPath
     }
 
@@ -132,7 +126,6 @@ class Entity(
     _settings.get("silverpath") match {
       case Some(value) => silverPath ++= s"/$value"
       case None =>
-        println("DEBUG: no silverpath in entity settings")
         silverPath ++= defaultPath
     }
 

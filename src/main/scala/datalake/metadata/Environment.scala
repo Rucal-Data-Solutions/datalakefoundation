@@ -15,7 +15,8 @@ import org.apache.spark.sql.types._
 class Environment(
     name: String,
     root_folder: String,
-    timezone: String
+    timezone: String,
+    default_path: String
 ) {
 
   def Name: String =
@@ -26,4 +27,7 @@ class Environment(
 
   def Timezone: TimeZone =
     TimeZone.getTimeZone(timezone)
+
+  def DefaultPath: String =
+    this.default_path
 }

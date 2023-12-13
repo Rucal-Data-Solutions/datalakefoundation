@@ -214,7 +214,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     new Environment(
       environmentRow.getAs[String]("name"),
       environmentRow.getAs[String]("root_folder"),
-      environmentRow.getAs[String]("timezone")
+      environmentRow.getAs[String]("timezone"),
+      environmentRow.getAs[String]("default_path")
     )
   }
 }
