@@ -4,6 +4,7 @@ import datalake.core._
 import datalake.processing._
 
 import java.util.TimeZone
+import java.time.LocalDateTime
 import scala.util.Try
 import scala.reflect.runtime._
 
@@ -16,6 +17,8 @@ import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
+
+case class Paths(RawPath: String, BronzePath: String, SilverPath: String) extends Serializable
 
 class Entity(
     metadata: Metadata,
@@ -36,42 +39,48 @@ class Entity(
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
 
-  def Id: Int =
+  final def Id: Int =
     this.id
 
-  def Name: String =
+  final def Name: String =
     this.name.toLowerCase()
 
   /** Get the destination name for this entity
     * @return String containing the destination name.
     */
-  def Destination: String ={
+  final def Destination: String ={
     this.destination.getOrElse(this.name).toLowerCase()
   }
 
-  def isEnabled(): Boolean =
+  final def isEnabled(): Boolean =
     this.enabled
 
-  def Secure: Boolean =
+  final def Secure: Boolean =
     this.secure.getOrElse(false)
 
-  def Connection: Connection =
+  final def Connection: Connection =
     metadata.getConnection(this.connection)
 
-  def Environment: Environment =
+  final def Environment: Environment =
     metadata.getEnvironment
 
-  def Columns: List[EntityColumn] =
+  final def Columns: List[EntityColumn] =
     this.columns
 
-  def Columns(fieldrole: String*): List[EntityColumn] =
+  /**
+   * Filters the columns of the entity based on the specified field roles.
+   *
+   * @param fieldrole The field role or array of fieldrole to filter the columns by.
+   * @return A list of EntityColumn objects that match the specified field roles.
+   */
+  final def Columns(fieldrole: String*): List[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
 
-  def Watermark: List[Watermark] =
+  final def Watermark: List[Watermark] =
     this.watermark
 
-  def ProcessType: ProcessStrategy =
+  final def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
       case Full.Name  => Full
       case Delta.Name => Delta
@@ -80,13 +89,18 @@ class Entity(
         )
     }
 
-  def Settings: Map[String, Any] = {
+  final def Settings: Map[String, Any] = {
     val mergedSettings = this.Connection.settings merge this.settings
     mergedSettings.values
   }
 
 
-  def getPaths: Paths = {
+  /**
+   * Retrieves the paths associated with the entity.
+   *
+   * @return The paths associated with the entity.
+   */
+  final def getPaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
@@ -95,52 +109,99 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
-    val bronzePath = new StringBuilder(s"$root_folder/bronze")
-    val silverPath = new StringBuilder(s"$root_folder/silver")
+    val rawPath = new StringBuilder(s"$root_folder/raw/")
+    val bronzePath = new StringBuilder(s"$root_folder/bronze/")
+    val silverPath = new StringBuilder(s"$root_folder/silver/")
 
     if (_securehandling) {
       bronzePath ++= "-secure"
       silverPath ++= "-secure"
     }
 
-    bronzePath ++= s"/${_connection.Name}"
-    silverPath ++= s"/${_connection.Name}"
+     // overrides for bronze
+    _settings.get("rawpath") match {
+      case Some(value) => rawPath ++= s"/$value"
+      case None =>
+        rawPath ++= environment.RawPath
+    }
 
     // overrides for bronze
     _settings.get("bronzepath") match {
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
-        println("no bronzepath in entity settings")
-        bronzePath ++= s"/${this.Name}"
+        bronzePath ++= environment.BronzePath
     }
 
     // overrides for silver
     _settings.get("silverpath") match {
       case Some(value) => silverPath ++= s"/$value"
       case None =>
-        println("no silverpath in entity settings")
-        silverPath ++= s"/${this.Destination}"
+        silverPath ++= environment.SilverPath
     }
 
     // // interpret variables
-    val availableVars = Map("today" -> today, "entity" -> this.Name)
+    val availableVars = Map("today" -> today, "entity" -> this.Name, "destination" -> this.Destination, "connection" -> _connection.Name)
+    val retRawPath = Utils.EvaluateText(rawPath.toString, availableVars)
     val retBronzePath = Utils.EvaluateText(bronzePath.toString, availableVars)
     val retSilverPath = Utils.EvaluateText(silverPath.toString, availableVars)
 
-    return Paths(retBronzePath, retSilverPath)
+    return Paths(retRawPath, retBronzePath, retSilverPath)
   }
 
-  def getBusinessKey: Array[String] =
+  /**
+   * Retrieves the business key of the entity.
+   *
+   * @return A list of strings representing the business key columns.
+   */
+  final def getBusinessKey: List[String] =
     this
       .Columns("businesskey")
       .map(column => column.Name)
-      .toArray
 
-  def getRenamedColumns: scala.collection.Map[String, String] =
+      
+  /**
+   * Retrieves the list of partition columns for this entity.
+   *
+   * @return The list of partition column names.
+   */
+  final def getPartitionColumns: List[String] =
+    this
+      .Columns("partition")
+      .map(column => column.NewName)
+      .toList
+
+
+  /**
+   * Returns a map of column names to rename.
+   *
+   * The method filters the columns based on the conditions:
+   * - The column's `NewName` is not empty.
+   * - The column's `NewName` is different from its `Name`.
+   * - The column's `Name` is not empty.
+   *
+   * It then maps the filtered columns to a key-value pair, where the key is the column's `Name`
+   * and the value is the column's `NewName`. Finally, it converts the mapped pairs to a map.
+   *
+   * @return A map of renamed columns, where the key is the original column name and the value is the new column name.
+   */
+  final def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
-      .filter(c => c.NewName != "")
+      .filter(c => (c.NewName.toString() != "" && c.NewName != c.Name && c.Name != ""))
       .map(c => (c.Name, c.NewName))
       .toMap
+
+  final def WriteWatermark(watermark_values: List[(String, Any)]): Unit = {
+    // Write the watermark values to system table
+    val watermarkData: WatermarkData = new WatermarkData
+    val timezoneId = environment.Timezone.toZoneId
+    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+    if(watermark_values.size > 0) {
+      val data = watermark_values.map(wm => Row(this.id, wm._1, timestamp_now, wm._2.toString()))
+      watermarkData.Append(data.toSeq)
+    }
+
+  }
 
 }
 

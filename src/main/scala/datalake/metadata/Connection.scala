@@ -38,7 +38,7 @@ class Connection(
   def isEnabled: Boolean =
     this.enabled.getOrElse(true)
 
-  def getSettings: Map[String, Any] =
+  def Settings: Map[String, Any] =
     this.settings.values
 
   def getSettingAs[T](name: String): T = {

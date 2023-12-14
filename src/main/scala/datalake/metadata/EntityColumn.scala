@@ -23,13 +23,13 @@ class EntityColumn(
   override def toString(): String =
     this.name
 
-  def Name: String =
-    this.name
+  final def Name: String =
+    if (this.name.isEmpty) NewName else this.name
 
-  def NewName: String =
+  final def NewName: String =
     this.newname.getOrElse("")
 
-  def DataType: Option[DataType] = {
+  final def DataType: Option[DataType] = {
     this.datatype match {
       case Some(value) => {
         val split_datatype = value.split("""[\(\),]+""")
@@ -58,9 +58,9 @@ class EntityColumn(
 
   }
 
-  def FieldRoles: Array[String] =
+  final def FieldRoles: Array[String] =
     this.fieldroles
 
-  def Expression: String =
+  final def Expression: String =
     this.expression.getOrElse("")
 }

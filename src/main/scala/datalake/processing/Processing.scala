@@ -25,6 +25,7 @@ abstract class ProcessStrategy {
 }
 
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]])
+case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
@@ -34,6 +35,7 @@ class Processing(entity: Entity, sliceFile: String) {
   val columns = entity.Columns
   val paths = entity.getPaths
   val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
+  val partitionColumns = entity.getPartitionColumns
   val sliceFileFullPath: String = s"${paths.BronzePath}/${sliceFile}"
   val destination: String = paths.SilverPath
 
@@ -64,11 +66,21 @@ class Processing(entity: Entity, sliceFile: String) {
       .transform(renameColumns)
       .transform(addDeletedColumn)
       .transform(addLastSeen)
+      .datalake_normalize()
 
     new DatalakeSource(transformedDF, watermark_values)
   }
 
-  // Check for HashColumn(SourceHash) in slice and add if it doesnt exits. (This must come first, the rest of fields are calculated)
+  /**
+    * Calculates the source hash for the input dataset.
+    *
+    * If the input dataset does not have a column named "SourceHash", this method adds the column
+    * and calculates the hash value based on the concatenation of all columns in the dataset.
+    * The hash value is calculated using the SHA-256 algorithm.
+    *
+    * @param input The input dataset to calculate the source hash for.
+    * @return The input dataset with the "SourceHash" column added, if it didn't exist.
+    **/
   private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] =
     if (Utils.hasColumn(input, "SourceHash") == false) {
       return input.withColumn(
@@ -82,7 +94,19 @@ class Processing(entity: Entity, sliceFile: String) {
   private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
     if (primaryKeyColumnName != null && Utils.hasColumn(input, primaryKeyColumnName) == false) {
       val pkColumns = entity.Columns("businesskey").map(c => col(c.Name))
-      input.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
+      val returnDF = input.withColumn(primaryKeyColumnName, sha2(concat_ws("_", pkColumns: _*), 256))
+
+      //check if input contains duplicates according to the businesskey, if so, raise an error.
+      if(pkColumns.length > 0){
+        val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
+        val dupCount = duplicates.count()
+        if(dupCount > 0) {
+          duplicates.show()
+          throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
+        }
+      }
+
+      returnDF
     } else {
       input
     }
@@ -137,16 +161,13 @@ class Processing(entity: Entity, sliceFile: String) {
       }
     }
 
-  def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
+  final def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
-    val timezoneId = environment.Timezone.toZoneId
-    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
 
-    val current_watermark = watermark_values match {
+    watermark_values match {
       case Some(watermarkList) =>
-        val data = watermarkList.map(wm => Row(entity_id, wm._1, timestamp_now, wm._2.toString()))
-        watermarkData.Append(data.toSeq)
+        this.entity.WriteWatermark(watermarkList)
       case None => println("no watermark defined")
     }
   }
