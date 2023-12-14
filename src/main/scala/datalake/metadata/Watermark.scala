@@ -18,7 +18,7 @@ class Watermark(
   override def toString(): String =
     s"${operation} ${column_name} > ${Function}"
 
-  def Expression: String = {
+  final def Expression: String = {
     val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
 
     params match {
@@ -27,13 +27,13 @@ class Watermark(
     }
   }
 
-  def Column_Name: String =
+  final def Column_Name: String =
     column_name
 
-  def Operation: String = 
+  final def Operation: String = 
     operation
 
-  def OperationGroup: Option[Integer] =
+  final def OperationGroup: Option[Integer] =
     operation_group
 
 }
