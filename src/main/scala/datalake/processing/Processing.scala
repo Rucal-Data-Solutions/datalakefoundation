@@ -35,6 +35,7 @@ class Processing(entity: Entity, sliceFile: String) {
   val columns = entity.Columns
   val paths = entity.getPaths
   val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
+  val partitionColumns = entity.getPartitionColumns
   val sliceFileFullPath: String = s"${paths.BronzePath}/${sliceFile}"
   val destination: String = paths.SilverPath
 
