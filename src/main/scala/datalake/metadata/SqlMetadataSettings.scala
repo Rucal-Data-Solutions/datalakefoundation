@@ -11,6 +11,7 @@ import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
 import org.apache.spark.sql.{ Encoder, Encoders }
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+import org.stringtemplate.v4.compiler.STParser.namedArg_return
 
 
 case class SqlServerSettings(
@@ -212,10 +213,13 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
   def getEnvironment: Environment = {
     val environmentRow = _environment.first()
     new Environment(
-      environmentRow.getAs[String]("name"),
-      environmentRow.getAs[String]("root_folder"),
-      environmentRow.getAs[String]("timezone"),
-      environmentRow.getAs[String]("default_path")
+      name=environmentRow.getAs[String]("name"),
+      root_folder=environmentRow.getAs[String]("root_folder"),
+      timezone=environmentRow.getAs[String]("timezone"),
+      raw_path=environmentRow.getAs[String]("raw_path"),
+      bronze_path=environmentRow.getAs[String]("bronze_path"),
+      silver_path=environmentRow.getAs[String]("silver_path"),
+      secure_container_suffix=environmentRow.getAs[String]("secure_container_suffix")
     )
   }
 }

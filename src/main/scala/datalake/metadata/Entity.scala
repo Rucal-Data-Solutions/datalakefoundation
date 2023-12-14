@@ -67,6 +67,12 @@ class Entity(
   def Columns: List[EntityColumn] =
     this.columns
 
+  /**
+   * Filters the columns of the entity based on the specified field roles.
+   *
+   * @param fieldrole The field role or array of fieldrole to filter the columns by.
+   * @return A list of EntityColumn objects that match the specified field roles.
+   */
   def Columns(fieldrole: String*): List[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
@@ -89,6 +95,11 @@ class Entity(
   }
 
 
+  /**
+   * Retrieves the paths associated with the entity.
+   *
+   * @return The paths associated with the entity.
+   */
   def getPaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
@@ -98,10 +109,9 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
-    val defaultPath: String = environment.DefaultPath
-    val rawPath = new StringBuilder(s"$root_folder/raw")
-    val bronzePath = new StringBuilder(s"$root_folder/bronze")
-    val silverPath = new StringBuilder(s"$root_folder/silver")
+    val rawPath = new StringBuilder(s"$root_folder/raw/")
+    val bronzePath = new StringBuilder(s"$root_folder/bronze/")
+    val silverPath = new StringBuilder(s"$root_folder/silver/")
 
     if (_securehandling) {
       bronzePath ++= "-secure"
@@ -112,21 +122,21 @@ class Entity(
     _settings.get("rawpath") match {
       case Some(value) => rawPath ++= s"/$value"
       case None =>
-        rawPath ++= defaultPath
+        rawPath ++= environment.RawPath
     }
 
     // overrides for bronze
     _settings.get("bronzepath") match {
       case Some(value) => bronzePath ++= s"/$value"
       case None =>
-        bronzePath ++= defaultPath
+        bronzePath ++= environment.BronzePath
     }
 
     // overrides for silver
     _settings.get("silverpath") match {
       case Some(value) => silverPath ++= s"/$value"
       case None =>
-        silverPath ++= defaultPath
+        silverPath ++= environment.SilverPath
     }
 
     // // interpret variables
