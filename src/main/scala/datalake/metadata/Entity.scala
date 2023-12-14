@@ -39,32 +39,32 @@ class Entity(
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
 
-  def Id: Int =
+  final def Id: Int =
     this.id
 
-  def Name: String =
+  final def Name: String =
     this.name.toLowerCase()
 
   /** Get the destination name for this entity
     * @return String containing the destination name.
     */
-  def Destination: String ={
+  final def Destination: String ={
     this.destination.getOrElse(this.name).toLowerCase()
   }
 
-  def isEnabled(): Boolean =
+  final def isEnabled(): Boolean =
     this.enabled
 
-  def Secure: Boolean =
+  final def Secure: Boolean =
     this.secure.getOrElse(false)
 
-  def Connection: Connection =
+  final def Connection: Connection =
     metadata.getConnection(this.connection)
 
-  def Environment: Environment =
+  final def Environment: Environment =
     metadata.getEnvironment
 
-  def Columns: List[EntityColumn] =
+  final def Columns: List[EntityColumn] =
     this.columns
 
   /**
@@ -73,14 +73,14 @@ class Entity(
    * @param fieldrole The field role or array of fieldrole to filter the columns by.
    * @return A list of EntityColumn objects that match the specified field roles.
    */
-  def Columns(fieldrole: String*): List[EntityColumn] =
+  final def Columns(fieldrole: String*): List[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
 
-  def Watermark: List[Watermark] =
+  final def Watermark: List[Watermark] =
     this.watermark
 
-  def ProcessType: ProcessStrategy =
+  final def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
       case Full.Name  => Full
       case Delta.Name => Delta
@@ -89,7 +89,7 @@ class Entity(
         )
     }
 
-  def Settings: Map[String, Any] = {
+  final def Settings: Map[String, Any] = {
     val mergedSettings = this.Connection.settings merge this.settings
     mergedSettings.values
   }
@@ -100,7 +100,7 @@ class Entity(
    *
    * @return The paths associated with the entity.
    */
-  def getPaths: Paths = {
+  final def getPaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
@@ -148,25 +148,49 @@ class Entity(
     return Paths(retRawPath, retBronzePath, retSilverPath)
   }
 
-  def getBusinessKey: List[String] =
+  /**
+   * Retrieves the business key of the entity.
+   *
+   * @return A list of strings representing the business key columns.
+   */
+  final def getBusinessKey: List[String] =
     this
       .Columns("businesskey")
       .map(column => column.Name)
-      .toList
 
-  def getPartitionColumns: List[String] =
+      
+  /**
+   * Retrieves the list of partition columns for this entity.
+   *
+   * @return The list of partition column names.
+   */
+  final def getPartitionColumns: List[String] =
     this
       .Columns("partition")
-      .map(column => column.Name)
+      .map(column => column.NewName)
       .toList
 
-  def getRenamedColumns: scala.collection.Map[String, String] =
+
+  /**
+   * Returns a map of column names to rename.
+   *
+   * The method filters the columns based on the conditions:
+   * - The column's `NewName` is not empty.
+   * - The column's `NewName` is different from its `Name`.
+   * - The column's `Name` is not empty.
+   *
+   * It then maps the filtered columns to a key-value pair, where the key is the column's `Name`
+   * and the value is the column's `NewName`. Finally, it converts the mapped pairs to a map.
+   *
+   * @return A map of renamed columns, where the key is the original column name and the value is the new column name.
+   */
+  final def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
-      .filter(c => c.NewName != "")
+      .filter(c => (c.NewName.toString() != "" && c.NewName != c.Name && c.Name != ""))
       .map(c => (c.Name, c.NewName))
       .toMap
 
-  def WriteWatermark(watermark_values: List[(String, Any)]): Unit = {
+  final def WriteWatermark(watermark_values: List[(String, Any)]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
     val timezoneId = environment.Timezone.toZoneId

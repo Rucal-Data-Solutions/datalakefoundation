@@ -70,7 +70,16 @@ class Processing(entity: Entity, sliceFile: String) {
     new DatalakeSource(transformedDF, watermark_values)
   }
 
-  // Check for HashColumn(SourceHash) in slice and add if it doesnt exits. (This must come first, the rest of fields are calculated)
+  /**
+    * Calculates the source hash for the input dataset.
+    *
+    * If the input dataset does not have a column named "SourceHash", this method adds the column
+    * and calculates the hash value based on the concatenation of all columns in the dataset.
+    * The hash value is calculated using the SHA-256 algorithm.
+    *
+    * @param input The input dataset to calculate the source hash for.
+    * @return The input dataset with the "SourceHash" column added, if it didn't exist.
+    **/
   private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] =
     if (Utils.hasColumn(input, "SourceHash") == false) {
       return input.withColumn(

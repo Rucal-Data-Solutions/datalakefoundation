@@ -92,6 +92,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     )
     val entityColumns = _entityColumns
       .filter(col("EntityID") === id)
+      .orderBy(col("ColumnOrder"))
       .collect()
       .map(r =>
         new EntityColumn(
