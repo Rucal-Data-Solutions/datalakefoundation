@@ -29,13 +29,14 @@ final object Delta extends ProcessStrategy {
   def Process(processing: Processing) = {
     implicit val env:Environment = processing.environment
 
-    val datalake_source = processing.getSource
-    val source: DataFrame = datalake_source.source
-
     // first time? Do A full load
     if (FileOperations.exists(processing.destination) == false) {
+      println("DEBUG: Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
+      val datalake_source = processing.getSource
+      val source: DataFrame = datalake_source.source
+
       val deltaTable = DeltaTable.forPath(processing.destination)
 
       deltaTable
