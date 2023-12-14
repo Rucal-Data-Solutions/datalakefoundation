@@ -22,12 +22,16 @@ class Environment(
   def Name: String =
     this.name
 
-  def RootFolder: String =
-    this.root_folder
+  def RootFolder: String = {
+    val folder = this.root_folder
+    if (folder.endsWith("/")) folder else folder + "/"
+  }
 
   def Timezone: TimeZone =
     TimeZone.getTimeZone(timezone)
 
-  def DefaultPath: String =
-    this.default_path
+  def DefaultPath: String = {
+    val path = this.default_path
+    if (path.startsWith("/")) path else "/" + path
+  }
 }
