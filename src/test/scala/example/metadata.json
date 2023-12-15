@@ -1,42 +1,20 @@
 {
 	"environment_settings": {
-		"name": "Local Dev",
+		"name": "DEBUG",
 		"timezone": "Europe/Amsterdam",
-		"root_folder": "D:/Datalake"
+		"root_folder": "D:/Datalake",
+		"raw_path": "/${connection}/${entity}",
+		"bronze_path": "/${connection}/${entity}",
+		"silver_path": "/${connection}/${destination}",
+		"secure_container_suffix": "-secure"
 	},
 	"connections": [
 		{
-			"name": "example_1",
+			"name": "sql_test",
 			"enabled": true,
-			"settings": {}
-		},
-		{
-			"name": "example_2",
-			"enabled": false
-		},
-		{
-			"name": "example_3"
-		},
-		{
-			"name": "test_api",
-			"enabled": true,
-			"processing_start": "raw",
 			"settings": {
-				"baseurl": "https://tst.example.com/api",
-				"tokenpath": "/auth/token",
-				"allow_unsecure": false,
-				"stalerecordage": 90,
-				"maxstalerecords": 250,
-				"apipartitions": 4,
-				"bronzepath_UIT": "${today}/${entity}",
-				"file_type": "json",
-				"multiline": false,
-				"raw_transformations": [
-					{
-						"function": "HndlComplexData",
-						"order": 1
-					}
-				]
+				"server": "127.0.0.1",
+				"database": "testdb"
 			}
 		}
 	],
@@ -45,77 +23,17 @@
 			"id": 1,
 			"name": "ent1",
 			"enabled": true,
-			"connection": "example_1",
+			"connection": "sql_test",
 			"processtype": "full",
-			"columns": [
-				{
-					"name": "id",
-					"datatype": "integer",
-					"fieldroles": [
-						"businesskey"
-					]
-				}
-			],
+			"watermark": [],
+			"columns": [],
 			"settings": {
 				"schema": "dbo",
-				"table": "test_zaak",
+				"table": "TestTable",
 				"frequency": {
 					"interval": "weekly",
-					"value": [
-						"Sat"
-					]
-				},
-				"type": "test"
-			}
-		},
-		{
-			"id": 2,
-			"name": "ent2",
-			"enabled": true,
-			"secure": false,
-			"connection": "test_api",
-			"processtype": "delta",
-			"watermark": [
-				{
-					"column_name": "id",
-					"operation": "or",
-					"operation_group": null,
-					"function": "(${last_value} - 5)"
+					"value": ["Mon", "Sat"]
 				}
-			],
-			"columns": [
-				{
-					"name": "id",
-					"datatype": "integer",
-					"fieldroles": [
-						"businesskey",
-						"data"
-					]
-				},
-				{
-					"name": "name",
-					"datatype": "string",
-					"fieldroles": [
-						"data"
-					]
-				},
-				{
-					"name": "dec_value",
-					"newname": "decimal_value",
-					"datatype": "decimal(38,1)",
-					"fieldroles": [
-						"data"
-					]
-				}
-			],
-			"settings": {
-				"frequency": {
-					"interval": "weekly",
-					"value": [
-						"Sat"
-					]
-				},
-				"type": "test"
 			}
 		}
 	]
