@@ -37,13 +37,20 @@ final object Delta extends ProcessStrategy {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source
 
+      val partition_values: Array[String] = datalake_source.partition_values match {
+        case Some(part) => part.toArray.map(c => s"target.${c._1} IN(${c._2.toString()})")
+        case None => Array.empty[String]
+      }
+
       val deltaTable = DeltaTable.forPath(processing.destination)
+      val explicit_partFilter = partition_values.mkString(" AND ")
 
       deltaTable
         .as("target")
         .merge(
           source.as("source"),
-          "source." + processing.primaryKeyColumnName + " = target." + processing.primaryKeyColumnName
+            f"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName}" +
+            (if (partition_values.nonEmpty) s" AND $explicit_partFilter" else "")
         )
         .whenMatched("source.deleted = true")
         .update(Map("deleted" -> lit("true"), "lastSeen" -> col("source.lastSeen")))

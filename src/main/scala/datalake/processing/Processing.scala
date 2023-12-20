@@ -24,7 +24,7 @@ abstract class ProcessStrategy {
   def Process(processing: Processing): Unit
 }
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]])
+case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]], partition_values: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
@@ -35,7 +35,6 @@ class Processing(entity: Entity, sliceFile: String) {
   val columns = entity.Columns
   val paths = entity.getPaths
   val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
-  val partitionColumns = entity.getPartitionColumns
   val sliceFileFullPath: String = s"${paths.BronzePath}/${sliceFile}"
   val destination: String = paths.SilverPath
 
@@ -68,7 +67,24 @@ class Processing(entity: Entity, sliceFile: String) {
       .transform(addLastSeen)
       .datalake_normalize()
 
-    new DatalakeSource(transformedDF, watermark_values)
+    val part_values = getPartitionValues(transformedDF)
+
+    new DatalakeSource(transformedDF, watermark_values, part_values)
+  }
+
+
+  private def getPartitionValues(slice: DataFrame): Option[List[(String, String)]] = {
+    val part_columns = entity.getPartitionColumns
+
+    if (part_columns.nonEmpty) {
+      val partitionValues = part_columns.flatMap { column =>
+        val values = slice.select(column).distinct().as[String].collect().map(value => s""""${value}"""")
+        if (values.nonEmpty) Some((column, values.mkString(","))) else None
+      }.toList
+      Some(partitionValues)
+    } else {
+      None
+    }
   }
 
   /**
