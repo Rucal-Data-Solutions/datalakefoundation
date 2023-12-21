@@ -2,6 +2,7 @@ package datalake.metadata
 
 import datalake.core._
 import datalake.processing._
+import datalake.core.implicits._
 
 import java.util.TimeZone
 import java.time.LocalDateTime
@@ -109,34 +110,34 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
-    val rawPath = new StringBuilder(s"$root_folder/raw/")
-    val bronzePath = new StringBuilder(s"$root_folder/bronze/")
-    val silverPath = new StringBuilder(s"$root_folder/silver/")
+    val rawPath = new StringBuilder(s"$root_folder/raw")
+    val bronzePath = new StringBuilder(s"$root_folder/bronze")
+    val silverPath = new StringBuilder(s"$root_folder/silver")
 
     if (_securehandling) {
       bronzePath ++= "-secure"
       silverPath ++= "-secure"
     }
 
-     // overrides for bronze
+    // overrides for raw
     _settings.get("rawpath") match {
-      case Some(value) => rawPath ++= s"/$value"
-      case None =>
-        rawPath ++= environment.RawPath
+      case Some(value:  String) => rawPath ++= value.normalized_path
+      case _ =>
+        rawPath ++= environment.RawPath.normalized_path
     }
 
     // overrides for bronze
     _settings.get("bronzepath") match {
-      case Some(value) => bronzePath ++= s"/$value"
-      case None =>
-        bronzePath ++= environment.BronzePath
+      case Some(value: String) => bronzePath ++= value.normalized_path
+      case _ =>
+        bronzePath ++= environment.BronzePath.normalized_path
     }
 
     // overrides for silver
     _settings.get("silverpath") match {
-      case Some(value) => silverPath ++= s"/$value"
-      case None =>
-        silverPath ++= environment.SilverPath
+      case Some(value: String) => silverPath ++= value.normalized_path
+      case _ =>
+        silverPath ++= environment.SilverPath.normalized_path
     }
 
     // // interpret variables
