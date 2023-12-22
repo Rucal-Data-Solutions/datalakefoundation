@@ -234,6 +234,7 @@ class EntitySerializer(metadata: Metadata)
         { case entity: Entity =>
           val combinedSettings = entity.Connection.settings merge entity.settings
 
+
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
@@ -244,7 +245,8 @@ class EntitySerializer(metadata: Metadata)
             JField("processtype", JString(entity.ProcessType.Name)),
             JField("watermark", parse(write(entity.Watermark))),
             JField("columns", parse(write(entity.Columns))),
-            JField("settings", combinedSettings)
+            JField("settings", combinedSettings),
+            JField("paths", parse(write(entity.getPaths)))
           )
         }
       )
