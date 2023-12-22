@@ -35,8 +35,8 @@ class Processing(entity: Entity, sliceFile: String) {
   val columns = entity.Columns
   val paths = entity.getPaths
   val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
-  val sliceFileFullPath: String = s"${paths.BronzePath}/${sliceFile}"
-  val destination: String = paths.SilverPath
+  val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
+  val destination: String = paths.silverpath
 
   val columnsToRename = columns
     .filter(c => c.NewName != "")
@@ -52,10 +52,7 @@ class Processing(entity: Entity, sliceFile: String) {
     println(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
-    val watermark_values = if (watermarkColumns.nonEmpty)
-      Some(watermarkColumns.map(colName => (colName, dfSlice.agg(max(colName)).head().get(0))))
-    else
-      None
+    val watermark_values = getWatermarkValues(dfSlice, watermarkColumns)
 
     val transformedDF = dfSlice
       .transform(addCalculatedColumns)
@@ -72,6 +69,15 @@ class Processing(entity: Entity, sliceFile: String) {
     new DatalakeSource(transformedDF, watermark_values, part_values)
   }
 
+  private def getWatermarkValues(slice: DataFrame, wm_columns: List[String]): Option[List[(String, String)]] = {
+    if (wm_columns.nonEmpty) {
+          Some(wm_columns.map(colName => 
+              (colName, slice.agg(max(colName)).head().getAs[String](0))
+          ).filter(_._2 != null))
+        } else {
+          None
+        }
+  }
 
   private def getPartitionValues(slice: DataFrame): Option[List[(String, String)]] = {
     val part_columns = entity.getPartitionColumns

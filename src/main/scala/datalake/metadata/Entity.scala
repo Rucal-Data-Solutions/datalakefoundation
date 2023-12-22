@@ -19,7 +19,7 @@ import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
 
-case class Paths(RawPath: String, BronzePath: String, SilverPath: String) extends Serializable
+case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
 class Entity(
     metadata: Metadata,
@@ -198,7 +198,9 @@ class Entity(
     val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
 
     if(watermark_values.size > 0) {
-      val data = watermark_values.map(wm => Row(this.id, wm._1, timestamp_now, wm._2.toString()))
+      val data = watermark_values.map(
+        wm => Row(this.id, wm._1, timestamp_now, wm._2)
+      )
       watermarkData.Append(data.toSeq)
     }
 
