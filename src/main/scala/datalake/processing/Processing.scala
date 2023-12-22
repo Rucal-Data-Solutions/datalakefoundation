@@ -52,6 +52,9 @@ class Processing(entity: Entity, sliceFile: String) {
     println(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
+    if(dfSlice.count() == 0)
+      println("WARNING: Slice contains no data (RowCount=0)")
+
     val watermark_values = getWatermarkValues(dfSlice, watermarkColumns)
 
     val transformedDF = dfSlice
