@@ -1,3 +1,4 @@
+import datalake.datafactory.DataFactory
 
 import org.apache.spark.{ SparkConf, SparkContext }
 import org.apache.spark.SparkContext._
@@ -5,9 +6,9 @@ import org.apache.spark.sql.{ SparkSession, DataFrame }
 
 import datalake.metadata._
 import datalake.processing._
+import datalake.datafactory._
 
-// import org.apache.spark.sql._
-// import org.apache.spark.sql.functions.{col}
+import org.json4s.jackson.JsonMethods._
 
 object DatalakeTestApp {
 
@@ -34,12 +35,18 @@ object DatalakeTestApp {
     implicit val metadata = new Metadata(metadatasettings)
     println(metadata.getEnvironment.Name)
 
-    val connection = metadata.getConnectionByName("sql_test")
+    val connection = metadata.getConnectionByName("exact")
 
-    val adf_config = DataFactory.getConfigItems(connection)
+    // val adf_config = DataFactory.getConfigItems(connection)
+    // println(pretty(parse(adf_config)))
+    
 
-    println(adf_config)
-  
+    val entity = metadata.getEntity(2)
+    println(entity)
+
+    val proc = new Processing(entity, "test.parquet")
+    proc.Process()
+
  }
 
 }
