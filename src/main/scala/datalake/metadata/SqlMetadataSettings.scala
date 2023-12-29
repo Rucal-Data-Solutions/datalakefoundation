@@ -37,7 +37,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  def setMetadata(metadata: Metadata) {
+  def setMetadata(metadata: Metadata):Unit = {
     _metadata = metadata
   }
 
@@ -157,6 +157,14 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
   def getConnectionEntities(connection: Connection): List[Entity] = {
     _entities
       .filter(col("EntityConnectionID") === connection.Code)
+      .collect()
+      .map(r => createEntityFromRow(r))
+      .toList
+  }
+
+    def getGroupEntities(group: EntityGroup): List[Entity] = {
+    _entities
+      .filter(col("EntityGroup") === group)
       .collect()
       .map(r => createEntityFromRow(r))
       .toList

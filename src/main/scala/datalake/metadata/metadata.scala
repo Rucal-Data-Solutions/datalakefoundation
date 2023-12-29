@@ -20,6 +20,16 @@ case class EntityNotFoundException(message: String) extends Exception(message)
 case class ConnectionNotFoundException(message: String) extends Exception(message)
 case class ProcessStrategyNotSupportedException(message: String) extends Exception(message)
 
+class EntityGroup(name: String) extends Serializable {
+  override def toString(): String = this.name.toLowerCase()
+  def Name: String = this.toString()
+}
+object EntityGroup{
+  def apply(name: String): EntityGroup ={
+    new EntityGroup(name)
+  }
+}
+
 class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable {
 
   private val spark: SparkSession =
@@ -41,8 +51,16 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     }
   }
 
-  def getConnectionEntities(connection: Connection): List[Entity] = {
+  def getEntities(connection: Connection): List[Entity] = {
     metadataSettings.getConnectionEntities(connection)
+  }
+
+    def getEntities(group: EntityGroup): List[Entity] = {
+      metadataSettings.getGroupEntities(group)
+    }
+
+  def getConnectionEntities(connection: Connection): List[Entity] = {
+    getEntities(connection)
   }
 
   def getConnection(connectionCode: String): Connection = {

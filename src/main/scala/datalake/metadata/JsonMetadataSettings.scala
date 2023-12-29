@@ -63,6 +63,15 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
       .map(j => j.extract[Entity])
   }
 
+  def getGroupEntities(group: EntityGroup): List[Entity] = {
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+
+    _entities
+      .filter(e => (e \ "group").toOption.exists(_.extract[String].equalsIgnoreCase(group.Name)))
+      .map(j => j.extract[Entity])
+  }
+
   def getConnection(connectionCode: String): Option[Connection] = {
     implicit var formats: Formats =
       DefaultFormats + new ConnectionSerializer(_metadata)

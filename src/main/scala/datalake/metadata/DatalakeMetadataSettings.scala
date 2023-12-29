@@ -22,5 +22,6 @@ trait DatalakeMetadataSettings {
   def getConnectionEntities(connection: Connection): List[Entity]
   def getConnection(connectionCode: String): Option[Connection]
   def getConnectionByName(connectionName: String): Option[Connection]
+  def getGroupEntities(group: EntityGroup): List[Entity]
   def getEnvironment: Environment
 }

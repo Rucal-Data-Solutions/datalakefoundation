@@ -49,9 +49,7 @@ class Connection(
       case None        => None.asInstanceOf[T]
     }
   }
-  def getEntities: List[Entity] = {
-    metadata.getConnectionEntities(this)
-  } 
+
 }
 
 class ConnectionSerializer(metadata: Metadata)

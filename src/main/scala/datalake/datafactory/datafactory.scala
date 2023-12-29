@@ -9,17 +9,22 @@ import scala.reflect.ClassTag
 
 import datalake.core._
 import datalake.metadata._
+import org.apache.commons.lang.NotImplementedException
 
 object DataFactory {
 
 
-  def getConfigItems(connection: Connection)(implicit metadata: Metadata): String = {
+  def getConfigItems(obj: Any)(implicit metadata: Metadata): String = {
     implicit val formats: Formats = DefaultFormats + FieldSerializer[EntityColumn]() + new EntitySerializer(metadata) + new WatermarkSerializer(metadata)
 
-    // val _settings = write(connection.getSettings)
-    val enabled_entities = connection.getEntities.filter(p => p.isEnabled() == true)
-    write(enabled_entities)
+    val entities = obj match {
+      case group: EntityGroup => metadata.getEntities(group)
+      case connection: Connection => metadata.getEntities(connection)
+      case _ => throw new NotImplementedException("Invalid type.")
+    }
 
+    val enabledEntities = entities.filter(_.isEnabled)
+    write(enabledEntities)
   }
 
 }
