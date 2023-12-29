@@ -25,7 +25,9 @@ final object Full extends ProcessStrategy {
     val datalake_source = processing.getSource
     val source: DataFrame = datalake_source.source
 
-    source.write.format("delta").partitionBy(processing.partitionColumns:_*).mode(SaveMode.Overwrite).save(processing.destination)
+    val part_values: List[String] = datalake_source.partition_values.getOrElse(List.empty).map(_._1)
+
+    source.write.format("delta").partitionBy(part_values:_*).mode(SaveMode.Overwrite).save(processing.destination)
 
     processing.WriteWatermark(datalake_source.watermark_values)
   }

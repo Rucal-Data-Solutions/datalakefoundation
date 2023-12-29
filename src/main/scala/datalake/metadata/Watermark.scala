@@ -23,7 +23,7 @@ class Watermark(
 
     params match {
       case Some(eval_pars) => Utils.EvaluateText(this.expression, eval_pars)
-      case None => s"No parameters for: ${this.expression}"
+      case None => String.valueOf(None)
     }
   }
 

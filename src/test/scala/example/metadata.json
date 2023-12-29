@@ -10,29 +10,111 @@
 	},
 	"connections": [
 		{
-			"name": "sql_test",
+			"name": "AdventureWorksSql",
 			"enabled": true,
 			"settings": {
-				"server": "127.0.0.1",
-				"database": "testdb"
+				"server": "localhost",
+				"database": "AdventureWorks2022"
+			}
+		},
+		{
+			"name": "exact",
+			"settings": {
+				"server": "10.207.0.30",
+				"username": "STDOMAIN1\\sa_datalake_acc",
+				"password_kvs": "sa-datalake-password"
 			}
 		}
 	],
 	"entities": [
 		{
 			"id": 1,
-			"name": "ent1",
+			"name": "person",
 			"enabled": true,
-			"connection": "sql_test",
-			"processtype": "full",
-			"watermark": [],
-			"columns": [],
+			"connection": "AdventureWorksSql",
+			"processtype": "delta",
+			"watermark": [
+				{
+					"column_name": "SeqNr",
+					"operation": "or",
+					"operation_group": 0,
+					"expression": "'${last_value}'"
+				}
+			],
+			"columns": [
+				{
+					"name": "",
+					"newname": "Administration",
+					"datatype": "integer",
+					"fieldroles": [
+						"calculated",
+						"businesskey",
+						"partition"
+					],
+					"expression": "950"
+				},
+				{
+					"name": "ID",
+					"newname": "",
+					"fieldroles": [
+						"businesskey"
+					]
+				}
+			],
 			"settings": {
-				"schema": "dbo",
-				"table": "TestTable",
+				"schema": "Person",
+				"table": "Person",
 				"frequency": {
 					"interval": "weekly",
-					"value": ["Mon", "Sat"]
+					"value": [
+						"Mon",
+						"Sat"
+					]
+				}
+			}
+		},
+		{
+			"id": 2,
+			"name": "person",
+			"enabled": true,
+			"connection": "AdventureWorksSql",
+			"processtype": "delta",
+			"watermark": [
+				{
+					"column_name": "SeqNr",
+					"operation": "or",
+					"operation_group": 0,
+					"expression": "'${last_value}'"
+				}
+			],
+			"columns": [
+				{
+					"name": "",
+					"newname": "Administration",
+					"datatype": "integer",
+					"fieldroles": [
+						"calculated",
+						"businesskey"
+					],
+					"expression": "1000"
+				},
+				{
+					"name": "ID",
+					"newname": "",
+					"fieldroles": [
+						"businesskey"
+					]
+				}
+			],
+			"settings": {
+				"schema": "Person",
+				"table": "Person",
+				"frequency": {
+					"interval": "weekly",
+					"value": [
+						"Mon",
+						"Sat"
+					]
 				}
 			}
 		}

@@ -27,6 +27,14 @@ object implicits {
     }
   }
 
+  implicit class StringFunctions(str: String) {
+
+    def normalized_path: String ={
+      return s"${if (str.toString.startsWith("/")) str else "/" + str}"
+    }
+
+  }
+
   // implicit class DatalakeDataframeWriter(dfw: DataFrameWriter[Row] ){
   //   def parquetWithLock(path: String, lockfile: String): Unit = {
   //     if ( datalake.utils.FileOperations.check_lock(lockfile) )

@@ -2,6 +2,7 @@ package datalake.metadata
 
 import datalake.core._
 import datalake.processing._
+import datalake.core.implicits._
 
 import java.util.TimeZone
 import java.time.LocalDateTime
@@ -18,7 +19,7 @@ import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
 
-case class Paths(RawPath: String, BronzePath: String, SilverPath: String) extends Serializable
+case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
 class Entity(
     metadata: Metadata,
@@ -109,34 +110,34 @@ class Entity(
     val _securehandling = this.Secure
 
     val root_folder: String = environment.RootFolder
-    val rawPath = new StringBuilder(s"$root_folder/raw/")
-    val bronzePath = new StringBuilder(s"$root_folder/bronze/")
-    val silverPath = new StringBuilder(s"$root_folder/silver/")
+    val rawPath = new StringBuilder(s"$root_folder/raw")
+    val bronzePath = new StringBuilder(s"$root_folder/bronze")
+    val silverPath = new StringBuilder(s"$root_folder/silver")
 
     if (_securehandling) {
       bronzePath ++= "-secure"
       silverPath ++= "-secure"
     }
 
-     // overrides for bronze
+    // overrides for raw
     _settings.get("rawpath") match {
-      case Some(value) => rawPath ++= s"/$value"
-      case None =>
-        rawPath ++= environment.RawPath
+      case Some(value:  String) => rawPath ++= value.normalized_path
+      case _ =>
+        rawPath ++= environment.RawPath.normalized_path
     }
 
     // overrides for bronze
     _settings.get("bronzepath") match {
-      case Some(value) => bronzePath ++= s"/$value"
-      case None =>
-        bronzePath ++= environment.BronzePath
+      case Some(value: String) => bronzePath ++= value.normalized_path
+      case _ =>
+        bronzePath ++= environment.BronzePath.normalized_path
     }
 
     // overrides for silver
     _settings.get("silverpath") match {
-      case Some(value) => silverPath ++= s"/$value"
-      case None =>
-        silverPath ++= environment.SilverPath
+      case Some(value: String) => silverPath ++= value.normalized_path
+      case _ =>
+        silverPath ++= environment.SilverPath.normalized_path
     }
 
     // // interpret variables
@@ -197,7 +198,9 @@ class Entity(
     val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
 
     if(watermark_values.size > 0) {
-      val data = watermark_values.map(wm => Row(this.id, wm._1, timestamp_now, wm._2.toString()))
+      val data = watermark_values.map(
+        wm => Row(this.id, wm._1, timestamp_now, wm._2)
+      )
       watermarkData.Append(data.toSeq)
     }
 
@@ -233,6 +236,7 @@ class EntitySerializer(metadata: Metadata)
         { case entity: Entity =>
           val combinedSettings = entity.Connection.settings merge entity.settings
 
+
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
@@ -243,7 +247,8 @@ class EntitySerializer(metadata: Metadata)
             JField("processtype", JString(entity.ProcessType.Name)),
             JField("watermark", parse(write(entity.Watermark))),
             JField("columns", parse(write(entity.Columns))),
-            JField("settings", combinedSettings)
+            JField("settings", combinedSettings),
+            JField("paths", parse(write(entity.getPaths)))
           )
         }
       )

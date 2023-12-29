@@ -1,4 +1,4 @@
-package datalake.metadata
+package datalake.datafactory
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -6,6 +6,9 @@ import org.json4s.FieldSerializer.{ignore}
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.{ read, write }
 import scala.reflect.ClassTag
+
+import datalake.core._
+import datalake.metadata._
 
 object DataFactory {
 
@@ -18,7 +21,5 @@ object DataFactory {
     write(enabled_entities)
 
   }
-
-
 
 }
