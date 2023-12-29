@@ -25,6 +25,7 @@ class Entity(
     metadata: Metadata,
     id: Int,
     name: String,
+    group: Option[String],
     destination: Option[String],
     enabled: Boolean,
     secure: Option[Boolean],
@@ -45,6 +46,9 @@ class Entity(
 
   final def Name: String =
     this.name.toLowerCase()
+
+  final def Group: String =
+    this.group.getOrElse("").toLowerCase()
 
   /** Get the destination name for this entity
     * @return String containing the destination name.
@@ -222,6 +226,7 @@ class EntitySerializer(metadata: Metadata)
             metadata = metadata,
             id = entity_id,
             name = (j \ "name").extract[String],
+            group = (j \ "group").extract[Option[String]],
             destination = (j \ "destination").extract[Option[String]],
             enabled = (j \ "enabled").extract[Boolean],
             secure = (j \ "secure").extract[Option[Boolean]],
@@ -240,6 +245,7 @@ class EntitySerializer(metadata: Metadata)
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
+            JField("group", JString(entity.Group)),
             JField("destination", JString(entity.Destination)),
             JField("enabled", JBool(entity.isEnabled)),
             JField("connection", JString(entity.Connection.Code)),

@@ -135,6 +135,10 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       _metadata,
       id,
       row.getAs[String]("EntityName").toLowerCase(),
+      row.getAs[String]("EntityGroup") match {
+        case "" => None
+        case value: String => Some(value)
+      },
       row.getAs[String]("EntityDestination") match {
         case null => None
         case "" => None
