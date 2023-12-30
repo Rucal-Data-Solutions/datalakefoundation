@@ -1,6 +1,5 @@
 package datalake.metadata
 
-import datalake.core._
 
 import org.json4s._
 import org.json4s.JsonDSL._
@@ -8,7 +7,6 @@ import org.json4s.jackson.JsonMethods._
 
 import scala.reflect.runtime.universe._
 import java.io.File
-import datalake.core.EntityGroup
 
 
 

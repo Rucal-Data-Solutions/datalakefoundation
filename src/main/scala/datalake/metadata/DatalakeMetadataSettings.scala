@@ -1,8 +1,8 @@
 package datalake.metadata
 
-import datalake.core._
 import datalake.processing._
 import scala.util.Try
+
 
 trait DatalakeMetadataSettings {
   type initParam

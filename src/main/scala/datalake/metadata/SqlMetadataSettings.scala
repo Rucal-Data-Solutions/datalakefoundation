@@ -1,7 +1,5 @@
 package datalake.metadata
 
-import datalake.core._
-
 import java.sql._
 import java.util.Properties
 import org.apache.commons.lang.NotImplementedException
@@ -11,8 +9,6 @@ import org.apache.arrow.flatbuf.Bool
 import org.apache.spark.sql.{ Encoder, Encoders }
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
 import org.stringtemplate.v4.compiler.STParser.namedArg_return
-
-
 
 case class SqlServerSettings(
     server: String,

@@ -1,6 +1,5 @@
 package datalake.metadata
 
-import datalake.core._
 import datalake.processing._
 
 import java.util.TimeZone
@@ -11,9 +10,6 @@ import org.apache.spark.sql.types._
 import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
-import scala.tools.cmd.Meta
-
-
 
 case class MetadataNotInitializedException(message: String) extends Exception(message)
 case class EntityNotFoundException(message: String) extends Exception(message)
@@ -45,7 +41,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     metadataSettings.getConnectionEntities(connection)
   }
 
-  def getEntities(group: EntityGroup): List[Entity] = {
+  def getEntities(group: datalake.metadata.EntityGroup): List[Entity] = {
     metadataSettings.getGroupEntities(group)
   }
 

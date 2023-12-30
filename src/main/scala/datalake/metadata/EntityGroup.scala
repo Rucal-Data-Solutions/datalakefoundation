@@ -1,4 +1,4 @@
-package datalake.core
+package datalake.metadata
 
 
 class EntityGroup(name: String) extends Serializable {
