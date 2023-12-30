@@ -9,5 +9,10 @@ class EntityGroup(name: String) extends Serializable {
 }
 
 object EntityGroup{
-  def apply(name: String): EntityGroup = new EntityGroup(name)
+  def apply(name: String): EntityGroup = {
+    if (name.isEmpty) {
+      throw new IllegalArgumentException("Name cannot be empty")
+    }
+    new EntityGroup(name)
+  }
 }
