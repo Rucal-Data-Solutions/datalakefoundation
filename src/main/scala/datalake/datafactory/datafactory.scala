@@ -28,6 +28,7 @@ object DataFactory {
     val entities = obj match {
       case group: EntityGroup => metadata.getEntities(group)
       case connection: Connection => metadata.getEntities(connection)
+      case entityId: Int => metadata.getEntities(entityId)
       case _ => throw new IllegalArgumentException("Invalid type.")
     }
 

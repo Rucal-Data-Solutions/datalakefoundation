@@ -18,6 +18,7 @@ import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
+import java.nio.file.Path
 
 case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
@@ -35,8 +36,9 @@ class Entity(
     columns: List[EntityColumn],
     val settings: JObject
 ) extends Serializable {
-
   implicit val environment: Environment = metadata.getEnvironment
+
+  private val resolved_paths: Paths = resolvePaths
 
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
@@ -99,13 +101,9 @@ class Entity(
     mergedSettings.values
   }
 
+  final def getPaths: Paths = resolved_paths
 
-  /**
-   * Retrieves the paths associated with the entity.
-   *
-   * @return The paths associated with the entity.
-   */
-  final def getPaths: Paths = {
+  private def resolvePaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
