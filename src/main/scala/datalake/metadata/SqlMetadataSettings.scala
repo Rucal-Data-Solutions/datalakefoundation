@@ -164,7 +164,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
 
     def getGroupEntities(group: EntityGroup): List[Entity] = {
     _entities
-      .filter(col("EntityGroup") === group)
+      .filter(col("EntityGroup") === group.Name)
       .collect()
       .map(r => createEntityFromRow(r))
       .toList
