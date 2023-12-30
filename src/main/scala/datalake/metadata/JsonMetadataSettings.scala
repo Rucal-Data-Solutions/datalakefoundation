@@ -8,6 +8,7 @@ import org.json4s.jackson.JsonMethods._
 
 import scala.reflect.runtime.universe._
 import java.io.File
+import datalake.core.EntityGroup
 
 
 

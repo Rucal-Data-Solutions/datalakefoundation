@@ -12,23 +12,13 @@ import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
 import scala.tools.cmd.Meta
-import org.apache.arrow.flatbuf.Bool
+
 
 
 case class MetadataNotInitializedException(message: String) extends Exception(message)
 case class EntityNotFoundException(message: String) extends Exception(message)
 case class ConnectionNotFoundException(message: String) extends Exception(message)
 case class ProcessStrategyNotSupportedException(message: String) extends Exception(message)
-
-class EntityGroup(name: String) extends Serializable {
-  override def toString(): String = this.name.toLowerCase()
-  def Name: String = this.toString()
-}
-object EntityGroup{
-  def apply(name: String): EntityGroup ={
-    new EntityGroup(name)
-  }
-}
 
 class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable {
 
@@ -55,10 +45,18 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     metadataSettings.getConnectionEntities(connection)
   }
 
-    def getEntities(group: EntityGroup): List[Entity] = {
-      metadataSettings.getGroupEntities(group)
-    }
+  def getEntities(group: EntityGroup): List[Entity] = {
+    metadataSettings.getGroupEntities(group)
+  }
 
+  def getEntities(entityId: Int): List[Entity] = {
+    metadataSettings.getEntity(entityId) match{
+      case Some(value) => List(value)
+      case None => List.empty[Entity]
+    }
+  }
+
+  @deprecated("This function is deprecated. Use getEntities(connection: Connection) instead.", "0.6.8")
   def getConnectionEntities(connection: Connection): List[Entity] = {
     getEntities(connection)
   }

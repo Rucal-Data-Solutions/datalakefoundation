@@ -12,6 +12,7 @@ import scala.reflect.runtime._
 import org.json4s.JsonAST
 import scala.tools.cmd.Meta
 import org.apache.arrow.flatbuf.Bool
+import datalake.core.EntityGroup
 
 trait DatalakeMetadataSettings {
   type initParam
