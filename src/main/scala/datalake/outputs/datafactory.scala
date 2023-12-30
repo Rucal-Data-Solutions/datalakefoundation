@@ -6,7 +6,6 @@ import org.json4s.FieldSerializer.{ignore}
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.{ read, write }
 
-import datalake.core._
 import datalake.metadata._
 
 object DataFactory {
