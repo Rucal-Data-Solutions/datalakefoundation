@@ -1,6 +1,5 @@
 package datalake.metadata
 
-import datalake.core._
 import datalake.processing._
 
 import java.util.TimeZone
@@ -11,9 +10,6 @@ import org.apache.spark.sql.types._
 import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
-import scala.tools.cmd.Meta
-import org.apache.arrow.flatbuf.Bool
-
 
 case class MetadataNotInitializedException(message: String) extends Exception(message)
 case class EntityNotFoundException(message: String) extends Exception(message)
@@ -41,8 +37,24 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
     }
   }
 
-  def getConnectionEntities(connection: Connection): List[Entity] = {
+  def getEntities(connection: Connection): List[Entity] = {
     metadataSettings.getConnectionEntities(connection)
+  }
+
+  def getEntities(group: datalake.metadata.EntityGroup): List[Entity] = {
+    metadataSettings.getGroupEntities(group)
+  }
+
+  def getEntities(entityId: Int): List[Entity] = {
+    metadataSettings.getEntity(entityId) match{
+      case Some(value) => List(value)
+      case None => List.empty[Entity]
+    }
+  }
+
+  @deprecated("This function is deprecated. Use getEntities(connection: Connection) instead.", "0.6.8")
+  def getConnectionEntities(connection: Connection): List[Entity] = {
+    getEntities(connection)
   }
 
   def getConnection(connectionCode: String): Connection = {

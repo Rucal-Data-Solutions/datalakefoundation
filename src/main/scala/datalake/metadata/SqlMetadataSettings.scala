@@ -1,8 +1,5 @@
 package datalake.metadata
 
-// import java.io.File
-// import scala.reflect.runtime.universe._
-// import java.sql.{Connection, DriverManager, ResultSet}
 import java.sql._
 import java.util.Properties
 import org.apache.commons.lang.NotImplementedException
@@ -12,7 +9,6 @@ import org.apache.arrow.flatbuf.Bool
 import org.apache.spark.sql.{ Encoder, Encoders }
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
 import org.stringtemplate.v4.compiler.STParser.namedArg_return
-
 
 case class SqlServerSettings(
     server: String,
@@ -37,7 +33,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  def setMetadata(metadata: Metadata) {
+  def setMetadata(metadata: Metadata):Unit = {
     _metadata = metadata
   }
 
@@ -135,6 +131,10 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       _metadata,
       id,
       row.getAs[String]("EntityName").toLowerCase(),
+      row.getAs[String]("EntityGroup") match {
+        case "" => None
+        case value: String => Some(value)
+      },
       row.getAs[String]("EntityDestination") match {
         case null => None
         case "" => None
@@ -153,6 +153,14 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
   def getConnectionEntities(connection: Connection): List[Entity] = {
     _entities
       .filter(col("EntityConnectionID") === connection.Code)
+      .collect()
+      .map(r => createEntityFromRow(r))
+      .toList
+  }
+
+    def getGroupEntities(group: EntityGroup): List[Entity] = {
+    _entities
+      .filter(col("EntityGroup") === group.Name)
       .collect()
       .map(r => createEntityFromRow(r))
       .toList

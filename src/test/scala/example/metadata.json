@@ -16,20 +16,13 @@
 				"server": "localhost",
 				"database": "AdventureWorks2022"
 			}
-		},
-		{
-			"name": "exact",
-			"settings": {
-				"server": "10.207.0.30",
-				"username": "STDOMAIN1\\sa_datalake_acc",
-				"password_kvs": "sa-datalake-password"
-			}
 		}
 	],
 	"entities": [
 		{
 			"id": 1,
 			"name": "person",
+			"group": "AVW",
 			"enabled": true,
 			"connection": "AdventureWorksSql",
 			"processtype": "delta",
@@ -62,6 +55,7 @@
 				}
 			],
 			"settings": {
+				"rawpath": "/test/${entity}",
 				"schema": "Person",
 				"table": "Person",
 				"frequency": {

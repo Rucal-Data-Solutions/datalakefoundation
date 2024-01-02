@@ -27,6 +27,7 @@ final object Historic extends ProcessStrategy {
 
     // first time? Do A full load
     if (FileOperations.exists(processing.destination) == false) {
+      println("DEBUG: Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
       // Get the latest version of the destination table
@@ -40,31 +41,8 @@ final object Historic extends ProcessStrategy {
 
     }
 
-      // Merge the source DataFrame with the target DataFrame
-      // val merged = source
-      //   .join(target, Seq(processing.primaryKeyColumnName), "outer")
-      //   .select(
-      //     coalesce(source(processing.primaryKeyColumnName), target(processing.primaryKeyColumnName)).alias(processing.primaryKeyColumnName),
-      //     when(source(processing.primaryKeyColumnName).isNull, "I").otherwise(
-      //       when(target(processing.primaryKeyColumnName).isNull, "D").otherwise("U")
-      //     ).alias("operation"),
-      //     source.columns.filter(_ != processing.primaryKeyColumnName).map(c => coalesce(source(c), target(c)).alias(c)): _*
-      //   )
+    //TODO: OUTDATE changed records
 
-      // // Write the merged DataFrame to the destination table
-      // DeltaTable
-      //   .forPath(processing.destination)
-      //   .as("target")
-      //   .merge(
-      //     merged.as("source"),
-      //     "source." + processing.primaryKeyColumnName + " = target." + processing.primaryKeyColumnName
-      //   )
-      //   .whenMatched("source.operation = 'D'")
-      //   .delete()
-      //   .whenMatched("source.operation = 'U'")
-      //   .updateAll()
-      //   .whenNotMatched("source.operation = 'I'")
-      //   .insertAll()
-      //   .execute()
+    //TODO: CREATE New records from changes.
   }
 }

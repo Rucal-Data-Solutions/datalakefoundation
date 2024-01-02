@@ -1,6 +1,5 @@
 package datalake.metadata
 
-import datalake.core._
 
 import org.json4s._
 import org.json4s.JsonDSL._
@@ -60,6 +59,15 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
       DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
     _entities
       .filter(e => (e \ "connection").extract[String] == connection.Code)
+      .map(j => j.extract[Entity])
+  }
+
+  def getGroupEntities(group: EntityGroup): List[Entity] = {
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+
+    _entities
+      .filter(e => (e \ "group").toOption.exists(_.extract[String].equalsIgnoreCase(group.Name)))
       .map(j => j.extract[Entity])
   }
 

@@ -18,6 +18,7 @@ import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
+import java.nio.file.Path
 
 case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
@@ -25,6 +26,7 @@ class Entity(
     metadata: Metadata,
     id: Int,
     name: String,
+    group: Option[String],
     destination: Option[String],
     enabled: Boolean,
     secure: Option[Boolean],
@@ -34,8 +36,9 @@ class Entity(
     columns: List[EntityColumn],
     val settings: JObject
 ) extends Serializable {
-
   implicit val environment: Environment = metadata.getEnvironment
+
+  private val resolved_paths: Paths = resolvePaths
 
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
@@ -45,6 +48,9 @@ class Entity(
 
   final def Name: String =
     this.name.toLowerCase()
+
+  final def Group: String =
+    this.group.getOrElse("").toLowerCase()
 
   /** Get the destination name for this entity
     * @return String containing the destination name.
@@ -95,13 +101,9 @@ class Entity(
     mergedSettings.values
   }
 
+  final def getPaths: Paths = resolved_paths
 
-  /**
-   * Retrieves the paths associated with the entity.
-   *
-   * @return The paths associated with the entity.
-   */
-  final def getPaths: Paths = {
+  private def resolvePaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
@@ -222,6 +224,7 @@ class EntitySerializer(metadata: Metadata)
             metadata = metadata,
             id = entity_id,
             name = (j \ "name").extract[String],
+            group = (j \ "group").extract[Option[String]],
             destination = (j \ "destination").extract[Option[String]],
             enabled = (j \ "enabled").extract[Boolean],
             secure = (j \ "secure").extract[Option[Boolean]],
@@ -240,6 +243,7 @@ class EntitySerializer(metadata: Metadata)
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
+            JField("group", JString(entity.Group)),
             JField("destination", JString(entity.Destination)),
             JField("enabled", JBool(entity.isEnabled)),
             JField("connection", JString(entity.Connection.Code)),
