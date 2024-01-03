@@ -1,11 +1,13 @@
 package datalake.core
 
 import datalake.metadata._
+
 import org.apache.spark.sql.{ DataFrame, SparkSession, Row }
-import io.delta.tables._
 import org.apache.spark.sql.types.{ StructType, DataType, StructField }
+import org.apache.spark.sql.functions.{col}
+
+import io.delta.tables._
 import java.sql.Timestamp
-import org.apache.spark.sql.Dataset
 
 case class SystemDataColumn (
     name: String,
@@ -35,11 +37,24 @@ class SystemDataObject(table_definition: SystemDataTable_Definition)(implicit en
   val deltaTablePath = s"${environment.RootFolder}/system/${table_definition.Name}"
   val partition = table_definition.Columns.filter(c => c.part_of_partition == true).map(c => c.name)
 
-  final def Append(rows: Seq[Row]): Unit = {
-    var data = spark.sparkContext.parallelize(rows)
-    var append_df = spark.createDataFrame(data, table_definition.Schema)
+  // final def Append(rows: Seq[Row]): Unit = {
+  //   val data = spark.sparkContext.parallelize(rows)
+  //   val append_df = spark.createDataFrame(data, table_definition.Schema)
 
-    append_df.write.format("delta").partitionBy(partition:_*).mode("append").save(deltaTablePath)
+  //   append_df.write.format("delta").partitionBy(partition:_*).mode("append").save(deltaTablePath)
+  // }
+  
+  final def Append(rows: Seq[Row]): Unit = {
+    // Convert rows to DataFrame
+    var initialDF = spark.createDataFrame(spark.sparkContext.parallelize(rows), StructType(rows.head.schema))
+
+    // Cast each column to its defined data type
+    val castedDF = table_definition.Columns.foldLeft(initialDF) { (df, column) =>
+      df.withColumn(column.name, col(column.name).cast(column.data_type))
+    }
+
+    // Write to Delta table
+    castedDF.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
   }
 
   final def Append(row: Row): Unit = {

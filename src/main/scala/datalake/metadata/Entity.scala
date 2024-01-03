@@ -122,21 +122,21 @@ class Entity(
     }
 
     // overrides for raw
-    _settings.get("rawpath") match {
+    _settings.get("raw_path") match {
       case Some(value:  String) => rawPath ++= value.normalized_path
       case _ =>
         rawPath ++= environment.RawPath.normalized_path
     }
 
     // overrides for bronze
-    _settings.get("bronzepath") match {
+    _settings.get("bronze_path") match {
       case Some(value: String) => bronzePath ++= value.normalized_path
       case _ =>
         bronzePath ++= environment.BronzePath.normalized_path
     }
 
     // overrides for silver
-    _settings.get("silverpath") match {
+    _settings.get("silver_path") match {
       case Some(value: String) => silverPath ++= value.normalized_path
       case _ =>
         silverPath ++= environment.SilverPath.normalized_path
