@@ -18,7 +18,9 @@ class Watermark(
   override def toString(): String =
     s"${operation} ${column_name} > ${Function}"
 
-  final def Expression: String = {
+  final def Expression: String = expression
+  
+  final def Value: String = {
     val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
 
     params match {
@@ -77,7 +79,8 @@ class WatermarkSerializer(metadata: Metadata)
                 case None        => JNull
               }
             ),
-            JField("expression", JString(wm.Expression))
+            JField("expression", JString(wm.Expression)),
+            JField("value", JString(wm.Value))
           )
         }
       )

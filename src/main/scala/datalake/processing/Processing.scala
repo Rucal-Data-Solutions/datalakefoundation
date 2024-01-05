@@ -24,7 +24,7 @@ abstract class ProcessStrategy {
   def Process(processing: Processing): Unit
 }
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, String)]], partition_values: Option[List[(String, Any)]])
+case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]], partition_values: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
@@ -72,10 +72,10 @@ class Processing(entity: Entity, sliceFile: String) {
     new DatalakeSource(transformedDF, watermark_values, part_values)
   }
 
-  private def getWatermarkValues(slice: DataFrame, wm_columns: List[String]): Option[List[(String, String)]] = {
+  private def getWatermarkValues(slice: DataFrame, wm_columns: List[String]): Option[List[(String, Any)]] = {
     if (wm_columns.nonEmpty) {
           Some(wm_columns.map(colName => 
-              (colName, slice.agg(max(colName)).head().getAs[String](0))
+              (colName, slice.agg(max(colName)).head().get(0))
           ).filter(_._2 != null))
         } else {
           None
@@ -186,7 +186,7 @@ class Processing(entity: Entity, sliceFile: String) {
       }
     }
 
-  final def WriteWatermark(watermark_values: Option[List[(String, String)]]): Unit = {
+  final def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
 

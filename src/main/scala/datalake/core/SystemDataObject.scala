@@ -3,7 +3,7 @@ package datalake.core
 import datalake.metadata._
 
 import org.apache.spark.sql.{ DataFrame, SparkSession, Row }
-import org.apache.spark.sql.types.{ StructType, DataType, StructField }
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.functions.{col}
 
 import io.delta.tables._
@@ -36,24 +36,15 @@ class SystemDataObject(table_definition: SystemDataTable_Definition)(implicit en
 
   val deltaTablePath = s"${environment.RootFolder}/system/${table_definition.Name}"
   val partition = table_definition.Columns.filter(c => c.part_of_partition == true).map(c => c.name)
+  val schema = table_definition.Schema
 
   final def Append(rows: Seq[Row]): Unit = {
     val data = spark.sparkContext.parallelize(rows)
-    val append_df = spark.createDataFrame(data, table_definition.Schema)
+    val append_df = spark.createDataFrame(data, schema)
 
     append_df.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
   }
 
-  // final def isRowValid(row: Row): Boolean = {
-  //   val rowSchema = row.schema
-  //   val tableSchema = table_definition.Schema
-
-  //   rowSchema.length == tableSchema.length &&
-  //     rowSchema.zip(tableSchema).forall { case (rowField, tableField) =>
-  //       rowField.name == tableField.name &&
-  //         rowField.dataType == tableField.dataType
-  //     }
-  // }
 
   final def Append(row: Row): Unit = {
     var rows = Seq(row)
