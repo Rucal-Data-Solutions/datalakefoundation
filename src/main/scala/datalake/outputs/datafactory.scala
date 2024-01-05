@@ -27,7 +27,7 @@ object DataFactory {
       case group: EntityGroup => metadata.getEntities(group)
       case connection: Connection => metadata.getEntities(connection)
       case entityId: Int => metadata.getEntities(entityId)
-      case _ => throw new IllegalArgumentException(s"Invalid parameter type ${arg.getClass().getTypeName()}")
+      case _ => throw new Exception(s"Invalid parameter type ${arg.getClass().getTypeName()}")
     }
 
     val enabledEntities = entities.filter(_.isEnabled)

@@ -72,10 +72,10 @@ class Processing(entity: Entity, sliceFile: String) {
     new DatalakeSource(transformedDF, watermark_values, part_values)
   }
 
-  private def getWatermarkValues(slice: DataFrame, wm_columns: List[String]): Option[List[(String, String)]] = {
+  private def getWatermarkValues(slice: DataFrame, wm_columns: List[String]): Option[List[(String, Any)]] = {
     if (wm_columns.nonEmpty) {
           Some(wm_columns.map(colName => 
-              (colName, slice.agg(max(colName)).head().getAs[String](0))
+              (colName, slice.agg(max(colName)).head().get(0))
           ).filter(_._2 != null))
         } else {
           None

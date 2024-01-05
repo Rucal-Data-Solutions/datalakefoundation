@@ -18,7 +18,6 @@ import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
-import java.nio.file.Path
 
 case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
@@ -122,21 +121,21 @@ class Entity(
     }
 
     // overrides for raw
-    _settings.get("rawpath") match {
+    _settings.get("raw_path") match {
       case Some(value:  String) => rawPath ++= value.normalized_path
       case _ =>
         rawPath ++= environment.RawPath.normalized_path
     }
 
     // overrides for bronze
-    _settings.get("bronzepath") match {
+    _settings.get("bronze_path") match {
       case Some(value: String) => bronzePath ++= value.normalized_path
       case _ =>
         bronzePath ++= environment.BronzePath.normalized_path
     }
 
     // overrides for silver
-    _settings.get("silverpath") match {
+    _settings.get("silver_path") match {
       case Some(value: String) => silverPath ++= value.normalized_path
       case _ =>
         silverPath ++= environment.SilverPath.normalized_path
@@ -174,19 +173,6 @@ class Entity(
       .toList
 
 
-  /**
-   * Returns a map of column names to rename.
-   *
-   * The method filters the columns based on the conditions:
-   * - The column's `NewName` is not empty.
-   * - The column's `NewName` is different from its `Name`.
-   * - The column's `Name` is not empty.
-   *
-   * It then maps the filtered columns to a key-value pair, where the key is the column's `Name`
-   * and the value is the column's `NewName`. Finally, it converts the mapped pairs to a map.
-   *
-   * @return A map of renamed columns, where the key is the original column name and the value is the new column name.
-   */
   final def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
       .filter(c => (c.NewName.toString() != "" && c.NewName != c.Name && c.Name != ""))
@@ -198,10 +184,15 @@ class Entity(
     val watermarkData: WatermarkData = new WatermarkData
     val timezoneId = environment.Timezone.toZoneId
     val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+    
+    watermark_values.foreach(wm => println(s"input for watermark: ${wm._1}: ${wm._2.toString()}(${wm._2.getClass().getTypeName()})"))
 
     if(watermark_values.size > 0) {
       val data = watermark_values.map(
-        wm => Row(this.id, wm._1, timestamp_now, wm._2)
+        wm => {
+          val new_row = Row(this.id, wm._1, timestamp_now, wm._2.getClass().getTypeName(), wm._2.toString())
+          new_row
+        }
       )
       watermarkData.Append(data.toSeq)
     }

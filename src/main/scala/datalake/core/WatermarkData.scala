@@ -13,13 +13,14 @@ final class WatermarkData(implicit environment: Environment)
           SystemDataColumn("entity_id", IntegerType, false, true),
           SystemDataColumn("column_name", StringType, false, false),
           SystemDataColumn("timestamp", TimestampType, false, false),
+          SystemDataColumn("source_type", StringType, false, false),
           SystemDataColumn("value", StringType, false, false)
         )
       )
     ) {
 
   def getLastValue(entity_id: Integer, column_name: String): Option[String] = {
-    val df: Option[DataFrame] = this.getDataFrame
+    val df: Option[DataFrame] = getDataFrame
 
     val lastValue: Option[String] =
       try {
@@ -37,3 +38,4 @@ final class WatermarkData(implicit environment: Environment)
     return lastValue
   }
 }
+
