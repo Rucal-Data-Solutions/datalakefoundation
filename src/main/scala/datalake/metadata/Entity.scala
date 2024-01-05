@@ -193,11 +193,13 @@ class Entity(
       .map(c => (c.Name, c.NewName))
       .toMap
 
-  final def WriteWatermark(watermark_values: List[(String, Any)]): Unit = {
+  final def WriteWatermark(watermark_values: List[(String, String)]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData
     val timezoneId = environment.Timezone.toZoneId
     val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+    watermark_values.foreach(wm => println(s"input for watermark: ${wm._1}: ${wm._2}"))
 
     if(watermark_values.size > 0) {
       val data = watermark_values.map(

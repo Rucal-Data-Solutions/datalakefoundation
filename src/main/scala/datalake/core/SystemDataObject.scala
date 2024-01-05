@@ -37,25 +37,23 @@ class SystemDataObject(table_definition: SystemDataTable_Definition)(implicit en
   val deltaTablePath = s"${environment.RootFolder}/system/${table_definition.Name}"
   val partition = table_definition.Columns.filter(c => c.part_of_partition == true).map(c => c.name)
 
-  // final def Append(rows: Seq[Row]): Unit = {
-  //   val data = spark.sparkContext.parallelize(rows)
-  //   val append_df = spark.createDataFrame(data, table_definition.Schema)
-
-  //   append_df.write.format("delta").partitionBy(partition:_*).mode("append").save(deltaTablePath)
-  // }
-  
   final def Append(rows: Seq[Row]): Unit = {
-    // Convert rows to DataFrame
-    var initialDF = spark.createDataFrame(spark.sparkContext.parallelize(rows), StructType(rows.head.schema))
+    val data = spark.sparkContext.parallelize(rows)
+    val append_df = spark.createDataFrame(data, table_definition.Schema)
 
-    // Cast each column to its defined data type
-    val castedDF = table_definition.Columns.foldLeft(initialDF) { (df, column) =>
-      df.withColumn(column.name, col(column.name).cast(column.data_type))
-    }
-
-    // Write to Delta table
-    castedDF.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
+    append_df.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
   }
+
+  // final def isRowValid(row: Row): Boolean = {
+  //   val rowSchema = row.schema
+  //   val tableSchema = table_definition.Schema
+
+  //   rowSchema.length == tableSchema.length &&
+  //     rowSchema.zip(tableSchema).forall { case (rowField, tableField) =>
+  //       rowField.name == tableField.name &&
+  //         rowField.dataType == tableField.dataType
+  //     }
+  // }
 
   final def Append(row: Row): Unit = {
     var rows = Seq(row)
