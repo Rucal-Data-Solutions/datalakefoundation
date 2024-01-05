@@ -29,7 +29,6 @@ final object Full extends ProcessStrategy {
 
     source.write.format("delta").partitionBy(part_values:_*).mode(SaveMode.Overwrite).save(processing.destination)
 
-    datalake_source.watermark_values.get.foreach(wm => println(s"new_wm: ${wm._1}: ${wm._2}"))
     processing.WriteWatermark(datalake_source.watermark_values)
   }
 }
