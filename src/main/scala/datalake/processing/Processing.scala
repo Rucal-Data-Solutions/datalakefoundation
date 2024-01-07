@@ -187,9 +187,6 @@ class Processing(entity: Entity, sliceFile: String) {
     }
 
   final def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
-    // Write the watermark values to system table
-    val watermarkData: WatermarkData = new WatermarkData
-
     watermark_values match {
       case Some(watermarkList) =>
         this.entity.WriteWatermark(watermarkList)

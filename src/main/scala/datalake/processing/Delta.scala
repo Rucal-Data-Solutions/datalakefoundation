@@ -26,7 +26,7 @@ final object Delta extends ProcessStrategy {
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  def Process(processing: Processing) = {
+  def Process(processing: Processing): Unit = {
     implicit val env:Environment = processing.environment
 
     // first time? Do A full load

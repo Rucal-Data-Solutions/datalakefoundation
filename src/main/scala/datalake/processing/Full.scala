@@ -19,7 +19,7 @@ final object Full extends ProcessStrategy {
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  def Process(processing: Processing) {
+  def Process(processing: Processing): Unit = {
     implicit val env: Environment = processing.environment
 
     val datalake_source = processing.getSource
