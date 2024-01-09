@@ -22,11 +22,7 @@ class Watermark(
   
   final def Value: String = {
     val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
-
-    params match {
-      case Some(eval_pars) => Utils.EvaluateText(this.expression, eval_pars)
-      case None => String.valueOf(None)
-    }
+    Utils.EvaluateText(this.expression, params)
   }
 
   final def Column_Name: String =
@@ -42,16 +38,14 @@ class Watermark(
 
 object Watermark {
 
-  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Option[Map[String, String]] = {
+  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Map[String, String] = {
     implicit val env: Environment = environment
     val wmd = new WatermarkData
-    val lastvalue = wmd.getLastValue(entity_id, column_name)
 
-    lastvalue match {
-      case Some(value) => Some(Map(("last_value", value)))
-      case None => None
-    }
+    val lastvalue = ("last_value", wmd.getLastValue(entity_id, column_name).getOrElse("None"))
+    val date_obj = ("date", "\"new java.text.SimpleDateFormat(\"yyyy-MM-dd HH:mm:ss.S\")\"")
     
+    Map(date_obj, lastvalue)
   }
 }
 

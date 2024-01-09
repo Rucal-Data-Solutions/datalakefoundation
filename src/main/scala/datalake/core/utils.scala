@@ -25,13 +25,17 @@ object Utils {
 
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
 
-
-  def EvaluateText(value: String, params: Map[String, String]): String = {
+  def EvaluateText(text: String, params: Map[String, String]): String = {
     val tb = currentMirror.mkToolBox()
-    val vals = params.map(p => s"val ${p._1} = " + "\"" + p._2 + "\"").mkString("\n")
-    val code = s"""${vals}
-                    s"${value}" 
+    val libs = ""
+    val vals = params.map(p => s"val ${p._1} = ${p._2}").mkString(";\n")
+    val code = s"""${libs}
+                    ${vals}
+                    s"${text}" 
                     """
+
+    println(code)
+
     tb.eval(tb.parse(code)).asInstanceOf[String]
   }
 
@@ -46,7 +50,7 @@ object FileOperations {
   // Create Hadoop Configuration from Spark
   private val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
-  def remove(path: Path, force: Boolean) {
+  def remove(path: Path, force: Boolean):Unit ={
     // To Delete File
     if (fs.exists(path) && fs.isFile(path))
       fs.delete(path, force)
@@ -57,7 +61,7 @@ object FileOperations {
 
   }
 
-  def remove(path: String, force: Boolean) {
+  def remove(path: String, force: Boolean):Unit = {
     val pth = new Path(path)
     remove(pth, force)
   }
