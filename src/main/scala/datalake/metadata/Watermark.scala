@@ -3,8 +3,11 @@ package datalake.metadata
 import scala.tools.reflect._
 import scala.reflect.runtime._
 import datalake.core._
+import datalake.core.Utils._
+
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+import org.joda.time.DateTime
 
 class Watermark(
     environment: Environment,
@@ -21,8 +24,10 @@ class Watermark(
   final def Expression: String = expression
   
   final def Value: String = {
-    val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
-    Utils.EvaluateText(this.expression, params)
+    val _params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
+    val _expressions = new Expressions(_params)
+
+    _expressions.EvaluateExpression(this.expression)
   }
 
   final def Column_Name: String =
@@ -37,17 +42,18 @@ class Watermark(
 }
 
 object Watermark {
-
-  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Map[String, String] = {
+  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Set[EvalParameter] = {
     implicit val env: Environment = environment
     val wmd = new WatermarkData
+    val _libs = Set(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
+    val _objects = Set(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
+    val _literals = Set(LiteralEvalParameter("last_value", wmd.getLastValue(entity_id, column_name).getOrElse("None")))
 
-    val lastvalue = ("last_value", wmd.getLastValue(entity_id, column_name).getOrElse("None"))
-    val date_obj = ("date", "\"new java.text.SimpleDateFormat(\"yyyy-MM-dd HH:mm:ss.S\")\"")
-    
-    Map(date_obj, lastvalue)
+
+    _libs ++ _objects ++ _literals
   }
 }
+
 
 class WatermarkSerializer(metadata: Metadata)
     extends CustomSerializer[Watermark](implicit formats =>

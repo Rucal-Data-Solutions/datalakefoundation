@@ -4,8 +4,6 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.SparkSession
 
 import scala.util.Try
-import scala.tools.reflect._
-import scala.reflect.runtime._
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{ FileSystem, Path }
@@ -17,28 +15,16 @@ class Utils(spark: SparkSession){
     spark.sql(f"DROP TABLE IF EXISTS silver.${name}")
     spark.sql(f"CREATE TABLE silver.${name} USING DELTA LOCATION '${path}'")
   }
+
+  
 }
 object Utils {
   def apply(implicit spark: SparkSession):Utils ={
     new Utils(spark)
   }
 
+  
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
-
-  def EvaluateText(text: String, params: Map[String, String]): String = {
-    val tb = currentMirror.mkToolBox()
-    val libs = ""
-    val vals = params.map(p => s"val ${p._1} = ${p._2}").mkString(";\n")
-    val code = s"""${libs}
-                    ${vals}
-                    s"${text}" 
-                    """
-
-    println(code)
-
-    tb.eval(tb.parse(code)).asInstanceOf[String]
-  }
-
 }
 
 object FileOperations {

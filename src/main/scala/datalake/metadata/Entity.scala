@@ -1,6 +1,7 @@
 package datalake.metadata
 
 import datalake.core._
+import datalake.core.Utils._
 import datalake.processing._
 import datalake.core.implicits._
 
@@ -142,10 +143,11 @@ class Entity(
     }
 
     // // interpret variables
-    val availableVars = Map("today" -> today, "entity" -> this.Name, "destination" -> this.Destination, "connection" -> _connection.Name)
-    val retRawPath = Utils.EvaluateText(rawPath.toString, availableVars)
-    val retBronzePath = Utils.EvaluateText(bronzePath.toString, availableVars)
-    val retSilverPath = Utils.EvaluateText(silverPath.toString, availableVars)
+    val availableVars = Set(LiteralEvalParameter("today", today), LiteralEvalParameter("entity", this.Name), LiteralEvalParameter("destination", this.Destination), LiteralEvalParameter("connection", _connection.Name))
+    val expr = new Expressions(availableVars)
+    val retRawPath = expr.EvaluateExpression(rawPath.toString)
+    val retBronzePath = expr.EvaluateExpression(bronzePath.toString)
+    val retSilverPath = expr.EvaluateExpression(silverPath.toString)
 
     return Paths(retRawPath, retBronzePath, retSilverPath)
   }
