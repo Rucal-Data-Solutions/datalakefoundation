@@ -45,9 +45,9 @@ object Watermark {
   private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Set[EvalParameter] = {
     implicit val env: Environment = environment
     val wmd = new WatermarkData
-    val _libs = Set(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
+    val _libs = Set(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
     val _objects = Set(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
-    val _literals = Set(LiteralEvalParameter("last_value", wmd.getLastValue(entity_id, column_name).getOrElse("None")))
+    val _literals = Set(LiteralEvalParameter("watermark", wmd.getLastValue(entity_id, column_name).getOrElse("None")))
 
 
     _libs ++ _objects ++ _literals
