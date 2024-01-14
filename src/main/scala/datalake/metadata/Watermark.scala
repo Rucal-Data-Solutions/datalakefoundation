@@ -42,15 +42,16 @@ class Watermark(
 }
 
 object Watermark {
-  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Set[EvalParameter] = {
+  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Seq[EvalParameter] = {
     implicit val env: Environment = environment
     val wmd = new WatermarkData
-    val _libs = Set(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
-    val _objects = Set(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
-    val _literals = Set(LiteralEvalParameter("watermark", wmd.getLastValue(entity_id, column_name).getOrElse("None")))
+    val _libs = Seq(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
+    val _objects = Seq(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
+    val _literals = Seq(LiteralEvalParameter("watermark", wmd.getLastValue(entity_id, column_name).getOrElse("None")))
+    val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"))
 
 
-    _libs ++ _objects ++ _literals
+    (_libs ++ _objects ++ _literals ++ _aliasses)
   }
 }
 

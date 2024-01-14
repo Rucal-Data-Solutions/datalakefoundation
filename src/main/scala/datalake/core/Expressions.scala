@@ -49,7 +49,7 @@ object LibraryEvalParameter{
 }
 
 
-class Expressions(params: Set[_ <: EvalParameter]) {
+class Expressions(params: Seq[_ <: EvalParameter]) {
     private val expressionBase: String={
         val _pars = params.map(_.AsParameterString).mkString(";\n")
         val code = s"""${_pars}\n"""
@@ -62,7 +62,7 @@ class Expressions(params: Set[_ <: EvalParameter]) {
                     s"${text}" 
                     """
     val parsed_code = tb.parse(code)
-    // println(parsed_code)
+    println(parsed_code)
 
     tb.eval(parsed_code).asInstanceOf[String]
   }
