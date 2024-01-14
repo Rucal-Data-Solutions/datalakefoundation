@@ -62,7 +62,7 @@ class Expressions(params: Seq[_ <: EvalParameter]) {
                     s"${text}" 
                     """
     val parsed_code = tb.parse(code)
-    println(parsed_code)
+    //println(parsed_code)
 
     tb.eval(parsed_code).asInstanceOf[String]
   }
