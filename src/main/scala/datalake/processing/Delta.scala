@@ -12,13 +12,12 @@ import io.delta.tables._
 
 import datalake.core._
 import datalake.core.implicits._
+import datalake.metadata._
 
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.Now
-import datalake.core.FileOperations
-import org.apache.hadoop.shaded.org.apache.commons.net.ntp.TimeStamp
-import datalake.metadata.Environment
+
 
 final object Delta extends ProcessStrategy {
 
