@@ -4,8 +4,6 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.SparkSession
 
 import scala.util.Try
-import scala.tools.reflect._
-import scala.reflect.runtime._
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{ FileSystem, Path }
@@ -17,24 +15,16 @@ class Utils(spark: SparkSession){
     spark.sql(f"DROP TABLE IF EXISTS silver.${name}")
     spark.sql(f"CREATE TABLE silver.${name} USING DELTA LOCATION '${path}'")
   }
+
+  
 }
 object Utils {
   def apply(implicit spark: SparkSession):Utils ={
     new Utils(spark)
   }
 
+  
   def hasColumn(df: DataFrame, path: String): Boolean = Try(df(path)).isSuccess
-
-
-  def EvaluateText(value: String, params: Map[String, String]): String = {
-    val tb = currentMirror.mkToolBox()
-    val vals = params.map(p => s"val ${p._1} = " + "\"" + p._2 + "\"").mkString("\n")
-    val code = s"""${vals}
-                    s"${value}" 
-                    """
-    tb.eval(tb.parse(code)).asInstanceOf[String]
-  }
-
 }
 
 object FileOperations {
@@ -46,7 +36,7 @@ object FileOperations {
   // Create Hadoop Configuration from Spark
   private val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
-  def remove(path: Path, force: Boolean) {
+  def remove(path: Path, force: Boolean):Unit ={
     // To Delete File
     if (fs.exists(path) && fs.isFile(path))
       fs.delete(path, force)
@@ -57,7 +47,7 @@ object FileOperations {
 
   }
 
-  def remove(path: String, force: Boolean) {
+  def remove(path: String, force: Boolean):Unit = {
     val pth = new Path(path)
     remove(pth, force)
   }

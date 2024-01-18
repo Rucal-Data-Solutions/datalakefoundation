@@ -3,8 +3,11 @@ package datalake.metadata
 import scala.tools.reflect._
 import scala.reflect.runtime._
 import datalake.core._
+import datalake.core.Utils._
+
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
+import org.joda.time.DateTime
 
 class Watermark(
     environment: Environment,
@@ -21,12 +24,10 @@ class Watermark(
   final def Expression: String = expression
   
   final def Value: String = {
-    val params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
+    val _params = Watermark.GetWatermarkParams(entity_id, column_name, environment)
+    val _expressions = new Expressions(_params)
 
-    params match {
-      case Some(eval_pars) => Utils.EvaluateText(this.expression, eval_pars)
-      case None => String.valueOf(None)
-    }
+    _expressions.EvaluateExpression(this.expression)
   }
 
   final def Column_Name: String =
@@ -41,19 +42,19 @@ class Watermark(
 }
 
 object Watermark {
-
-  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Option[Map[String, String]] = {
+  private def GetWatermarkParams(entity_id: Integer, column_name: String, environment:Environment): Seq[EvalParameter] = {
     implicit val env: Environment = environment
     val wmd = new WatermarkData
-    val lastvalue = wmd.getLastValue(entity_id, column_name)
+    val _libs = Seq(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
+    val _objects = Seq(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
+    val _literals = Seq(LiteralEvalParameter("watermark", wmd.getLastValue(entity_id, column_name).getOrElse("None")))
+    val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"))
 
-    lastvalue match {
-      case Some(value) => Some(Map(("last_value", value)))
-      case None => None
-    }
-    
+
+    (_libs ++ _objects ++ _literals ++ _aliasses)
   }
 }
+
 
 class WatermarkSerializer(metadata: Metadata)
     extends CustomSerializer[Watermark](implicit formats =>
