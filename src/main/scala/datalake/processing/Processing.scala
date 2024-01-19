@@ -172,7 +172,7 @@ class Processing(entity: Entity, sliceFile: String) {
   private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
     entity.Columns("calculated").foldLeft(input) { (tempdf, column) =>
       Try {
-        tempdf.withColumn(column.Name, expr(column.Expression).cast(column.DataType.getOrElse(StringType)))
+        tempdf.withColumn(column.Name, expr(column.Expression))
       } match {
         case Success(newDf) =>
           newDf
