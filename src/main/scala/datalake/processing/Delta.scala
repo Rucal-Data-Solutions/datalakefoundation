@@ -61,6 +61,8 @@ final object Delta extends ProcessStrategy {
         .insertAll
         .execute()
 
+        deltaTable.vacuum(retentionHours = 750) //use a month (more or less) for now.
+
         processing.WriteWatermark(datalake_source.watermark_values)
     }
     
