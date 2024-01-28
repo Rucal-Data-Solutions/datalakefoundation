@@ -2,7 +2,7 @@
 import Dependencies._
 
 ThisBuild / scalaVersion     := "2.12.15"
-ThisBuild / version          := "0.7.2-SNAPSHOT"
+ThisBuild / version          := "0.7.3-SNAPSHOT"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 
