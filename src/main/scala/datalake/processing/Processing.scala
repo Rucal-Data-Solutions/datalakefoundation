@@ -170,7 +170,7 @@ class Processing(entity: Entity, sliceFile: String) {
   }
 
   private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
-    entity.Columns("calculated").foldLeft(input) { (tempdf, column) =>
+    entity.Columns(EntityColumnFilter(HasExpression=true)).foldLeft(input) { (tempdf, column) =>
       Try {
         tempdf.withColumn(column.Name, expr(column.Expression))
       } match {
