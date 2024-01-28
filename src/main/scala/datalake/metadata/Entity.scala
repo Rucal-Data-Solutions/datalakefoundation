@@ -22,6 +22,7 @@ import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool
 
 case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
+
 class Entity(
     metadata: Metadata,
     id: Int,
@@ -83,6 +84,9 @@ class Entity(
   final def Columns(fieldrole: String*): List[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
+
+  final def Columns(column_filter: EntityColumnFilter): List[EntityColumn]=
+    this.columns.filter(c => c == column_filter)
 
   final def Watermark: List[Watermark] =
     this.watermark

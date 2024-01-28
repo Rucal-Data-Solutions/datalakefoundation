@@ -23,6 +23,16 @@ class EntityColumn(
   override def toString(): String =
     this.name
 
+  override def equals(obj: Any): Boolean ={
+    obj match {
+      case ec: EntityColumn => this.hashCode == ec.hashCode()
+      case filter: EntityColumnFilter => {
+        filter.fieldrole.exists(fr => this.fieldroles.contains(fr)) | filter.HasExpression.exists(x => this.expression.exists(e => e.isEmpty() != x))
+      }
+      case _ => false
+    }
+  }
+
   final def Name: String =
     if (this.name.isEmpty) NewName else this.name
 
