@@ -24,7 +24,7 @@ abstract class ProcessStrategy {
   def Process(processing: Processing): Unit
 }
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(String, Any)]], partition_values: Option[List[(String, Any)]])
+case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_values: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
@@ -34,7 +34,7 @@ class Processing(entity: Entity, sliceFile: String) {
   val primaryKeyColumnName: String = s"PK_${entity.Destination}"
   val columns = entity.Columns
   val paths = entity.getPaths
-  val watermarkColumns = entity.Watermark.map(wm => wm.Column_Name)
+  val watermarkColumns = entity.Watermark
   val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   val destination: String = paths.silverpath
 
@@ -72,10 +72,10 @@ class Processing(entity: Entity, sliceFile: String) {
     new DatalakeSource(transformedDF, watermark_values, part_values)
   }
 
-  private def getWatermarkValues(slice: DataFrame, wm_columns: List[String]): Option[List[(String, Any)]] = {
+  private def getWatermarkValues(slice: DataFrame, wm_columns: List[Watermark]): Option[List[(Watermark, Any)]] = {
     if (wm_columns.nonEmpty) {
-          Some(wm_columns.map(colName => 
-              (colName, slice.agg(max(colName)).head().get(0))
+          Some(wm_columns.map(wm => 
+              (wm, slice.agg(max(wm.Column_Name)).head().get(0))
           ).filter(_._2 != null))
         } else {
           None
@@ -186,7 +186,7 @@ class Processing(entity: Entity, sliceFile: String) {
       }
     }
 
-  final def WriteWatermark(watermark_values: Option[List[(String, Any)]]): Unit = {
+  final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
       case Some(watermarkList) =>
         this.entity.WriteWatermark(watermarkList)
