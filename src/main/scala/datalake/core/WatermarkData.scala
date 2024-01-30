@@ -62,6 +62,9 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
   final def Reset(column: Watermark): Unit = {
     WriteWatermark(Seq((column, String.valueOf(None))))
   }
-
+  
+  final def Reset(columns: Seq[Watermark]): Unit = {
+    WriteWatermark( columns.map(wm => (wm, String.valueOf(None))) )
+  }
 }
 
