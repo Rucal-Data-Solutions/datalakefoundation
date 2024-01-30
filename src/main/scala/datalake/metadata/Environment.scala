@@ -20,7 +20,7 @@ class Environment(
     bronze_path: String,
     silver_path: String,
     secure_container_suffix: String
-) {
+) extends Serializable {
 
   def Name: String =
     this.name

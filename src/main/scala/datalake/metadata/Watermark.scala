@@ -16,7 +16,7 @@ class Watermark(
     operation: String,
     operation_group: Option[Integer],
     expression: String
-){
+) extends Serializable{
   implicit val env: Environment = environment
   val wmd = new WatermarkData(entity_id)
 
