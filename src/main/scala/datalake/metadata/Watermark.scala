@@ -25,11 +25,16 @@ class Watermark(
 
   final def Expression: String = expression
   
-  final def Value: String = {
+  final def Value: Option[String] = {
     val _params = Watermark.GetWatermarkParams(wmd, column_name)
-    val _expressions = new Expressions(_params)
 
-    _expressions.EvaluateExpression(this.expression)
+    _params match {
+      case Some(s) => {
+        val _expressions = new Expressions(s)
+        Some(_expressions.EvaluateExpression(this.expression))
+      }
+      case None => None
+    }
   }
 
   final def Column_Name: String =
@@ -47,15 +52,18 @@ class Watermark(
 }
 
 object Watermark {
-  private def GetWatermarkParams(wmd: WatermarkData, column_name: String): Seq[EvalParameter] = {
+  private def GetWatermarkParams(wmd: WatermarkData, column_name: String): Option[Seq[EvalParameter]] = {
+    wmd.getLastValue(column_name) match {
+      case Some(wm) => {
+        val _libs = Seq(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
+        val _objects = Seq(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
+        val _literals = Seq(LiteralEvalParameter("watermark", wm.value))
+        val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"))
 
-    val _libs = Seq(LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"), LibraryEvalParameter("java.time.format.DateTimeFormatter"))
-    val _objects = Seq(ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"))
-    val _literals = Seq(LiteralEvalParameter("watermark", wmd.getLastValue(column_name).getOrElse("None")))
-    val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"))
-
-
-    (_libs ++ _objects ++ _literals ++ _aliasses)
+        Some(_libs ++ _objects ++ _literals ++ _aliasses)
+      }
+      case None => None
+    }
   }
 }
 
@@ -85,7 +93,7 @@ class WatermarkSerializer(metadata: Metadata)
               }
             ),
             JField("expression", JString(wm.Expression)),
-            JField("value", JString(wm.Value))
+            JField("value", JString(wm.Value.getOrElse("None")))
           )
         }
       )

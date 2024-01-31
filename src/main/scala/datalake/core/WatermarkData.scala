@@ -7,6 +7,8 @@ import org.apache.spark.sql.functions.{ col, lit, max }
 import java.time.LocalDateTime
 import scala.tools.nsc.Reporting
 
+case class WatermarkValue(value: String, datatype: String)
+
 final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
     extends SystemDataObject(
       new SystemDataTable_Definition(
@@ -21,17 +23,16 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
       )
     ) {
 
-  def getLastValue(column_name: String): Option[String] = {
+  def getLastValue(column_name: String): Option[WatermarkValue] = {
     val df: Option[DataFrame] = getDataFrame
 
-    val lastValue: Option[String] =
+    val lastValue: Option[WatermarkValue] =
       try {
-        val firstRow = df.get
+        val lastRow = df.get
           .filter((col("entity_id") === entity_id) && (col("column_name") === column_name))
           .sort(col("timestamp").desc)
-          .agg(max(col("value")).alias("last_value"))
-          .first()
-        Some(firstRow.getAs[String]("last_value"))
+          .head()
+        Some(WatermarkValue(lastRow.getAs[String]("value"), lastRow.getAs[String]("source_type")))
       }
       catch{
         case e: NoSuchElementException => None
@@ -45,12 +46,12 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
     val timezoneId = environment.Timezone.toZoneId
     val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
     
-    watermark_values.foreach(wm => println(s"input for watermark: ${wm._1}: ${wm._2.toString()}(${wm._2.getClass().getTypeName()})"))
+    watermark_values.foreach(wm => println(s"Write watermark: <${wm._1.Column_Name}> => ${wm._2.toString()}(${wm._2.getClass().getTypeName()})"))
 
     if(watermark_values.size > 0) {
       val data = watermark_values.map(
         wm => {
-          val new_row = Row(this.entity_id, wm._1, timestamp_now, wm._2.getClass().getTypeName(), wm._2.toString())
+          val new_row = Row(this.entity_id, wm._1.Column_Name, timestamp_now, wm._2.getClass().getTypeName(), wm._2.toString())
           new_row
         }
       )
@@ -60,11 +61,11 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
   }
 
   final def Reset(column: Watermark): Unit = {
-    WriteWatermark(Seq((column, String.valueOf(None))))
+    WriteWatermark(Seq((column, None)))
   }
   
   final def Reset(columns: Seq[Watermark]): Unit = {
-    WriteWatermark( columns.map(wm => (wm, String.valueOf(None))) )
+    WriteWatermark( columns.map(wm => (wm, None)) )
   }
 }
 
