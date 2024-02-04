@@ -147,8 +147,9 @@ class Entity(
     }
 
     // // interpret variables
+    val settingsVars = _settings.map(s => LiteralEvalParameter(s"settings_${s._1}", s._2.toString())).toSeq
     val availableVars = Seq(LiteralEvalParameter("today", today), LiteralEvalParameter("entity", this.Name), LiteralEvalParameter("destination", this.Destination), LiteralEvalParameter("connection", _connection.Name))
-    val expr = new Expressions(availableVars)
+    val expr = new Expressions(settingsVars ++ availableVars)
     val retRawPath = expr.EvaluateExpression(rawPath.toString)
     val retBronzePath = expr.EvaluateExpression(bronzePath.toString)
     val retSilverPath = expr.EvaluateExpression(silverPath.toString)
