@@ -57,6 +57,7 @@ class Watermark(
 object Watermark {
 
   private def GetWatermarkParams(wmd: WatermarkData, value: WatermarkValue): Seq[EvalParameter] = {
+    
     val _libs = Seq(
       LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"),
       LibraryEvalParameter("java.time.format.DateTimeFormatter")
@@ -65,7 +66,7 @@ object Watermark {
       ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")")
     )
     val _literals =
-      Seq(LiteralEvalParameter("watermark", s"${value.value}.asInstanceOf[${value.datatype}]"))
+      Seq(LiteralEvalParameter("watermark", s"${value.value}"))
     val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"))
 
     return _libs ++ _objects ++ _literals ++ _aliasses
