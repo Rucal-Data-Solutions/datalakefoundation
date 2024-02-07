@@ -35,8 +35,7 @@ class Entity(
     processtype: String,
     watermark: List[Watermark],
     columns: List[EntityColumn],
-    val settings: JObject,
-    val transformations: List[String]
+    val settings: JObject
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
 
@@ -217,8 +216,7 @@ class EntitySerializer(metadata: Metadata)
             processtype = (j \ "processtype").extract[String],
             watermark = watermarkJson.extract[List[Watermark]],
             columns = (j \ "columns").extract[List[EntityColumn]],
-            settings = (j \ "settings").extract[JObject],
-            transformations = (j \ "transformations").extract[List[String]]
+            settings = (j \ "settings").extract[JObject]
           )
 
         },

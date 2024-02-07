@@ -60,7 +60,6 @@ class Processing(entity: Entity, sliceFile: String) {
     val transformedDF = dfSlice
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
-      .transform(injectTransformations)
       .transform(addPrimaryKey)
       .transform(castColumns)
       .transform(renameColumns)
@@ -187,10 +186,6 @@ class Processing(entity: Entity, sliceFile: String) {
       }
     }
   
-  private def injectTransformations(input: Dataset[Row]): Dataset[Row] ={
-    input.selectExpr(entity.transformations:_*)
-  }
-
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
       case Some(watermarkList) =>
