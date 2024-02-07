@@ -141,12 +141,13 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
         case value: String => Some(value)
       },
       row.getAs[Boolean]("EntityEnabled"),
-      None,
+      secure = None,
       row.getAs[Int]("EntityConnectionID").toString,
       row.getAs[String]("EntityProcessType").toLowerCase(),
       watermark,
       entityColumns,
-      entitySettings
+      settings = entitySettings,
+      transformations = List.empty[String]
     )
   }
 

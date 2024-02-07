@@ -63,6 +63,7 @@ class Processing(entity: Entity, sliceFile: String) {
       .transform(addPrimaryKey)
       .transform(castColumns)
       .transform(renameColumns)
+      .transform(injectTransformations)
       .transform(addDeletedColumn)
       .transform(addLastSeen)
       .datalake_normalize()
@@ -182,9 +183,13 @@ class Processing(entity: Entity, sliceFile: String) {
             s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}"
           )
           // Continue processing with the DataFrame as it was before the failure
-          tempdf.withColumn(column.Name, lit(null).cast(column.DataType.getOrElse(StringType)))
+          tempdf
       }
     }
+  
+  private def injectTransformations(input: Dataset[Row]): Dataset[Row] ={
+    input.selectExpr(entity.transformations:_*)
+  }
 
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
