@@ -60,10 +60,10 @@ class Processing(entity: Entity, sliceFile: String) {
     val transformedDF = dfSlice
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
+      .transform(injectTransformations)
       .transform(addPrimaryKey)
       .transform(castColumns)
       .transform(renameColumns)
-      .transform(injectTransformations)
       .transform(addDeletedColumn)
       .transform(addLastSeen)
       .datalake_normalize()
