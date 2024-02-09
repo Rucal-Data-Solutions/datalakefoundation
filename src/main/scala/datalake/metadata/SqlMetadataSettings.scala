@@ -42,7 +42,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
 
   def initialize(initParameter: initParam): Unit = {
     val connectionString =
-      s"jdbc:sqlserver://${initParameter.server}:${initParameter.port};database=${initParameter.database};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;selectMethod=cursor;"
+      s"jdbc:sqlserver://${initParameter.server}:${initParameter.port};database=${initParameter.database};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30"
 
     val connectionProperties = new Properties()
     connectionProperties.put("user", s"${initParameter.username}")
