@@ -9,6 +9,7 @@ import org.apache.arrow.flatbuf.Bool
 import org.apache.spark.sql.{ Encoder, Encoders }
 import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
 import org.stringtemplate.v4.compiler.STParser.namedArg_return
+import com.microsoft.sqlserver.jdbc.{SQLServerException}
 
 case class SqlServerSettings(
     server: String,
@@ -47,16 +48,25 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     connectionProperties.put("user", s"${initParameter.username}")
     connectionProperties.put("password", s"${initParameter.password}")
 
-    _entities = spark.read.jdbc(connectionString, "cfg.Entity", connectionProperties)
-    _entityColumns = spark.read.jdbc(connectionString, "cfg.EntityColumn", connectionProperties)
-    _connections = spark.read.jdbc(connectionString, "cfg.EntityConnection", connectionProperties)
-    _entitySettings = spark.read.jdbc(connectionString, "cfg.EntitySetting", connectionProperties)
-    _connectionSettings =
-      spark.read.jdbc(connectionString, "cfg.EntityConnectionSetting", connectionProperties)
-    _environment = spark.read.jdbc(connectionString, "cfg.Environment", connectionProperties)
-    _watermark = spark.read.jdbc(connectionString, "cfg.Watermark", connectionProperties)
+    try {
+      _entities = spark.read.jdbc(connectionString, "cfg.Entity", connectionProperties)
+      _entityColumns = spark.read.jdbc(connectionString, "cfg.EntityColumn", connectionProperties)
+      _connections = spark.read.jdbc(connectionString, "cfg.EntityConnection", connectionProperties)
+      _entitySettings = spark.read.jdbc(connectionString, "cfg.EntitySetting", connectionProperties)
+      _connectionSettings =
+        spark.read.jdbc(connectionString, "cfg.EntityConnectionSetting", connectionProperties)
+      _environment = spark.read.jdbc(connectionString, "cfg.Environment", connectionProperties)
+      _watermark = spark.read.jdbc(connectionString, "cfg.Watermark", connectionProperties)
 
-    _isInitialized = true
+      _isInitialized = true
+    }
+    catch {
+      case e: SQLServerException => { println(e.getMessage())
+        _isInitialized = false
+      }
+      case e: Exception => {println(s"Unexpected Error: ${e.getMessage()}")}
+    }
+
   }
 
   def isInitialized(): Boolean =
