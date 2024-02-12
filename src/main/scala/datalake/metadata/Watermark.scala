@@ -63,7 +63,8 @@ object Watermark {
       LibraryEvalParameter("java.time.format.DateTimeFormatter")
     )
     val _objects = Seq(
-      ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")")
+      ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"),
+      ObjectEvalParameter("reflex_now", "LocalDate.of(1900,1,1).until(LocalDate.now(), java.time.temporal.ChronoUnit.DAYS)")
     )
     val _literals =
       Seq(LiteralEvalParameter("watermark", s"${value.value}"))
