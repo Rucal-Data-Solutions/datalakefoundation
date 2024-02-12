@@ -156,7 +156,8 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       row.getAs[String]("EntityProcessType").toLowerCase(),
       watermark,
       entityColumns,
-      settings = entitySettings
+      settings = entitySettings,
+      transformations =  List.empty[String]
     )
   }
 
