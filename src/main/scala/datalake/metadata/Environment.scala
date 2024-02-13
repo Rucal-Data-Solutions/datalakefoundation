@@ -20,7 +20,9 @@ class Environment(
     bronze_path: String,
     silver_path: String,
     secure_container_suffix: String
-) {
+) extends Serializable {
+
+  override def toString(): String = s"Environment: ${this.name}"
 
   def Name: String =
     this.name

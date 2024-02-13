@@ -8,6 +8,8 @@ import org.apache.spark.sql.{ DataFrame, Column, Row }
 import java.util.TimeZone
 import java.time.LocalDateTime
 import io.delta.tables._
+import io.delta.implicits._
+
 import org.apache.spark.sql.SaveMode
 
 import datalake.core._
@@ -27,7 +29,7 @@ final object Full extends ProcessStrategy {
 
     val part_values: List[String] = datalake_source.partition_values.getOrElse(List.empty).map(_._1)
 
-    source.write.format("delta").partitionBy(part_values:_*).mode(SaveMode.Overwrite).save(processing.destination)
+    source.write.partitionBy(part_values:_*).mode(SaveMode.Overwrite).option("overwriteSchema", "True").delta(processing.destination)
 
     processing.WriteWatermark(datalake_source.watermark_values)
   }

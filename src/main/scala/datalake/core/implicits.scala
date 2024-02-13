@@ -16,8 +16,8 @@ object implicits {
 
       // dorp sys columns
       val dfWOsys = df.drop(columns.filter(col => col.startsWith("sys_")): _*)
-
-      val regex = """[+-.,() ]+"""
+      
+      val regex = """[ +-.,;{}()\n\t=]+"""
       val replacingColumns = columns.map(regex.r.replaceAllIn(_, ""))
       val resultingDf = replacingColumns.zip(columns).foldLeft(dfWOsys) { (tempdf, name) =>
         tempdf.withColumnRenamed(name._2, name._1)

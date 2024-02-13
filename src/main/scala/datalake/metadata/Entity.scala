@@ -22,6 +22,7 @@ import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool
 
 case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
 
+
 class Entity(
     metadata: Metadata,
     id: Int,
@@ -34,7 +35,8 @@ class Entity(
     processtype: String,
     watermark: List[Watermark],
     columns: List[EntityColumn],
-    val settings: JObject
+    val settings: JObject,
+    val transformations: List[String]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
 
@@ -83,6 +85,9 @@ class Entity(
   final def Columns(fieldrole: String*): List[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
+
+  final def Columns(column_filter: EntityColumnFilter): List[EntityColumn]=
+    this.columns.filter(c => c == column_filter)
 
   final def Watermark: List[Watermark] =
     this.watermark
@@ -143,8 +148,9 @@ class Entity(
     }
 
     // // interpret variables
+    val settingsVars = _settings.map(s => LiteralEvalParameter(s"settings_${s._1}", s._2.toString())).toSeq
     val availableVars = Seq(LiteralEvalParameter("today", today), LiteralEvalParameter("entity", this.Name), LiteralEvalParameter("destination", this.Destination), LiteralEvalParameter("connection", _connection.Name))
-    val expr = new Expressions(availableVars)
+    val expr = new Expressions(settingsVars ++ availableVars)
     val retRawPath = expr.EvaluateExpression(rawPath.toString)
     val retBronzePath = expr.EvaluateExpression(bronzePath.toString)
     val retSilverPath = expr.EvaluateExpression(silverPath.toString)
@@ -181,24 +187,10 @@ class Entity(
       .map(c => (c.Name, c.NewName))
       .toMap
 
-  final def WriteWatermark(watermark_values: List[(String, Any)]): Unit = {
+  final def WriteWatermark(watermark_values: List[(Watermark, Any)]): Unit = {
     // Write the watermark values to system table
-    val watermarkData: WatermarkData = new WatermarkData
-    val timezoneId = environment.Timezone.toZoneId
-    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
-    
-    watermark_values.foreach(wm => println(s"input for watermark: ${wm._1}: ${wm._2.toString()}(${wm._2.getClass().getTypeName()})"))
-
-    if(watermark_values.size > 0) {
-      val data = watermark_values.map(
-        wm => {
-          val new_row = Row(this.id, wm._1, timestamp_now, wm._2.getClass().getTypeName(), wm._2.toString())
-          new_row
-        }
-      )
-      watermarkData.Append(data.toSeq)
-    }
-
+    val watermarkData: WatermarkData = new WatermarkData(this.id)
+    watermarkData.WriteWatermark(watermark_values)
   }
 
 }
@@ -225,7 +217,8 @@ class EntitySerializer(metadata: Metadata)
             processtype = (j \ "processtype").extract[String],
             watermark = watermarkJson.extract[List[Watermark]],
             columns = (j \ "columns").extract[List[EntityColumn]],
-            settings = (j \ "settings").extract[JObject]
+            settings = (j \ "settings").extract[JObject],
+            transformations = (j \ "transformations").extract[List[String]]
           )
 
         },
