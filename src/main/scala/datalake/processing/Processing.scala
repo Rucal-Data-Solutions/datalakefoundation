@@ -127,7 +127,7 @@ class Processing(entity: Entity, sliceFile: String) {
         val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
         val dupCount = duplicates.count()
         if(dupCount > 0) {
-          duplicates.show()
+          duplicates.show(truncate = false)
           throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
         }
       }
