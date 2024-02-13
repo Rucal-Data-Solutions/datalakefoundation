@@ -187,8 +187,17 @@ class Processing(entity: Entity, sliceFile: String) {
       }
     }
   
+  /**
+    * Applies transformations from the entity to the input dataset.
+    *
+    * @param input The input dataset to be transformed.
+    * @return The transformed dataset or input if num of transformations=0.
+    */
   private def injectTransformations(input: Dataset[Row]): Dataset[Row] ={
-    input.selectExpr(entity.transformations:_*)
+    if(!entity.transformations.isEmpty)
+      input.selectExpr(entity.transformations:_*)
+    else
+      input
   }
  
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
