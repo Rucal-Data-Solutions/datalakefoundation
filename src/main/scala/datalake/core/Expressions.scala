@@ -16,7 +16,7 @@ class LiteralEvalParameter(name: String, value: String) extends EvalParameter(na
   def validate: Boolean = true
 
   def AsParameterString: String ={
-    val filteredValue = value.toString().replaceAll("[\\r\\n\\]", "")
+    val filteredValue = value.toString().replaceAll("[\\r\\n\\\\]", "")
     s"val ${name} = " + "\"" + s"${filteredValue}" + "\""
   }
     
