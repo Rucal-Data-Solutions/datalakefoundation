@@ -2,7 +2,6 @@ package datalake.core
 
 import scala.tools.reflect._
 import scala.reflect.runtime._
-import java.beans.Expression
 import scala.util.Try
 
 case class InvalidEvalParameterException(message: String) extends Exception(message)
@@ -72,7 +71,7 @@ class Expressions(params: Seq[_ <: EvalParameter]) {
 
   def EvaluateExpression(text: String): String = {
     val tb = currentMirror.mkToolBox()
-    val code = s"""${expressionBase}\ns"${text}" """
+    val code = expressionBase + "\ns\"\"\""+ text.toString + "\"\"\""
 
     val result =
       try {
