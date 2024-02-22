@@ -24,7 +24,7 @@ abstract class ProcessStrategy {
   def Process(processing: Processing): Unit
 }
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_values: Option[List[(String, Any)]])
+case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
