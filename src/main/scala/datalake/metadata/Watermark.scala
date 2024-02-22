@@ -29,7 +29,7 @@ class Watermark(
     val _value = wmd.getLastValue(column_name) match {
       case Some(watermark_value) =>
         try {
-          val _params = Watermark.GetWatermarkParams(wmd, watermark_value)
+          val _params = Watermark.BuildWatermarkParams(wmd, watermark_value)
           val _expressions = new Expressions(_params)
           Some(_expressions.EvaluateExpression(this.expression))
         } catch {
@@ -56,7 +56,7 @@ class Watermark(
 
 object Watermark {
 
-  private def GetWatermarkParams(wmd: WatermarkData, value: WatermarkValue): Seq[EvalParameter] = {
+  private def BuildWatermarkParams(wmd: WatermarkData, value: WatermarkValue): Seq[EvalParameter] = {
     
     val _libs = Seq(
       LibraryEvalParameter("java.time.{LocalDate, LocalDateTime, LocalTime}"),
