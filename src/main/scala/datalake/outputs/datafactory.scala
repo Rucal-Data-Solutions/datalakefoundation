@@ -30,8 +30,7 @@ object DataFactory {
       case _ => throw new Exception(s"Invalid parameter type ${arg.getClass().getTypeName()}")
     }
 
-    val enabledEntities = entities
-    write(enabledEntities)
+    write(entities)
   }
 
 }
