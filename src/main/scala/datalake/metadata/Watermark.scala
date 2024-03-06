@@ -64,11 +64,11 @@ object Watermark {
     )
     val _objects = Seq(
       ObjectEvalParameter("defaultFormat", "DateTimeFormatter.ofPattern(\"yyyy-MM-dd HH:mm:ss.S\")"),
-      ObjectEvalParameter("reflex_now", "LocalDate.of(1900,1,1).until(LocalDate.now(), java.time.temporal.ChronoUnit.DAYS)")
+      ObjectEvalParameter("b19_epoch_day", "LocalDate.of(1900,1,1).until(LocalDate.now(), java.time.temporal.ChronoUnit.DAYS)")
     )
     val _literals =
       Seq(LiteralEvalParameter("watermark", s"${value.value}"))
-    val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"))
+    val _aliasses = Seq(ObjectEvalParameter("last_value", "watermark"), ObjectEvalParameter("reflex_now", "b19_epoch_day"))
 
     return _libs ++ _objects ++ _literals ++ _aliasses
 
