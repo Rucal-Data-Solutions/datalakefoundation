@@ -107,7 +107,7 @@ class Processing(entity: Entity, sliceFile: String) {
     * @param input The input dataset to calculate the source hash for.
     * @return The input dataset with the "SourceHash" column added, if it didn't exist.
     **/
-  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] =
+  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] ={
     if (Utils.hasColumn(input, "SourceHash") == false) {
       return input.withColumn(
         "SourceHash",
@@ -115,6 +115,7 @@ class Processing(entity: Entity, sliceFile: String) {
       )
     } else
       return input
+  }
 
   // Check PK in slice, add if it doesnt exits.
   private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
