@@ -55,10 +55,11 @@ class Processing(entity: Entity, sliceFile: String) {
     if(dfSlice.count() == 0)
       println("WARNING: Slice contains no data (RowCount=0)")
 
-    val watermark_values = getWatermarkValues(dfSlice, watermarkColumns)
+    val pre_process = dfSlice.transform(injectTransformations)
 
-    val transformedDF = dfSlice
-      .transform(injectTransformations)
+    val watermark_values = getWatermarkValues(pre_process, watermarkColumns)
+
+    val transformedDF = pre_process
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
       .transform(addPrimaryKey)
