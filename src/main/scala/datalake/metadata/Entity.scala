@@ -177,7 +177,7 @@ class Entity(
   final def getPartitionColumns: List[String] =
     this
       .Columns("partition")
-      .map(column => column.NewName)
+      .map(column => column.Name)
       .toList
 
 
