@@ -33,8 +33,14 @@ class Watermark(
           val _expressions = new Expressions(_params)
           Some(_expressions.EvaluateExpression(this.expression))
         } catch {
-          case e: Exception =>
+          case e: java.lang.reflect.InvocationTargetException => {
+            println(e.getTargetException().toString())
             None
+          }
+          case e: Exception => {
+            println(e.getMessage())
+            None
+          }
         }
       case None => None
     }
