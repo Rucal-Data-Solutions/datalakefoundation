@@ -7,7 +7,9 @@ import org.apache.spark.sql.{ SparkSession, DataFrame, Row }
 import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
 import org.apache.spark.sql.{ Encoder, Encoders }
+
 import org.json4s._
+import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 import com.microsoft.sqlserver.jdbc.{SQLServerException}
@@ -36,7 +38,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
         .option("url", connectionString)
         .option("user", settings.username)
         .option("password", settings.password)
-        .option("query", "SELECT config FROM fnGetFoundationConfig()")
+        .option("query", "SELECT config FROM cfg.fnGetFoundationConfig()")
         .load()
 
       val _jsonString = _configJson.head.apply(0).toString()
@@ -48,7 +50,6 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     }
 
   }
-
 }
 
 object SqlMetadataSettings{
