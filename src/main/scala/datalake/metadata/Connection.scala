@@ -60,7 +60,7 @@ class ConnectionSerializer(metadata: Metadata)
             metadata = metadata,
             code = (j \ "name").extract[String],
             name = (j \ "name").extract[String].toLowerCase(),
-            enabled = (j \ "enabled").extract[Option[Boolean]],
+            enabled = (j \ "enabled").extractOpt[Boolean],
             settings = (j \ "settings").extract[JObject]
           )
         },
