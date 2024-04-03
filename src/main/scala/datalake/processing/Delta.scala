@@ -36,7 +36,7 @@ final object Delta extends ProcessStrategy {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source
 
-      val partition_values: Array[String] = datalake_source.partition_values match {
+      val partition_values: Array[String] = datalake_source.partition_columns match {
         case Some(part) => part.toArray.map(c => s"target.${c._1} IN(${c._2.toString()})")
         case None => Array.empty[String]
       }

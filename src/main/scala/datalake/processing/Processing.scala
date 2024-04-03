@@ -24,7 +24,7 @@ abstract class ProcessStrategy {
   def Process(processing: Processing): Unit
 }
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_values: Option[List[(String, Any)]])
+case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
@@ -55,10 +55,11 @@ class Processing(entity: Entity, sliceFile: String) {
     if(dfSlice.count() == 0)
       println("WARNING: Slice contains no data (RowCount=0)")
 
-    val watermark_values = getWatermarkValues(dfSlice, watermarkColumns)
+    val pre_process = dfSlice.transform(injectTransformations)
 
-    val transformedDF = dfSlice
-      .transform(injectTransformations)
+    val watermark_values = getWatermarkValues(pre_process, watermarkColumns)
+
+    val transformedDF = pre_process
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
       .transform(addPrimaryKey)
@@ -107,7 +108,7 @@ class Processing(entity: Entity, sliceFile: String) {
     * @param input The input dataset to calculate the source hash for.
     * @return The input dataset with the "SourceHash" column added, if it didn't exist.
     **/
-  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] =
+  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] ={
     if (Utils.hasColumn(input, "SourceHash") == false) {
       return input.withColumn(
         "SourceHash",
@@ -115,6 +116,7 @@ class Processing(entity: Entity, sliceFile: String) {
       )
     } else
       return input
+  }
 
   // Check PK in slice, add if it doesnt exits.
   private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
