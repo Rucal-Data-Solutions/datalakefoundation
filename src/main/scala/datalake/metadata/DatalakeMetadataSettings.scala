@@ -87,7 +87,7 @@ abstract class DatalakeMetadataSettings {
       DefaultFormats + new ConnectionSerializer(_metadata)
     val connection =
       _connections
-        .find(j => (j \ "name").extract[String] == connectionName)
+        .find(j => (j \ "name").extract[String].toLowerCase() == connectionName.toLowerCase())
         .map(j => j.extract[Connection])
     connection
   }
