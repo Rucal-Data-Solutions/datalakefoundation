@@ -2,7 +2,7 @@
 import Dependencies._
 
 ThisBuild / scalaVersion     := "2.12.15"
-ThisBuild / version          := "0.8.2-SNAPSHOT"
+ThisBuild / version          := "0.8.2"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 val sparkVersion = "3.4.1"
