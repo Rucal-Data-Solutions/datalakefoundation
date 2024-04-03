@@ -12,7 +12,9 @@ abstract class EvalParameter(name: String) {
 }
 
 class LiteralEvalParameter(name: String, value: String) extends EvalParameter(name) {
-  def validate: Boolean = true
+  def validate: Boolean = {
+    return !value.contains("\\")
+  }
 
   def AsParameterString: String ={
     val filteredValue = value.toString().replaceAll("[\\r\\n]", "")
