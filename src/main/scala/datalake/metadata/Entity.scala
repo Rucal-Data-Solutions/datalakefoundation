@@ -14,6 +14,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
+import org.apache.logging.log4j.{LogManager, Logger}
 
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
@@ -39,6 +40,7 @@ class Entity(
     val transformations: List[String]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
+  implicit val logger = LogManager.getLogger(this.getClass()) 
 
   private val resolved_paths: Paths = resolvePaths
 

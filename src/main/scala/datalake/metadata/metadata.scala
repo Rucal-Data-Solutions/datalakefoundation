@@ -1,8 +1,10 @@
 package datalake.metadata
 
+import datalake.core._
 import datalake.processing._
 
 import java.util.TimeZone
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
@@ -11,15 +13,18 @@ import scala.util.Try
 import scala.reflect.runtime._
 import org.json4s.JsonAST
 
-case class MetadataNotInitializedException(message: String) extends Exception(message)
-case class EntityNotFoundException(message: String) extends Exception(message)
-case class ConnectionNotFoundException(message: String) extends Exception(message)
-case class ProcessStrategyNotSupportedException(message: String) extends Exception(message)
+
+case class MetadataNotInitializedException(message: String)(implicit logger: Logger) extends DatalakeException(message, Level.FATAL, logger)
+case class EntityNotFoundException(message: String)(implicit logger: Logger) extends DatalakeException(message, Level.ERROR, logger)
+case class ConnectionNotFoundException(message: String)(implicit logger: Logger) extends DatalakeException(message, Level.ERROR, logger)
+case class ProcessStrategyNotSupportedException(message: String)(implicit logger: Logger) extends DatalakeException(message, Level.FATAL, logger)
 
 class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable {
+  private implicit val logger = LogManager.getLogger(this.getClass()) 
 
   if (!metadataSettings.isInitialized) {
-    throw new MetadataNotInitializedException("Config is not initialized")
+    val e = new MetadataNotInitializedException("Config is not initialized")
+    throw e
   }
   
   private val spark: SparkSession =

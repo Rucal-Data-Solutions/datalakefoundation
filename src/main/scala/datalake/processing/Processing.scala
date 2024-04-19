@@ -1,5 +1,6 @@
 package datalake.processing
 
+import org.apache.logging.log4j.LogManager
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
@@ -15,21 +16,14 @@ import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
 
-abstract class ProcessStrategy {
-
-  final val Name: String = {
-    val cls = this.getClass()
-    cls.getSimpleName().dropRight(1).toLowerCase()
-  }
-  def Process(processing: Processing): Unit
-}
-
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends Exception(message)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
   implicit val environment = entity.Environment
+  
+  private val logger = LogManager.getLogger(this.getClass())
   val entity_id = entity.Id
   val primaryKeyColumnName: String = s"PK_${entity.Destination}"
   val columns = entity.Columns
@@ -49,11 +43,11 @@ class Processing(entity: Entity, sliceFile: String) {
 
   def getSource: DatalakeSource = {
 
-    println(f"loading slice: ${sliceFileFullPath}")
+    logger.info(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
     if(dfSlice.count() == 0)
-      println("WARNING: Slice contains no data (RowCount=0)")
+      logger.warn("Slice contains no data (RowCount=0)")
 
     val pre_process = dfSlice.transform(injectTransformations)
 
@@ -181,8 +175,8 @@ class Processing(entity: Entity, sliceFile: String) {
           newDf
         case Failure(e) =>
           // Log the error message and the failing expression
-          println(
-            s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}"
+          logger.error(
+            s"Failed to add calculated column ${column.Name} with expression ${column.Expression}.", e
           )
           // Continue processing with the DataFrame as it was before the failure
           tempdf
@@ -206,11 +200,19 @@ class Processing(entity: Entity, sliceFile: String) {
     watermark_values match {
       case Some(watermarkList) =>
         this.entity.WriteWatermark(watermarkList)
-      case None => println("no watermark defined")
+      case None => logger.info("no watermark defined")
     }
   }
 
   def Process(stategy: ProcessStrategy = entity.ProcessType): Unit =
-    stategy.Process(this)
-
+    try {
+      stategy.Process(this)
+      WriteWatermark(getSource.watermark_values) 
+    }
+    catch {
+      case e:Throwable => {
+        logger.error("Unhandled exception during processing", e)
+        throw e
+      }
+    }
 }

@@ -31,6 +31,5 @@ final object Full extends ProcessStrategy {
 
     source.write.partitionBy(part_values:_*).mode(SaveMode.Overwrite).option("overwriteSchema", "True").delta(processing.destination)
 
-    processing.WriteWatermark(datalake_source.watermark_values)
   }
 }

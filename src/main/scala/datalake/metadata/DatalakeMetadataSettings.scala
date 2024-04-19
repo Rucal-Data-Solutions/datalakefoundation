@@ -1,11 +1,15 @@
 package datalake.metadata
 
+import datalake.core._
+import datalake.core.implicits._
 import datalake.processing._
 import scala.util.Try
 
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
+import org.apache.logging.log4j.{LogManager, Level}
+import org.apache.logging.log4j.core.LoggerContext
 
 abstract class DatalakeMetadataSettings {
   private var _metadata: Metadata = _
@@ -16,16 +20,25 @@ abstract class DatalakeMetadataSettings {
   private var _entities: List[JValue] = _
   private var _environment_settings: JValue = _
 
+
+  val selector = new org.apache.logging.log4j.core.async.AsyncLoggerContextSelector();
+  val factory = new org.apache.logging.log4j.core.impl.Log4jContextFactory(selector);
+  val context = factory.getContext(this.getClass().getName(), null,null, true);
+
+  implicit val logger = context.getLogger("DatalakeMetadataSettings");
+
+
   // def initialize(initParameter: initParam)
   type ConfigString
   def initialize(jsonConfig: ConfigString): Unit = {
     implicit var formats: Formats = DefaultFormats
     val _json = jsonConfig.toString()
 
-    // println(_json)
+    logger.info("Parsing datalake config")
 
     // Parse the JSON string
     val json = parse(_json)
+    logger.debug(pretty(json))
 
     _connections = (json \ "connections").extract[List[JValue]]
     _entities = (json \ "entities").extract[List[JValue]]
@@ -34,7 +47,7 @@ abstract class DatalakeMetadataSettings {
     // Check if all entity IDs are unique
     val entityIds = _entities.map(j => (j \ "id").extract[Int])
     if (entityIds.size != entityIds.toSet.size) {
-      throw new Exception("Duplicate EntityIDs found in JSON.")
+      throw new DatalakeException("Duplicate EntityIDs found in JSON.", Level.ERROR, logger)
     }
 
     _isInitialized = true

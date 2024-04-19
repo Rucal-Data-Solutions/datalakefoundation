@@ -20,7 +20,6 @@ import org.apache.spark.sql.catalyst.expressions.Now
 
 
 final object Delta extends ProcessStrategy {
-
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
@@ -30,7 +29,7 @@ final object Delta extends ProcessStrategy {
 
     // first time? Do A full load
     if (FileOperations.exists(processing.destination) == false) {
-      println("DEBUG: Diverting to full load (First Run)")
+      logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
       val datalake_source = processing.getSource
@@ -61,7 +60,6 @@ final object Delta extends ProcessStrategy {
         .insertAll
         .execute()
 
-        processing.WriteWatermark(datalake_source.watermark_values)
     }
     
 

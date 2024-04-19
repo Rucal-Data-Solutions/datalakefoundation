@@ -42,7 +42,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
         .load()
 
       val _jsonString = _configJson.head.apply(0).toString()
-      initialize(_jsonString.asInstanceOf[ConfigString])
+      super.initialize(_jsonString.asInstanceOf[ConfigString])
     }
     catch {
       case e: SQLServerException => { println(e.getMessage()) }
