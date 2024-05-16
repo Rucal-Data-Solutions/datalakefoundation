@@ -1,6 +1,9 @@
 package datalake.processing
 
-import org.apache.logging.log4j.LogManager
+// import org.slf4j.{LoggerFactory, Logger}
+// import org.slf4j.event.Level
+import org.apache.log4j.{LogManager, Logger, Level}
+
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
@@ -16,14 +19,16 @@ import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
 
+
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
-case class DuplicateBusinesskeyException(message: String) extends Exception(message)
+case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
   implicit val environment = entity.Environment
   
   private val logger = LogManager.getLogger(this.getClass())
+
   val entity_id = entity.Id
   val primaryKeyColumnName: String = s"PK_${entity.Destination}"
   val columns = entity.Columns
@@ -120,11 +125,13 @@ class Processing(entity: Entity, sliceFile: String) {
 
       //check if input contains duplicates according to the businesskey, if so, raise an error.
       if(pkColumns.length > 0){
-        val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
+        val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"), col("count"))
         val dupCount = duplicates.count()
         if(dupCount > 0) {
           duplicates.show(truncate = false)
-          throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
+
+          val error_msg = f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."
+          throw(DuplicateBusinesskeyException(error_msg))
         }
       }
 

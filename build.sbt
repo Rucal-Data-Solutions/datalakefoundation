@@ -1,8 +1,8 @@
 // import sbt.internal.util.logic.Formula
 import Dependencies._
 
-ThisBuild / scalaVersion     := "2.12.19"
-ThisBuild / version          := "0.9.0"
+ThisBuild / scalaVersion     := "2.12.15"
+ThisBuild / version          := "0.9.0-SNAPSHOT"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 val sparkVersion = "3.4.1"
@@ -21,6 +21,8 @@ lazy val root = (project in file("."))
       "org.apache.spark" %% "spark-hive" % sparkVersion % "provided"
       // munit % Test
     ),
+    libraryDependencies += "org.apache.logging.log4j" %% "log4j-api-scala" % "2.18.0",
+
     libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8",
-    libraryDependencies += "io.delta" %% "delta-core" % "2.4.0"
+    libraryDependencies += "io.delta" %% "delta-core" % "2.4.0" % "provided"
   )

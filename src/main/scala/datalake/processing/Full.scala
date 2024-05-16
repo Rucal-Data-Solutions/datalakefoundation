@@ -30,6 +30,14 @@ final object Full extends ProcessStrategy {
     val part_values: List[String] =
       datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
 
+    logger.info("Delta processing request")
+    if(part_values.length > 0){
+      logger.debug(s"Defined partitions: ${part_values.mkString(", ")}")
+    }
+    else {
+      logger.debug(s"No partitions defined")
+    }
+
     source.write
       .partitionBy(part_values: _*)
       .mode(SaveMode.Overwrite)

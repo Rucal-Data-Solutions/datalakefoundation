@@ -8,9 +8,9 @@ import scala.util.Try
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-import org.apache.logging.log4j.{LogManager, Level}
-import org.apache.logging.log4j.core.LoggerContext
-
+// import org.slf4j.{Logger, LoggerFactory}
+// import org.slf4j.event.Level
+import org.apache.log4j.{LogManager, Logger, Level}
 abstract class DatalakeMetadataSettings {
   private var _metadata: Metadata = _
 
@@ -21,11 +21,7 @@ abstract class DatalakeMetadataSettings {
   private var _environment_settings: JValue = _
 
 
-  val selector = new org.apache.logging.log4j.core.async.AsyncLoggerContextSelector();
-  val factory = new org.apache.logging.log4j.core.impl.Log4jContextFactory(selector);
-  val context = factory.getContext(this.getClass().getName(), null,null, true);
-
-  implicit val logger = context.getLogger("DatalakeMetadataSettings");
+  val logger = LogManager.getLogger(this.getClass());
 
 
   // def initialize(initParameter: initParam)
@@ -47,7 +43,7 @@ abstract class DatalakeMetadataSettings {
     // Check if all entity IDs are unique
     val entityIds = _entities.map(j => (j \ "id").extract[Int])
     if (entityIds.size != entityIds.toSet.size) {
-      throw new DatalakeException("Duplicate EntityIDs found in JSON.", Level.ERROR, logger)
+      throw new DatalakeException("Duplicate EntityIDs found in JSON.", Level.ERROR)
     }
 
     _isInitialized = true
