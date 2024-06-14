@@ -21,7 +21,7 @@ lazy val root = (project in file("."))
       "org.apache.spark" %% "spark-hive" % sparkVersion % "provided"
       // munit % Test
     ),
-    libraryDependencies += "org.apache.logging.log4j" %% "log4j-api-scala" % "2.18.0",
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.18.0" % "provided",
 
     libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8",
     libraryDependencies += "io.delta" %% "delta-core" % "2.4.0" % "provided"
