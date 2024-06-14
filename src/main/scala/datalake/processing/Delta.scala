@@ -28,7 +28,7 @@ final object Delta extends ProcessStrategy {
     implicit val env:Environment = processing.environment
 
     // first time? Do A full load
-    if (FileOperations.exists(processing.destination) == false) {
+    if (!FileOperations.exists(processing.destination)) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
