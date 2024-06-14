@@ -24,7 +24,12 @@ case class EntityNotFoundException(message: String) extends DatalakeException(me
 case class ConnectionNotFoundException(message: String) extends DatalakeException(message, Level.ERROR)
 case class ProcessStrategyNotSupportedException(message: String) extends DatalakeException(message, Level.ERROR)
 
-class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable {
+class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) extends Serializable {
+  
+  def this(metadataSettings: DatalakeMetadataSettings) {
+    this(metadataSettings, metadataSettings.getEnvironment())
+  }
+
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
@@ -41,7 +46,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
   
 
   metadataSettings.setMetadata(this)
-  implicit val environment: Environment = metadataSettings.getEnvironment
+  implicit val environment: Environment = env
 
   def getEntity(id: Int): Entity = {
     val entity = metadataSettings.getEntity(id)
@@ -83,7 +88,6 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
   }
 
   def getEnvironment: Environment ={
-    val environment = metadataSettings.getEnvironment
     environment
   }
 
