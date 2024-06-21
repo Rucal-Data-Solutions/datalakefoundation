@@ -64,7 +64,7 @@ class Entity(
   }
 
   final def isEnabled(): Boolean =
-    this.enabled
+    this.enabled & this.Connection.isEnabled
 
   final def Secure: Boolean =
     this.secure.getOrElse(false)
@@ -213,7 +213,7 @@ class EntitySerializer(metadata: Metadata)
             name = (j \ "name").extract[String],
             group = (j \ "group").extract[Option[String]],
             destination = (j \ "destination").extract[Option[String]],
-            enabled = (j \ "enabled").extract[Boolean],
+            enabled = (j \ "enabled").extractOrElse[Boolean](true),
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
             processtype = (j \ "processtype").extract[String],
