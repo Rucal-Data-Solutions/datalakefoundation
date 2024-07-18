@@ -57,6 +57,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
   }
 
   def getEntities(connection: Connection): List[Entity] = {
+    logger.debug("Get getEntities(Connection)")
     metadataSettings.getConnectionEntities(connection)
   }
 

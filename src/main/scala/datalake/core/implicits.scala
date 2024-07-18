@@ -3,9 +3,10 @@ package datalake.core
 
 // import org.apache.spark.sql.SparkSession
 // private val spark: SparkSession = SparkSession.builder.enableHiveSupport().getOrCreate()
-import org.apache.spark.sql.{ DataFrame, Dataset, Row }
-import org.apache.spark.sql.{ DataFrameWriter, DataFrameReader }
+import org.apache.spark.sql.{ DataFrame, Dataset, Row, DataFrameWriter, DataFrameReader }
+import org.apache.spark.sql.types.{StructType}
 import java.time.LocalDateTime
+import org.apache.derby.iapi.types.DataType
 
 object implicits {
 
@@ -25,6 +26,44 @@ object implicits {
 
       return resultingDf
     }
+
+    def datalake_schemacompare(targetSchema: StructType): String = {
+
+      val targetColumns = targetSchema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) ).toSet[DatalakeColumn]
+      val sourceColumns = df.schema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) ).toSet[DatalakeColumn]
+
+      val addedColumns = sourceColumns -- targetColumns
+      val deletedColumns = targetColumns -- sourceColumns
+
+      val schemaDifferences = scala.collection.mutable.ArrayBuffer.empty[(DatalakeColumn, String)]
+
+      if (addedColumns.nonEmpty) {
+        addedColumns.foreach { col =>
+          schemaDifferences += (col -> "Added")
+        }
+      }
+
+      if (deletedColumns.nonEmpty) {
+        deletedColumns.foreach { col =>
+          schemaDifferences += (col -> "Deleted")
+        }
+      }
+
+
+
+
+      // if (schemaDifferences.nonEmpty) {
+      //   println("Schema differences found:")
+      //   schemaDifferences.foreach { diff =>
+      //     println(s"Column: ${diff.columnName}, Difference: ${diff.difference}")
+      //   }
+      // } else {
+      //   println("No schema differences found.")
+      // }
+
+      return "TEST"
+    }
+
   }
 
   implicit class StringFunctions(str: String) {
