@@ -5,8 +5,6 @@ import datalake.processing._
 
 import java.util.TimeZone
 
-// import org.slf4j.{Logger, LoggerFactory}
-// import org.slf4j.event.Level
 import org.apache.log4j.{LogManager, Logger, Level}
 
 
@@ -34,7 +32,8 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
   
-  @transient lazy private val logger = LogManager.getLogger(this.getClass())
+  @transient 
+  lazy private val logger: Logger = LogManager.getLogger(this.getClass())
 
   if (!metadataSettings.isInitialized) {
     val e = new MetadataNotInitializedException("Config is not initialized")

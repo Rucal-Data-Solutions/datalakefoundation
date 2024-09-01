@@ -25,10 +25,10 @@ final object Historic extends ProcessStrategy {
   def Process(processing: Processing) = {
     val source: DataFrame = processing.getSource.source
 
-    // firstly Delta load
-    Delta.Process(processing)
+    // firstly Merge load
+    Merge.Process(processing)
 
-    // Get the latest version of the destination table for comparison
+    // Get the last version of the destination table for comparison
     val latestVersion: Long = DeltaTable
       .forPath(processing.destination)
       .history(1)

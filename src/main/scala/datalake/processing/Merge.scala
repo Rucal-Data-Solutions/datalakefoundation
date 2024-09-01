@@ -16,7 +16,7 @@ import datalake.metadata._
 
 
 
-final object Delta extends ProcessStrategy {
+final object Merge extends ProcessStrategy {
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._

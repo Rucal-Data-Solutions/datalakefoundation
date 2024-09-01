@@ -97,7 +97,8 @@ class Entity(
   final def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
       case Full.Name  => Full
-      case Delta.Name => Delta
+      case Merge.Name => Merge
+      case "delta" => Merge //Temporary allow old delta 
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"
         )
