@@ -3,15 +3,16 @@ package datalake.metadata
 import datalake.core._
 import datalake.core.implicits._
 import datalake.processing._
+
 import scala.util.Try
 
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
-// import org.slf4j.{Logger, LoggerFactory}
-// import org.slf4j.event.Level
-import org.apache.log4j.{LogManager, Logger, Level}
-abstract class DatalakeMetadataSettings {
+
+import org.apache.logging.log4j.{LogManager, Logger, Level}
+
+abstract class DatalakeMetadataSettings extends Serializable {
   private var _metadata: Metadata = _
 
   private var _isInitialized: Boolean = false
@@ -21,8 +22,8 @@ abstract class DatalakeMetadataSettings {
   private var _environment_settings: JValue = _
 
 
-  val logger = LogManager.getLogger(this.getClass());
-
+  @transient 
+  lazy private val logger: Logger = LogManager.getLogger(this.getClass())
 
   // def initialize(initParameter: initParam)
   type ConfigString

@@ -1,8 +1,6 @@
 package datalake.processing
 
-// import org.slf4j.{LoggerFactory, Logger}
-// import org.slf4j.event.Level
-import org.apache.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._

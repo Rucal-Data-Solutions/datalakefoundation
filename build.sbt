@@ -19,6 +19,7 @@ lazy val root = (project in file("."))
       // munit % Test
     ),
     libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.18.0" % "provided",
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.18.0" % "provided",
 
     libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8",
     libraryDependencies += "io.delta" %% "delta-core" % "2.4.0" % "provided"

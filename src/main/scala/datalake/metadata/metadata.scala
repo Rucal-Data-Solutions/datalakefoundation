@@ -5,8 +5,7 @@ import datalake.processing._
 
 import java.util.TimeZone
 
-import org.apache.log4j.{LogManager, Logger, Level}
-
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -14,7 +13,6 @@ import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
 import scala.util.Try
 import scala.reflect.runtime._
-import org.json4s.JsonAST
 
 
 case class MetadataNotInitializedException(message: String) extends DatalakeException(message, Level.ERROR)
@@ -31,7 +29,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
-  
+
   @transient 
   lazy private val logger: Logger = LogManager.getLogger(this.getClass())
 
