@@ -14,7 +14,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
-import org.slf4j.{Logger, LoggerFactory}
+import org.apache.log4j.{LogManager, Logger, Level}
 
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
@@ -40,7 +40,7 @@ class Entity(
     val transformations: List[String]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
-  implicit val logger = LoggerFactory.getLogger(this.getClass()) 
+  implicit val logger = LogManager.getLogger(this.getClass()) 
 
   private val resolved_paths: Paths = resolvePaths
 
@@ -98,7 +98,7 @@ class Entity(
     this.processtype.toLowerCase match {
       case Full.Name  => Full
       case Merge.Name => Merge
-      case "delta" => Merge //Temporary allow old delta 
+      case "delta" => Merge //allow old delta for backwards compatibility
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"
         )

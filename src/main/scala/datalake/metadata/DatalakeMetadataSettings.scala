@@ -10,7 +10,7 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-import org.apache.logging.log4j.{LogManager, Logger, Level}
+import org.apache.log4j.{LogManager, Logger, Level}
 
 abstract class DatalakeMetadataSettings extends Serializable {
   private var _metadata: Metadata = _

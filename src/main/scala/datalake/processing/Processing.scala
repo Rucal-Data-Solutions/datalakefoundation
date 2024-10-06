@@ -1,6 +1,6 @@
 package datalake.processing
 
-import org.apache.logging.log4j.{LogManager, Logger, Level}
+import org.apache.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -25,7 +25,8 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 class Processing(entity: Entity, sliceFile: String) {
   implicit val environment = entity.Environment
   
-  private val logger = LogManager.getLogger(this.getClass())
+  @transient 
+  lazy private val logger = LogManager.getLogger(this.getClass())
 
   val entity_id = entity.Id
   val primaryKeyColumnName: String = s"PK_${entity.Destination}"
@@ -34,6 +35,7 @@ class Processing(entity: Entity, sliceFile: String) {
   val watermarkColumns = entity.Watermark
   val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   val destination: String = paths.silverpath
+  val entitySettings = entity.Settings
 
   val columnsToRename = columns
     .filter(c => c.NewName != "")

@@ -15,6 +15,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
       "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+      "org.apache.spark" %% "spark-connect-client-jvm" % sparkVersion % "provided",
       "org.apache.spark" %% "spark-hive" % sparkVersion % "provided"
       // munit % Test
     ),

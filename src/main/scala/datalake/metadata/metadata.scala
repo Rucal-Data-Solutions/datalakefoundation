@@ -5,7 +5,7 @@ import datalake.processing._
 
 import java.util.TimeZone
 
-import org.apache.logging.log4j.{LogManager, Logger, Level}
+import org.apache.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
