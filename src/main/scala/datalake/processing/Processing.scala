@@ -198,7 +198,9 @@ class Processing(entity: Entity, sliceFile: String) {
     */
   private def injectTransformations(input: Dataset[Row]): Dataset[Row] ={
     if(!entity.transformations.isEmpty)
-      input.selectExpr(entity.transformations:_*)
+      entity.transformations.foldLeft(input) { (df, transformation) =>
+        df.selectExpr(transformation.expressions: _*)
+      }
     else
       input
   }

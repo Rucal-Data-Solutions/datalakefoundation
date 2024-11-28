@@ -60,14 +60,14 @@ abstract class DatalakeMetadataSettings extends Serializable {
   
   final def getEntity(id: Int): Option[Entity] = {
     implicit var formats: Formats =
-      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
     val entity = _entities.find(j => (j \ "id").extract[Int] == id).map(j => j.extract[Entity])
     entity
   }
 
   final def getConnectionEntities(connection: Connection): List[Entity] = {
     implicit var formats: Formats =
-      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
     _entities
       .filter(e => (e \ "connection").extract[String] == connection.Code)
       .map(j => j.extract[Entity])
@@ -75,7 +75,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
 
   final def getGroupEntities(group: EntityGroup): List[Entity] = {
     implicit var formats: Formats =
-      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
 
     _entities
       .filter(e => (e \ "group").toOption.exists(_.extract[String].equalsIgnoreCase(group.Name)))
