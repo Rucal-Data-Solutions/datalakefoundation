@@ -14,6 +14,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
+import org.apache.log4j.{LogManager, Logger, Level}
 
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
@@ -36,9 +37,10 @@ class Entity(
     watermark: List[Watermark],
     columns: List[EntityColumn],
     val settings: JObject,
-    val transformations: List[String]
+    val transformations: List[EntityTransformation]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
+  implicit val logger = LogManager.getLogger(this.getClass()) 
 
   private val resolved_paths: Paths = resolvePaths
 
@@ -62,7 +64,7 @@ class Entity(
   }
 
   final def isEnabled(): Boolean =
-    this.enabled
+    this.enabled & this.Connection.isEnabled
 
   final def Secure: Boolean =
     this.secure.getOrElse(false)
@@ -95,7 +97,8 @@ class Entity(
   final def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
       case Full.Name  => Full
-      case Delta.Name => Delta
+      case Merge.Name => Merge
+      case "delta" => Merge //allow old delta for backwards compatibility
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"
         )
@@ -211,14 +214,14 @@ class EntitySerializer(metadata: Metadata)
             name = (j \ "name").extract[String],
             group = (j \ "group").extract[Option[String]],
             destination = (j \ "destination").extract[Option[String]],
-            enabled = (j \ "enabled").extract[Boolean],
+            enabled = (j \ "enabled").extractOrElse[Boolean](true),
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
             processtype = (j \ "processtype").extract[String],
             watermark = watermarkJson.extract[List[Watermark]],
             columns = (j \ "columns").extract[List[EntityColumn]],
             settings = (j \ "settings").extract[JObject],
-            transformations = (j \ "transformations").extract[List[String]]
+            transformations = (j \ "transformations").extract[List[EntityTransformation]]
           )
 
         },

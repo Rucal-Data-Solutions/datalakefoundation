@@ -25,21 +25,18 @@ final object Historic extends ProcessStrategy {
   def Process(processing: Processing) = {
     val source: DataFrame = processing.getSource.source
 
-    // first time? Do A full load
-    if (FileOperations.exists(processing.destination) == false) {
-      println("DEBUG: Diverting to full load (First Run)")
-      Full.Process(processing)
-    } else {
-      // Get the latest version of the destination table
-      val latestVersion: Long = DeltaTable
-        .forPath(processing.destination)
-        .history(1)
-        .select("version")
-        .limit(1).collect()(0).getAs[Long](0)
+    // firstly Merge load
+    Merge.Process(processing)
 
-      val deltaTable = DeltaTable.forPath(spark, processing.destination, Map("versionAsOf" -> latestVersion.toString()) )
+    // Get the last version of the destination table for comparison
+    val latestVersion: Long = DeltaTable
+      .forPath(processing.destination)
+      .history(1)
+      .select("version")
+      .limit(1).collect()(0).getAs[Long](0)
 
-    }
+    val deltaTable = DeltaTable.forPath(spark, processing.destination, Map("versionAsOf" -> latestVersion.toString()) )
+
 
     //TODO: OUTDATE changed records
 

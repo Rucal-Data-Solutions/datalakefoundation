@@ -27,10 +27,25 @@ final object Full extends ProcessStrategy {
     val datalake_source = processing.getSource
     val source: DataFrame = datalake_source.source
 
-    val part_values: List[String] = datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
+    val part_values: List[String] =
+      datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
 
-    source.write.partitionBy(part_values:_*).mode(SaveMode.Overwrite).option("overwriteSchema", "True").delta(processing.destination)
+    if(part_values.length > 0){
+      logger.debug(s"Defined partitions: ${part_values.mkString(", ")}")
+    }
+    else {
+      logger.debug(s"No partitions defined")
+    }
 
-    processing.WriteWatermark(datalake_source.watermark_values)
+    source.write
+      .partitionBy(part_values: _*)
+      .mode(SaveMode.Overwrite)
+      .options(
+        Map[String, String](
+          ("partitionOverwriteMode", "dynamic")
+        )
+      )
+      .delta(processing.destination)
+
   }
 }

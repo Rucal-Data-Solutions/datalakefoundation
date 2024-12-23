@@ -1,33 +1,49 @@
 package datalake.metadata
 
+import datalake.core._
 import datalake.processing._
 
 import java.util.TimeZone
+
+import org.apache.log4j.{LogManager, Logger, Level}
+
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
 import scala.util.Try
 import scala.reflect.runtime._
-import org.json4s.JsonAST
 
-case class MetadataNotInitializedException(message: String) extends Exception(message)
-case class EntityNotFoundException(message: String) extends Exception(message)
-case class ConnectionNotFoundException(message: String) extends Exception(message)
-case class ProcessStrategyNotSupportedException(message: String) extends Exception(message)
 
-class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable {
+case class MetadataNotInitializedException(message: String) extends DatalakeException(message, Level.ERROR)
+case class EntityNotFoundException(message: String) extends DatalakeException(message, Level.ERROR)
+case class ConnectionNotFoundException(message: String) extends DatalakeException(message, Level.ERROR)
+case class ProcessStrategyNotSupportedException(message: String) extends DatalakeException(message, Level.ERROR)
 
-  if (!metadataSettings.isInitialized) {
-    throw new MetadataNotInitializedException("Config is not initialized")
-  }
+class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) extends Serializable {
   
+  def this(metadataSettings: DatalakeMetadataSettings) {
+    this(metadataSettings, metadataSettings.getEnvironment())
+  }
+
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
+  @transient 
+  lazy private val logger: Logger = LogManager.getLogger(this.getClass())
+
+  if (!metadataSettings.isInitialized) {
+    val e = new MetadataNotInitializedException("Config is not initialized")
+    throw e
+  }
+  else {
+    logger.info("Datalake metadata class Initialized.")
+  }
+  
+
   metadataSettings.setMetadata(this)
-  implicit val environment: Environment = metadataSettings.getEnvironment
+  implicit val environment: Environment = env
 
   def getEntity(id: Int): Entity = {
     val entity = metadataSettings.getEntity(id)
@@ -38,6 +54,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
   }
 
   def getEntities(connection: Connection): List[Entity] = {
+    logger.debug("Get getEntities(Connection)")
     metadataSettings.getConnectionEntities(connection)
   }
 
@@ -50,11 +67,6 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
       case Some(value) => List(value)
       case None => List.empty[Entity]
     }
-  }
-
-  @deprecated("This function is deprecated. Use getEntities(connection: Connection) instead.", "0.6.8")
-  def getConnectionEntities(connection: Connection): List[Entity] = {
-    getEntities(connection)
   }
 
   def getConnection(connectionCode: String): Connection = {
@@ -74,7 +86,6 @@ class Metadata(metadataSettings: DatalakeMetadataSettings) extends Serializable 
   }
 
   def getEnvironment: Environment ={
-    val environment = metadataSettings.getEnvironment
     environment
   }
 

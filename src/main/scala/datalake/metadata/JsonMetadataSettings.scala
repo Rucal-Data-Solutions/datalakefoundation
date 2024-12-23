@@ -8,7 +8,7 @@ class JsonMetadataSettings extends DatalakeMetadataSettings {
     val jsonFile = new File(filepath)
     val jsonString = scala.io.Source.fromFile(jsonFile).mkString
 
-    initialize(jsonString.asInstanceOf[ConfigString])
+    super.initialize(jsonString.asInstanceOf[ConfigString])
   }
 
 }

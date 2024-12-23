@@ -1,5 +1,7 @@
 package datalake.processing
 
+import org.apache.log4j.{LogManager, Logger, Level}
+
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
@@ -15,21 +17,17 @@ import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
 
-abstract class ProcessStrategy {
-
-  final val Name: String = {
-    val cls = this.getClass()
-    cls.getSimpleName().dropRight(1).toLowerCase()
-  }
-  def Process(processing: Processing): Unit
-}
 
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
-case class DuplicateBusinesskeyException(message: String) extends Exception(message)
+case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String) {
   implicit val environment = entity.Environment
+  
+  @transient 
+  lazy private val logger = LogManager.getLogger(this.getClass())
+
   val entity_id = entity.Id
   val primaryKeyColumnName: String = s"PK_${entity.Destination}"
   val columns = entity.Columns
@@ -37,6 +35,7 @@ class Processing(entity: Entity, sliceFile: String) {
   val watermarkColumns = entity.Watermark
   val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   val destination: String = paths.silverpath
+  val entitySettings = entity.Settings
 
   val columnsToRename = columns
     .filter(c => c.NewName != "")
@@ -49,11 +48,11 @@ class Processing(entity: Entity, sliceFile: String) {
 
   def getSource: DatalakeSource = {
 
-    println(f"loading slice: ${sliceFileFullPath}")
+    logger.info(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
     if(dfSlice.count() == 0)
-      println("WARNING: Slice contains no data (RowCount=0)")
+      logger.warn("Slice contains no data (RowCount=0)")
 
     val pre_process = dfSlice.transform(injectTransformations)
 
@@ -126,11 +125,13 @@ class Processing(entity: Entity, sliceFile: String) {
 
       //check if input contains duplicates according to the businesskey, if so, raise an error.
       if(pkColumns.length > 0){
-        val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"))
+        val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"), col("count"))
         val dupCount = duplicates.count()
         if(dupCount > 0) {
           duplicates.show(truncate = false)
-          throw(new DuplicateBusinesskeyException(f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."))
+
+          val error_msg = f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."
+          throw(DuplicateBusinesskeyException(error_msg))
         }
       }
 
@@ -181,8 +182,8 @@ class Processing(entity: Entity, sliceFile: String) {
           newDf
         case Failure(e) =>
           // Log the error message and the failing expression
-          println(
-            s"Failed to add calculated column ${column.Name} with expression ${column.Expression}. Error: ${e.getMessage}"
+          logger.error(
+            s"Failed to add calculated column ${column.Name} with expression ${column.Expression}.", e
           )
           // Continue processing with the DataFrame as it was before the failure
           tempdf
@@ -197,7 +198,9 @@ class Processing(entity: Entity, sliceFile: String) {
     */
   private def injectTransformations(input: Dataset[Row]): Dataset[Row] ={
     if(!entity.transformations.isEmpty)
-      input.selectExpr(entity.transformations:_*)
+      entity.transformations.foldLeft(input) { (df, transformation) =>
+        df.selectExpr(transformation.expressions: _*)
+      }
     else
       input
   }
@@ -206,11 +209,19 @@ class Processing(entity: Entity, sliceFile: String) {
     watermark_values match {
       case Some(watermarkList) =>
         this.entity.WriteWatermark(watermarkList)
-      case None => println("no watermark defined")
+      case None => logger.info("no watermark defined")
     }
   }
 
   def Process(stategy: ProcessStrategy = entity.ProcessType): Unit =
-    stategy.Process(this)
-
+    try {
+      stategy.Process(this)
+      WriteWatermark(getSource.watermark_values) 
+    }
+    catch {
+      case e:Throwable => {
+        logger.error("Unhandled exception during processing", e)
+        throw e
+      }
+    }
 }

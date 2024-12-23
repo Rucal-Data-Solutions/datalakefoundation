@@ -3,7 +3,7 @@ package datalake.processing
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{ DataFrame, Column }
+import org.apache.spark.sql.{ DataFrame, Column, Row, SaveMode }
 import java.util.TimeZone
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -14,13 +14,9 @@ import datalake.core._
 import datalake.core.implicits._
 import datalake.metadata._
 
-import org.apache.spark.sql.SaveMode
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.expressions.Now
 
 
-final object Delta extends ProcessStrategy {
-
+final object Merge extends ProcessStrategy {
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
@@ -29,8 +25,8 @@ final object Delta extends ProcessStrategy {
     implicit val env:Environment = processing.environment
 
     // first time? Do A full load
-    if (FileOperations.exists(processing.destination) == false) {
-      println("DEBUG: Diverting to full load (First Run)")
+    if (!FileOperations.exists(processing.destination)) {
+      logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
       val datalake_source = processing.getSource
@@ -44,6 +40,8 @@ final object Delta extends ProcessStrategy {
       val deltaTable = DeltaTable.forPath(processing.destination)
       val explicit_partFilter = partition_values.mkString(" AND ")
 
+      val schemaChanges = source.datalake_schemacompare(deltaTable.toDF.schema)
+    
       deltaTable
         .as("target")
         .merge(
@@ -61,7 +59,6 @@ final object Delta extends ProcessStrategy {
         .insertAll
         .execute()
 
-        processing.WriteWatermark(datalake_source.watermark_values)
     }
     
 

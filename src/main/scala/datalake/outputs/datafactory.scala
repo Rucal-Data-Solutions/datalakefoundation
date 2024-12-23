@@ -16,8 +16,8 @@ object DataFactory {
    *
    * @param obj The object for which configuration items are to be retrieved.
    *            Accepted data types: EntityGroup, Connection, EntityId(INT)
-   * @param metadata The metadata containing information about the entities and connections.
-   * @return A string representation of the enabled entities for the given object.
+   * @param metadata Instance of the metadata class containing information about the entities and connections.
+   * @return A string representation of the enabled entities for the given object. (Ignored if only a entityId(Int) is provided)
    * @throws IllegalArgumentException if the object type is invalid.
    */
   def getConfigItems(arg: Any)(implicit metadata: Metadata): String = {

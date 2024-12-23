@@ -47,6 +47,7 @@ class EntityColumn(
         val _datatype = base_type match {
           case "string"    => StringType
           case "integer"   => IntegerType
+          case "long"      => LongType
           case "date"      => DateType
           case "timestamp" => TimestampType
           case "float"     => FloatType

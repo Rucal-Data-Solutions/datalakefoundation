@@ -7,12 +7,12 @@ import scala.util.Try
 case class InvalidEvalParameterException(message: String) extends Exception(message)
 
 abstract class EvalParameter(name: String) {
-  def validate: Boolean
+  def IsValid: Boolean
   def AsParameterString: String
 }
 
 class LiteralEvalParameter(name: String, value: String) extends EvalParameter(name) {
-  def validate: Boolean = {
+  def IsValid: Boolean = {
     return !value.contains("\\")
   }
 
@@ -27,14 +27,14 @@ object LiteralEvalParameter {
 
   def apply(name: String, value: String): LiteralEvalParameter = {
     val _param = new LiteralEvalParameter(name, value)
-    if (!_param.validate)
+    if (!_param.IsValid)
       throw new InvalidEvalParameterException("Eval parameter failed validation")
     else _param
   }
 }
 
 class ObjectEvalParameter(name: String, obj: String) extends EvalParameter(name) {
-  def validate: Boolean = true
+  def IsValid: Boolean = true
   def AsParameterString: String = s"val ${name} = ${obj}"
 }
 
@@ -42,14 +42,14 @@ object ObjectEvalParameter {
 
   def apply(name: String, value: String): ObjectEvalParameter = {
     val _param = new ObjectEvalParameter(name, value)
-    if (!_param.validate)
+    if (!_param.IsValid)
       throw new InvalidEvalParameterException("Eval parameter failed validation")
     else _param
   }
 }
 
 class LibraryEvalParameter(library: String) extends EvalParameter(library) {
-  def validate: Boolean = true
+  def IsValid: Boolean = true
   def AsParameterString: String = s"import ${library}"
 }
 
@@ -57,7 +57,7 @@ object LibraryEvalParameter {
 
   def apply(library: String): LibraryEvalParameter = {
     val _param = new LibraryEvalParameter(library)
-    if (!_param.validate)
+    if (!_param.IsValid)
       throw new InvalidEvalParameterException("Eval parameter failed validation")
     else _param
   }

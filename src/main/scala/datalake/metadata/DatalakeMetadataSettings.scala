@@ -1,13 +1,18 @@
 package datalake.metadata
 
+import datalake.core._
+import datalake.core.implicits._
 import datalake.processing._
+
 import scala.util.Try
 
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
-abstract class DatalakeMetadataSettings {
+import org.apache.log4j.{LogManager, Logger, Level}
+
+abstract class DatalakeMetadataSettings extends Serializable {
   private var _metadata: Metadata = _
 
   private var _isInitialized: Boolean = false
@@ -16,16 +21,21 @@ abstract class DatalakeMetadataSettings {
   private var _entities: List[JValue] = _
   private var _environment_settings: JValue = _
 
+
+  @transient 
+  lazy private val logger: Logger = LogManager.getLogger(this.getClass())
+
   // def initialize(initParameter: initParam)
   type ConfigString
   def initialize(jsonConfig: ConfigString): Unit = {
     implicit var formats: Formats = DefaultFormats
     val _json = jsonConfig.toString()
 
-    // println(_json)
+    logger.info("Parsing datalake config")
 
     // Parse the JSON string
     val json = parse(_json)
+    logger.debug(pretty(json))
 
     _connections = (json \ "connections").extract[List[JValue]]
     _entities = (json \ "entities").extract[List[JValue]]
@@ -34,7 +44,7 @@ abstract class DatalakeMetadataSettings {
     // Check if all entity IDs are unique
     val entityIds = _entities.map(j => (j \ "id").extract[Int])
     if (entityIds.size != entityIds.toSet.size) {
-      throw new Exception("Duplicate EntityIDs found in JSON.")
+      throw new DatalakeException("Duplicate EntityIDs found in JSON.", Level.ERROR)
     }
 
     _isInitialized = true
@@ -50,14 +60,14 @@ abstract class DatalakeMetadataSettings {
   
   final def getEntity(id: Int): Option[Entity] = {
     implicit var formats: Formats =
-      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
     val entity = _entities.find(j => (j \ "id").extract[Int] == id).map(j => j.extract[Entity])
     entity
   }
 
   final def getConnectionEntities(connection: Connection): List[Entity] = {
     implicit var formats: Formats =
-      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
     _entities
       .filter(e => (e \ "connection").extract[String] == connection.Code)
       .map(j => j.extract[Entity])
@@ -65,7 +75,7 @@ abstract class DatalakeMetadataSettings {
 
   final def getGroupEntities(group: EntityGroup): List[Entity] = {
     implicit var formats: Formats =
-      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata)
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
 
     _entities
       .filter(e => (e \ "group").toOption.exists(_.extract[String].equalsIgnoreCase(group.Name)))

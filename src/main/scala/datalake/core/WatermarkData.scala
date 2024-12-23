@@ -11,14 +11,14 @@ case class WatermarkValue(value: String, datatype: String)
 
 final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
     extends SystemDataObject(
-      new SystemDataTable_Definition(
+      new SystemDataTableDefinition(
         "watermark",
         List(
-          SystemDataColumn("entity_id", IntegerType, false, true),
-          SystemDataColumn("column_name", StringType, false, false),
-          SystemDataColumn("timestamp", TimestampType, false, false),
-          SystemDataColumn("source_type", StringType, false, false),
-          SystemDataColumn("value", StringType, false, false)
+          DatalakeColumn("entity_id", IntegerType, false, true),
+          DatalakeColumn("column_name", StringType, false, false),
+          DatalakeColumn("timestamp", TimestampType, false, false),
+          DatalakeColumn("source_type", StringType, false, false),
+          DatalakeColumn("value", StringType, false, false)
         )
       )
     ) {

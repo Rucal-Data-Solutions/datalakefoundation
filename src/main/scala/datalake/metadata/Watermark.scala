@@ -2,6 +2,9 @@ package datalake.metadata
 
 import scala.tools.reflect._
 import scala.reflect.runtime._
+
+import org.apache.spark.sql.{ SparkSession}
+
 import datalake.core._
 import datalake.core.Utils._
 
@@ -17,8 +20,8 @@ class Watermark(
     operation_group: Option[Integer],
     expression: String
 ) extends Serializable {
-  implicit val env: Environment = environment
-  val wmd = new WatermarkData(entity_id)
+
+  val wmd = new WatermarkData(entity_id)(environment = environment)
 
   override def toString(): String =
     s"${operation} ${column_name} > ${Function}"

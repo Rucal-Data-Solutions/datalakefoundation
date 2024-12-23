@@ -28,3 +28,10 @@ target/
 
 # general
 *.class
+
+#derby?
+metastore_db/
+derby.log
+
+#local debugging folder
+src/test/scala/example/private/
