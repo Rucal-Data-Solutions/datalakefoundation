@@ -2,7 +2,7 @@ package datalake.metadata
 
 import java.sql._
 import java.util.Properties
-import org.apache.commons.lang.NotImplementedException
+// import org.apache.commons.lang.NotImplementedException
 import org.apache.spark.sql.{ SparkSession, DataFrame, Row }
 import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool

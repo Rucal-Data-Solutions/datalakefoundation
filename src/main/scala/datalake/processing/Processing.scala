@@ -28,14 +28,14 @@ class Processing(entity: Entity, sliceFile: String) {
   @transient 
   lazy private val logger = LogManager.getLogger(this.getClass())
 
-  val entity_id = entity.Id
-  val primaryKeyColumnName: String = s"PK_${entity.Destination}"
-  val columns = entity.Columns
-  val paths = entity.getPaths
-  val watermarkColumns = entity.Watermark
-  val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
-  val destination: String = paths.silverpath
-  val entitySettings = entity.Settings
+  final val entity_id = entity.Id
+  final val primaryKeyColumnName: String = s"PK_${entity.Destination}"
+  private val columns = entity.Columns
+  final val paths = entity.getPaths
+  final val watermarkColumns = entity.Watermark
+  final val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
+  final val destination: String = paths.silverpath
+  final val entitySettings = entity.Settings
 
   val columnsToRename = columns
     .filter(c => c.NewName != "")
@@ -61,6 +61,7 @@ class Processing(entity: Entity, sliceFile: String) {
     val transformedDF = pre_process
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
+      .transform(addTemporalTrackingColumns)
       .transform(addPrimaryKey)
       .transform(castColumns)
       .transform(renameColumns)
@@ -109,15 +110,15 @@ class Processing(entity: Entity, sliceFile: String) {
     **/
   private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] ={
     if (Utils.hasColumn(input, "SourceHash") == false) {
-      return input.withColumn(
+      input.withColumn(
         "SourceHash",
         sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
       )
     } else
-      return input
+      input
   }
 
-  // Check PK in slice, add if it doesnt exits.
+  // Check PK in slice, add if it doesn't exits.
   private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
     if (primaryKeyColumnName != null && Utils.hasColumn(input, primaryKeyColumnName) == false) {
       val pkColumns = entity.Columns("businesskey").map(c => col(c.Name))
@@ -136,6 +137,24 @@ class Processing(entity: Entity, sliceFile: String) {
       }
 
       returnDF
+    } else {
+      input
+    }
+
+  /**
+   * Adds temporal tracking columns (ValidFrom, ValidTo, IsCurrent) to the input Dataset[Row] if the process type is Historic.
+   * 
+   * @param input The input Dataset[Row] to which the columns will be added.
+   * @return The modified Dataset[Row] with temporal tracking columns if the process type is Historic, 
+   *         otherwise returns the original input Dataset[Row].
+   */
+  private def addTemporalTrackingColumns(input: Dataset[Row]): Dataset[Row] =
+    if (entity.ProcessType == Historic) {
+      val processingTime = getProcessingTime
+      input
+        .withColumn("ValidFrom", processingTime)
+        .withColumn("ValidTo", lit(null).cast(TimestampType))
+        .withColumn("IsCurrent", lit(true).cast("Boolean"))
     } else {
       input
     }
@@ -205,6 +224,14 @@ class Processing(entity: Entity, sliceFile: String) {
       input
   }
  
+  /**
+   * Returns a consistent timestamp for the current processing operation.
+   * This ensures all temporal operations within a single processing run use the same timestamp.
+   *
+   * @return Column expression for current timestamp in TimestampType
+   */
+  def getProcessingTime = current_timestamp()
+
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
       case Some(watermarkList) =>
@@ -213,15 +240,17 @@ class Processing(entity: Entity, sliceFile: String) {
     }
   }
 
-  def Process(stategy: ProcessStrategy = entity.ProcessType): Unit =
+  final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
     try {
-      stategy.Process(this)
+      strategy.Process(this)
       WriteWatermark(getSource.watermark_values) 
     }
     catch {
       case e:Throwable => {
         logger.error("Unhandled exception during processing", e)
+        // e.printStackTrace()
         throw e
       }
     }
+
 }

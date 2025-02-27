@@ -17,9 +17,9 @@ import datalake.metadata._
 
 
 final object Merge extends ProcessStrategy {
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
+  // private val spark: SparkSession =
+  //   SparkSession.builder.enableHiveSupport().getOrCreate()
+  // import spark.implicits._
 
   def Process(processing: Processing): Unit = {
     implicit val env:Environment = processing.environment
@@ -41,6 +41,10 @@ final object Merge extends ProcessStrategy {
       val explicit_partFilter = partition_values.mkString(" AND ")
 
       val schemaChanges = source.datalake_schemacompare(deltaTable.toDF.schema)
+      if (schemaChanges.nonEmpty) {
+        logger.warn(s"Schema changes detected during Merge processing:")
+        schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
+      }
     
       deltaTable
         .as("target")

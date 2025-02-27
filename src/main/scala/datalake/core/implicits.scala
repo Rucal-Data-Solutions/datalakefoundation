@@ -6,7 +6,7 @@ package datalake.core
 import org.apache.spark.sql.{ DataFrame, Dataset, Row, DataFrameWriter, DataFrameReader }
 import org.apache.spark.sql.types.{StructType}
 import java.time.LocalDateTime
-import org.apache.derby.iapi.types.DataType
+// import org.apache.derby.iapi.types.DataType
 
 object implicits {
 
@@ -46,13 +46,13 @@ object implicits {
 
       if (addedColumns.nonEmpty) {
         addedColumns.foreach { col =>
-          schemaDifferences += (col -> "Added")
+          schemaDifferences += (col -> "New")
         }
       }
 
       if (removedColumns.nonEmpty) {
         removedColumns.foreach { col =>
-          schemaDifferences += (col -> "Deleted")
+          schemaDifferences += (col -> "Missing")
         }
       }
 

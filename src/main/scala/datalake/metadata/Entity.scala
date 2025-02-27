@@ -98,6 +98,7 @@ class Entity(
     this.processtype.toLowerCase match {
       case Full.Name  => Full
       case Merge.Name => Merge
+      case Historic.Name => Historic
       case "delta" => Merge //allow old delta for backwards compatibility
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"

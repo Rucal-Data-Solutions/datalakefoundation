@@ -9,24 +9,21 @@ import java.sql.Timestamp
 import com.fasterxml.jackson.module.scala.deser.overrides
 
 class DatalakeColumn(
-    Name: String,
-    Data_type: DataType,
-    Nullable: Boolean,
-    Part_of_partition: Boolean
+    val name: String,
+    val dataType: DataType,
+    val nullable: Boolean,
+    val partOfPartition: Boolean
 ) extends Serializable {
-  final def name:String = this.Name
-  final def dataType:DataType = this.Data_type
-  final def nullable:Boolean = this.Nullable
-  final def partOfPartition:Boolean = this.Part_of_partition
 
   override def toString(): String = this.name
 
   override def equals(obj: Any): Boolean = {
     obj match {
-      case c: DatalakeColumn => (c.name == obj.asInstanceOf[DatalakeColumn].name)
+      case col: DatalakeColumn =>
+        this.name == col.name
       case _ => false
     }
-   }
+  }
 }
 
 object DatalakeColumn {
