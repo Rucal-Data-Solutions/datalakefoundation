@@ -61,8 +61,8 @@ final object Historic extends ProcessStrategy {
           source.columns
             .map(c => c.toString -> s"source.`${c.toString}`")
             .toMap ++ Map(
-              "ValidFrom" -> s"$processingTime",
-              "ValidTo" -> "null",
+                "ValidFrom" -> s"$processingTime",
+                "ValidTo" -> "cast('2999-12-31' as timestamp)",
               "IsCurrent" -> "true"
             )
         )
