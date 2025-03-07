@@ -38,35 +38,39 @@ final object Historic extends ProcessStrategy {
         logger.warn(s"Schema changes detected during Historic processing:")
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
       }
-      
-      // Use same timestamp as initial processing
-      val processingTime = processing.getProcessingTime
+
 
       // merge operation for SCD Type 2
       deltaTable.as("target")
         .merge(
           source.as("source"),
           s"target.${processing.primaryKeyColumnName} = source.${processing.primaryKeyColumnName} AND target.IsCurrent = true" +
-          (if (partition_filters.nonEmpty) s" AND $explicit_partFilter" else "")
+          (if (partition_filters.nonEmpty) 
+            s" AND $explicit_partFilter" else "")
         )
         .whenMatched("target.SourceHash <> source.SourceHash")
         .updateExpr(
           Map(
-            "ValidTo" -> s"$processingTime",
+            "ValidTo" -> s"cast('${processing.processingTime}' as timestamp)",
             "IsCurrent" -> "false"
           )
         )
-        .whenNotMatched()
-        .insertExpr(
-          source.columns
-            .map(c => c.toString -> s"source.`${c.toString}`")
-            .toMap ++ Map(
-                "ValidFrom" -> s"$processingTime",
-                "ValidTo" -> "cast('2999-12-31' as timestamp)",
-              "IsCurrent" -> "true"
-            )
-        )
+        .whenNotMatched() // Insert actual new records (new PrimaryKey)
+        .insertAll()
         .execute()
+
+      // Insert new versions for updated records
+      val updatedRecords = source.as("source")
+        .join(
+          deltaTable.toDF.as("target"),
+          expr(s"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName} AND target.IsCurrent = false AND target.ValidTo = cast('${processing.processingTime}' as timestamp)")
+        )
+        .select("source.*")
+
+      updatedRecords.write
+        .format("delta")
+        .mode("append")
+        .save(processing.destination)
     }
   }
 }

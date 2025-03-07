@@ -21,6 +21,26 @@
 	"entities": [
 		{
 			"id": 1,
+			"name": "TestEntity",
+			"group": "TEST",
+			"enabled": true,
+			"connection": "AdventureWorksSql",
+			"processtype": "historic",
+			"watermark": [],
+			"columns": [
+				{
+					"name": "id",
+					"newname": "",
+					"fieldroles": [
+						"businesskey"
+					]
+				}
+			],
+			"settings": {},
+			"transformations": []
+		},
+		{
+			"id": 2,
 			"name": "person",
 			"group": "AVW",
 			"enabled": true,
@@ -68,7 +88,7 @@
 			}
 		},
 		{
-			"id": 2,
+			"id": 3,
 			"name": "person",
 			"enabled": true,
 			"connection": "AdventureWorksSql",

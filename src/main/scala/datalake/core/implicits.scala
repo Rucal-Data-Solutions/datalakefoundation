@@ -62,8 +62,6 @@ object implicits {
         schemaDifferences.foreach { diff =>
           println(s"Column: ${diff._1}, Difference: ${diff._2}")
         }
-      } else {
-        println("No schema differences found.")
       }
 
       return schemaDifferences.toArray

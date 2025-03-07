@@ -16,31 +16,31 @@ import io.delta.tables._
 import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
+import org.apache.spark.broadcast.Broadcast
 
 
 case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
-class Processing(entity: Entity, sliceFile: String) {
+class Processing(entity: Entity, sliceFile: String) extends Serializable {
   implicit val environment = entity.Environment
   
   @transient 
   lazy private val logger = LogManager.getLogger(this.getClass())
 
+  private val columns = entity.Columns
+
   final val entity_id = entity.Id
   final val primaryKeyColumnName: String = s"PK_${entity.Destination}"
-  private val columns = entity.Columns
+
   final val paths = entity.getPaths
   final val watermarkColumns = entity.Watermark
-  final val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
-  final val destination: String = paths.silverpath
   final val entitySettings = entity.Settings
-
-  val columnsToRename = columns
-    .filter(c => c.NewName != "")
-    .map(c => (c.Name, c.NewName))
-    .toMap
+  
+  final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
+  final lazy val destination: String = paths.silverpath
+  final lazy val processingTime = LocalDateTime.now(environment.Timezone.toZoneId).toString()
 
   private val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
@@ -70,6 +70,7 @@ class Processing(entity: Entity, sliceFile: String) {
       .datalake_normalize()
 
     val part_values = getPartitionValues(transformedDF)
+
 
     new DatalakeSource(transformedDF, watermark_values, part_values)
   }
@@ -150,10 +151,9 @@ class Processing(entity: Entity, sliceFile: String) {
    */
   private def addTemporalTrackingColumns(input: Dataset[Row]): Dataset[Row] =
     if (entity.ProcessType == Historic) {
-      val processingTime = getProcessingTime
       input
-        .withColumn("ValidFrom", processingTime)
-        .withColumn("ValidTo", lit(null).cast(TimestampType))
+        .withColumn("ValidFrom", lit(processingTime).cast(TimestampType))
+        .withColumn("ValidTo", lit("2999-12-31").cast(TimestampType))
         .withColumn("IsCurrent", lit(true).cast("Boolean"))
     } else {
       input
@@ -171,10 +171,16 @@ class Processing(entity: Entity, sliceFile: String) {
     }
 
   // Rename columns that need renaming
-  private def renameColumns(input: Dataset[Row]): Dataset[Row] =
+  private def renameColumns(input: Dataset[Row]): Dataset[Row] = {
+    val columnsToRename = columns
+      .filter(c => c.NewName != "")
+      .map(c => (c.Name, c.NewName))
+      .toMap
+
     columnsToRename.foldLeft(input) {(tempdb, rencol) =>
       input.withColumnRenamed(rencol._1, rencol._2)  
     }
+  }
 
 
   // check for the deleted column (source can identify deletes with this record) add if it doesn't exist
@@ -223,14 +229,7 @@ class Processing(entity: Entity, sliceFile: String) {
     else
       input
   }
- 
-  /**
-   * Returns a consistent timestamp for the current processing operation.
-   * This ensures all temporal operations within a single processing run use the same timestamp.
-   *
-   * @return Column expression for current timestamp in TimestampType
-   */
-  def getProcessingTime = current_timestamp()
+
 
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
