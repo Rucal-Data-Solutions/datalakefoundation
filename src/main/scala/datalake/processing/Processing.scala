@@ -37,6 +37,16 @@ class Processing(entity: Entity, sliceFile: String) {
   val destination: String = paths.silverpath
   val entitySettings = entity.Settings
 
+  // Extract just the filename without the path for easier use in expressions
+  val sliceFileName: String = {
+    val lastSlashIndex = sliceFile.lastIndexOf('/')
+    if (lastSlashIndex >= 0 && lastSlashIndex < sliceFile.length - 1) {
+      sliceFile.substring(lastSlashIndex + 1)
+    } else {
+      sliceFile
+    }
+  }
+
   val columnsToRename = columns
     .filter(c => c.NewName != "")
     .map(c => (c.Name, c.NewName))
@@ -173,10 +183,22 @@ class Processing(entity: Entity, sliceFile: String) {
     input.withColumn("lastSeen", to_timestamp(lit(now.toString)))
   }
 
-  private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
+  private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] = {
+    // Create a map of variables that can be used in expressions
+    val expressionVars = Map(
+      "slice_file" -> sliceFile,
+      "slice_filename" -> sliceFileName
+    )
+    
     entity.Columns(EntityColumnFilter(HasExpression=true)).foldLeft(input) { (tempdf, column) =>
       Try {
-        tempdf.withColumn(column.Name, expr(column.Expression))
+        // Replace variables in the expression
+        val processedExpression = expressionVars.foldLeft(column.Expression) { 
+          case (expr, (varName, varValue)) => 
+            expr.replace(s"$${$varName}", varValue) 
+        }
+        
+        tempdf.withColumn(column.Name, expr(processedExpression))
       } match {
         case Success(newDf) =>
           newDf
@@ -189,6 +211,7 @@ class Processing(entity: Entity, sliceFile: String) {
           tempdf
       }
     }
+  }
   
   /**
     * Applies transformations from the entity to the input dataset.
