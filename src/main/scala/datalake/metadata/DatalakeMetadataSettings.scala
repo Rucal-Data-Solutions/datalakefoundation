@@ -23,7 +23,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
 
 
   @transient 
-  lazy private val logger: Logger = LogManager.getLogger(this.getClass())
+  lazy final val logger: Logger = LogManager.getLogger(this.getClass())
 
   // def initialize(initParameter: initParam)
   type ConfigString

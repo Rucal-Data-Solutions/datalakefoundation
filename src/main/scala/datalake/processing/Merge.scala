@@ -30,7 +30,7 @@ final object Merge extends ProcessStrategy {
       Full.Process(processing)
     } else {
       val datalake_source = processing.getSource
-      val source: DataFrame = datalake_source.source
+      val source: DataFrame = datalake_source.source_df
 
       val partition_values: Array[String] = datalake_source.partition_columns match {
         case Some(part) => part.toArray.map(c => s"target.${c._1} IN(${c._2.toString()})")

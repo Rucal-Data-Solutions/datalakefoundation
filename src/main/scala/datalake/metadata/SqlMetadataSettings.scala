@@ -47,6 +47,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
     catch {
       case e: Exception => {
         println(s"Failed to initialize metadata, Message: ${e.getMessage()}")
+        logger.error(e)
         throw e
       }
     }

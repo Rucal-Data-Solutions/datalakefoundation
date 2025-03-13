@@ -21,7 +21,7 @@ final object Historic extends ProcessStrategy {
       Full.Process(processing)
     } else {
       val datalake_source = processing.getSource
-      val source: DataFrame = datalake_source.source
+      val source: DataFrame = datalake_source.source_df
 
       val part_values: List[String] = datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
       val partition_filters: Array[String] = datalake_source.partition_columns match {

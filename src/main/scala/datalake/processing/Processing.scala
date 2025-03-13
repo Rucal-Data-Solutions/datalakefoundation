@@ -19,7 +19,7 @@ import datalake.core.implicits._
 import org.apache.spark.broadcast.Broadcast
 
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
+case class DatalakeSource(source_df: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
@@ -56,7 +56,7 @@ class Processing(entity: Entity, sliceFile: String) extends Serializable {
 
     val pre_process = dfSlice.transform(injectTransformations)
 
-    val watermark_values = getWatermarkValues(pre_process, watermarkColumns)
+    val new_watermark_values = getWatermarkValues(pre_process, watermarkColumns)
 
     val transformedDF = pre_process
       .transform(addCalculatedColumns)
@@ -72,7 +72,7 @@ class Processing(entity: Entity, sliceFile: String) extends Serializable {
     val part_values = getPartitionValues(transformedDF)
 
 
-    new DatalakeSource(transformedDF, watermark_values, part_values)
+    new DatalakeSource(transformedDF, new_watermark_values, part_values)
   }
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: List[Watermark]): Option[List[(Watermark, Any)]] = {
