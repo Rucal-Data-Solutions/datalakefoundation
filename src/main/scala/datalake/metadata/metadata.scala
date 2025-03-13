@@ -35,6 +35,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
 
   if (!metadataSettings.isInitialized) {
     val e = new MetadataNotInitializedException("Config is not initialized")
+    logger.error(e.getMessage, e)
     throw e
   }
   else {
