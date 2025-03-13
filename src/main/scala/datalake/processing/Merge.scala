@@ -45,7 +45,9 @@ final object Merge extends ProcessStrategy {
         logger.warn(s"Schema changes detected during Merge processing:")
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
       }
-    
+      
+      logger.debug("Starting Merge operation")
+      
       deltaTable
         .as("target")
         .merge(

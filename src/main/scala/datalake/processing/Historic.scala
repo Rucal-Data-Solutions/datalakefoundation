@@ -39,6 +39,7 @@ final object Historic extends ProcessStrategy {
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
       }
 
+      logger.debug("Starting Historic Merge operation")
 
       // merge operation for SCD Type 2
       deltaTable.as("target")
