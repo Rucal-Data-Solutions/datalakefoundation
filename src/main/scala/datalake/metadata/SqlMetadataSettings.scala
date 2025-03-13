@@ -2,7 +2,7 @@ package datalake.metadata
 
 import java.sql._
 import java.util.Properties
-// import org.apache.commons.lang.NotImplementedException
+
 import org.apache.spark.sql.{ SparkSession, DataFrame, Row }
 import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
@@ -45,8 +45,10 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       super.initialize(_jsonString.asInstanceOf[ConfigString])
     }
     catch {
-      case e: SQLServerException => { println(e.getMessage()) }
-      case e: Exception => {println(s"Unexpected Error: ${e.getMessage()}")}
+      case e: Exception => {
+        println(s"Failed to initialize metadata, Message: ${e.getMessage()}")
+        throw e
+      }
     }
 
   }
