@@ -20,7 +20,7 @@ class EntityColumn(
 ) {
 
   override def toString(): String =
-    this.name
+    this.Name
 
   override def equals(obj: Any): Boolean =
     obj match {
