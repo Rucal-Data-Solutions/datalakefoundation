@@ -24,10 +24,6 @@ case class SqlServerSettings(
 
 class SqlMetadataSettings extends DatalakeMetadataSettings {
 
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
-
   def initialize(settings: SqlServerSettings): Unit = {
     val connectionString =
       s"jdbc:sqlserver://${settings.server}:${settings.port};database=${settings.database};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30"

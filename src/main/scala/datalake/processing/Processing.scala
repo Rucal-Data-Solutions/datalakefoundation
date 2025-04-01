@@ -1,10 +1,12 @@
 package datalake.processing
 
-import org.apache.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
+import org.apache.spark.broadcast.Broadcast
+
 import scala.util.{ Try, Success, Failure }
 
 import java.util.TimeZone
@@ -16,7 +18,7 @@ import io.delta.tables._
 import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
-import org.apache.spark.broadcast.Broadcast
+import datalake.log._
 
 
 case class DatalakeSource(source_df: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
@@ -26,9 +28,6 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 class Processing(entity: Entity, sliceFile: String) extends Serializable {
   implicit val environment = entity.Environment
   
-  @transient 
-  lazy private val logger = LogManager.getLogger(this.getClass())
-
   private val columns = entity.Columns
 
   final val entity_id = entity.Id
@@ -40,11 +39,15 @@ class Processing(entity: Entity, sliceFile: String) extends Serializable {
   
   final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: String = paths.silverpath
+  // final lazy val destinationTable: String = entity.Connection.Name + "_" + entity.Name
   final lazy val processingTime = LocalDateTime.now(environment.Timezone.toZoneId).toString()
 
-  private val spark: SparkSession =
+  private implicit val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
+
+  @transient 
+  lazy private val logger = DatalakeLogManager.getLogger(this.getClass())
 
   def getSource: DatalakeSource = {
 

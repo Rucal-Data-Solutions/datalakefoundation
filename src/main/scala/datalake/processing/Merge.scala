@@ -17,9 +17,6 @@ import datalake.metadata._
 
 
 final object Merge extends ProcessStrategy {
-  // private val spark: SparkSession =
-  //   SparkSession.builder.enableHiveSupport().getOrCreate()
-  // import spark.implicits._
 
   def Process(processing: Processing): Unit = {
     implicit val env:Environment = processing.environment

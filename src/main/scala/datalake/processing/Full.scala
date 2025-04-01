@@ -37,11 +37,12 @@ final object Full extends ProcessStrategy {
       .partitionBy(part_values: _*)
       .mode(SaveMode.Overwrite)
       .options(
-        Map[String, String](
-          ("partitionOverwriteMode", "dynamic")
-        )
+      Map[String, String](
+        ("partitionOverwriteMode", "dynamic")
       )
-      .delta(processing.destination)
+      )
+      .format("delta")
+      .option("path", processing.destination)
 
   }
 }
