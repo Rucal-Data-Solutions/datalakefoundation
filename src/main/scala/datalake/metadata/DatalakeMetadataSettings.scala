@@ -111,8 +111,8 @@ abstract class DatalakeMetadataSettings extends Serializable {
 
   final def getEnvironment(): Environment = {
     implicit var formats: Formats = DefaultFormats
-    val enviroment_settings =
+    val environment_settings =
       _environment_settings.extract[Environment]
-    enviroment_settings
+    environment_settings
   }
 }
