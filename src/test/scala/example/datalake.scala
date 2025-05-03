@@ -133,6 +133,15 @@ class HistoricProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
     
     // Create test directories
     val testBasePath = java.nio.file.Files.createTempDirectory("historic_test").toString
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    if (!bronzeFolder.exists()) {
+      bronzeFolder.mkdirs()
+    }
+
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    if (!silverFolder.exists()) {
+      silverFolder.mkdirs()
+    }
     
     // Create initial and updated test data
     val initialData = Seq(
@@ -164,7 +173,7 @@ class HistoricProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
 
       val testEntity = metadata.getEntity(1)
       val paths = testEntity.getPaths
-
+      
       // Save test data as parquet files
       val initialSlice = "initial_slice.parquet"
       val updatedSlice = "updated_slice.parquet"
