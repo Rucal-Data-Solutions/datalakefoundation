@@ -41,8 +41,7 @@ final object Full extends ProcessStrategy {
         ("partitionOverwriteMode", "dynamic")
       )
       )
-      .format("delta")
-      .option("path", processing.destination)
+      .delta(processing.destination)
 
   }
 }
