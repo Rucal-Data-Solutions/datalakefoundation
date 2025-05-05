@@ -40,7 +40,20 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: String = paths.silverpath
   // final lazy val destinationTable: String = entity.Connection.Name + "_" + entity.Name
-  final lazy val processingTime = LocalDateTime.now(environment.Timezone.toZoneId).toString()
+
+  final lazy val processingTime = {
+    if (options.contains("processing.time")) {
+      try {
+        LocalDateTime.parse(options("processing.time")).toString
+      } catch {
+        case _: Exception =>
+          logger.error(s"Invalid processing.time value: ${options("processing.time")} - falling back to current time.")
+          LocalDateTime.now(environment.Timezone.toZoneId).toString
+      }
+    } else {
+      LocalDateTime.now(environment.Timezone.toZoneId).toString
+    }
+  }
 
   private implicit val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()

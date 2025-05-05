@@ -143,6 +143,8 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
     val updatedData = Seq((1, "John", "Data2")).toDF("id", "name", "data")
 
     try {
+      val processingTimeOption = "2025-05-05T12:00:00"
+
       val env = new Environment(
         "DEBUG (OVERRIDE)",
         testBasePath.replace("\\", "/"),
@@ -166,14 +168,22 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
       initialData.write.parquet(s"${paths.bronzepath}/$initialSlice")
       updatedData.write.parquet(s"${paths.bronzepath}/$updatedSlice")
 
-      val proc1 = new Processing(testEntity, initialSlice)
+      val proc1 = new Processing(testEntity, initialSlice, Map("processing.time" -> processingTimeOption))
       proc1.Process()
 
-      val proc2 = new Processing(testEntity, updatedSlice)
+      val newTime = java.time.LocalDateTime
+        .parse(processingTimeOption, java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+        .plusMinutes(1)
+        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+
+      val proc2 = new Processing(testEntity, updatedSlice, Map("processing.time" -> newTime))
       proc2.Process()
 
       val result_df = spark.read.format("delta").load(paths.silverpath).orderBy("ValidFrom")
       val result = result_df.collect()
+
+      result_df.show(false)
+
       assert(result.length == 2, "Should have two records after update")
       assert(
         result(0).getAs[Timestamp]("ValidTo") === result(1).getAs[Timestamp]("ValidFrom"),
@@ -181,6 +191,8 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
       )
       assert(result(0).getAs[Boolean]("IsCurrent") === false, "First record should not be current")
       assert(result(1).getAs[Boolean]("IsCurrent") === true, "Second record should be current")
+      assert(result(0).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:00:00"), "ValidFrom of the first record should match the processing.time option")
+      assert(result(1).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:01:00"), "ValidFrom of the second record should be 1 minute after the processing.time option")
 
     } finally
       org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
