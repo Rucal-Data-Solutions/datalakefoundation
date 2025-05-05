@@ -150,8 +150,7 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
         "/${connection}/${entity}",
         "/${connection}/${entity}",
         "/${connection}/${destination}",
-        "-secure",
-        "dlf_"
+        "-secure"
       )
 
       val settings = new JsonMetadataSettings()
