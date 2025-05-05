@@ -6,7 +6,9 @@
 		"raw_path": "/${connection}/${entity}",
 		"bronze_path": "/${connection}/${entity}",
 		"silver_path": "/${connection}/${destination}",
-		"secure_container_suffix": "-secure"
+		"secure_container_suffix": "-secure",
+		"systemfield_prefix": "dlf_"
+
 	},
 	"connections": [
 		{

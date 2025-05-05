@@ -25,7 +25,7 @@ case class DatalakeSource(source_df: DataFrame, watermark_values: Option[List[(W
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
-class Processing(entity: Entity, sliceFile: String) extends Serializable {
+class Processing(entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment = entity.Environment
   
   private val columns = entity.Columns
@@ -112,10 +112,11 @@ class Processing(entity: Entity, sliceFile: String) extends Serializable {
     * @param input The input dataset to calculate the source hash for.
     * @return The input dataset with the "SourceHash" column added, if it didn't exist.
     **/
-  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] ={
-    if (Utils.hasColumn(input, "SourceHash") == false) {
+  private def calculateSourceHash(input: Dataset[Row])(implicit env: Environment): Dataset[Row] ={
+    val hashfield = s"${env.SystemFieldPrefix}SourceHash"
+    if (Utils.hasColumn(input, hashfield) == false) {
       input.withColumn(
-        "SourceHash",
+        hashfield,
         sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
       )
     } else
@@ -152,12 +153,12 @@ class Processing(entity: Entity, sliceFile: String) extends Serializable {
    * @return The modified Dataset[Row] with temporal tracking columns if the process type is Historic, 
    *         otherwise returns the original input Dataset[Row].
    */
-  private def addTemporalTrackingColumns(input: Dataset[Row]): Dataset[Row] =
+  private def addTemporalTrackingColumns(input: Dataset[Row])(implicit env: Environment): Dataset[Row] =
     if (entity.ProcessType == Historic) {
       input
-        .withColumn("ValidFrom", lit(processingTime).cast(TimestampType))
-        .withColumn("ValidTo", lit("2999-12-31").cast(TimestampType))
-        .withColumn("IsCurrent", lit(true).cast("Boolean"))
+        .withColumn(s"${env.SystemFieldPrefix}ValidFrom", lit(processingTime).cast(TimestampType))
+        .withColumn(s"${env.SystemFieldPrefix}ValidTo", lit("2999-12-31").cast(TimestampType))
+        .withColumn(s"${env.SystemFieldPrefix}IsCurrent", lit(true).cast("Boolean"))
     } else {
       input
     }
@@ -187,18 +188,18 @@ class Processing(entity: Entity, sliceFile: String) extends Serializable {
 
 
   // check for the deleted column (source can identify deletes with this record) add if it doesn't exist
-  private def addDeletedColumn(input: Dataset[Row]): Dataset[Row] =
-    if (Utils.hasColumn(input, "deleted") == false) {
-      input.withColumn("deleted", lit("false").cast("Boolean"))
+  private def addDeletedColumn(input: Dataset[Row])(implicit env: Environment): Dataset[Row] =
+    if (Utils.hasColumn(input, s"${env.SystemFieldPrefix}deleted") == false) {
+      input.withColumn(s"${env.SystemFieldPrefix}deleted", lit("false").cast("Boolean"))
     } else {
       input
     }
 
   // add lastseen date
-  private def addLastSeen(input: Dataset[Row]): Dataset[Row] = {
+  private def addLastSeen(input: Dataset[Row])(implicit env: Environment): Dataset[Row] = {
     val timezoneId = environment.Timezone.toZoneId
     val now = LocalDateTime.now(timezoneId)
-    input.withColumn("lastSeen", to_timestamp(lit(now.toString)))
+    input.withColumn(s"${env.SystemFieldPrefix}lastSeen", to_timestamp(lit(processingTime)))
   }
 
   private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =

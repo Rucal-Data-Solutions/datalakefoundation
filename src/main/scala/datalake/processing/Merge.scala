@@ -52,13 +52,13 @@ final object Merge extends ProcessStrategy {
             f"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName}" +
             (if (partition_values.nonEmpty) s" AND $explicit_partFilter" else "")
         )
-        .whenMatched("source.deleted = true")
-        .update(Map("deleted" -> lit("true"), "lastSeen" -> col("source.lastSeen")))
-        .whenMatched("source.SourceHash != target.SourceHash")
+        .whenMatched(s"source.${env.SystemFieldPrefix}deleted = true")
+        .update(Map(s"${env.SystemFieldPrefix}deleted" -> lit("true"), s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
+        .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash != target.${env.SystemFieldPrefix}SourceHash")
         .updateAll
-        .whenMatched("source.SourceHash == target.SourceHash")
-        .update(Map("lastSeen" -> col("source.lastSeen")))
-        .whenNotMatched("source.deleted = false")
+        .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash == target.${env.SystemFieldPrefix}SourceHash")
+        .update(Map(s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
+        .whenNotMatched(s"source.${env.SystemFieldPrefix}deleted = false")
         .insertAll
         .execute()
 

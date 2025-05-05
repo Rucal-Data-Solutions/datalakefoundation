@@ -45,15 +45,15 @@ final object Historic extends ProcessStrategy {
       deltaTable.as("target")
         .merge(
           source.as("source"),
-          s"target.${processing.primaryKeyColumnName} = source.${processing.primaryKeyColumnName} AND target.IsCurrent = true" +
+          s"target.${processing.primaryKeyColumnName} = source.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = true" +
           (if (partition_filters.nonEmpty) 
             s" AND $explicit_partFilter" else "")
         )
-        .whenMatched("target.SourceHash <> source.SourceHash")
+        .whenMatched(s"target.${env.SystemFieldPrefix}SourceHash <> source.${env.SystemFieldPrefix}SourceHash")
         .updateExpr(
           Map(
-            "ValidTo" -> s"cast('${processing.processingTime}' as timestamp)",
-            "IsCurrent" -> "false"
+            s"${env.SystemFieldPrefix}ValidTo" -> s"cast('${processing.processingTime}' as timestamp)",
+            s"${env.SystemFieldPrefix}IsCurrent" -> "false"
           )
         )
         .whenNotMatched() // Insert actual new records (new PrimaryKey)
