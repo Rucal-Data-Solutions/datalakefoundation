@@ -83,6 +83,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
       .transform(renameColumns)
       .transform(addDeletedColumn)
       .transform(addLastSeen)
+      .transform(addFilenameColumn(_, sliceFile))
       .datalake_normalize()
 
     val part_values = getPartitionValues(transformedDF)
@@ -247,6 +248,14 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
       input
   }
 
+  private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
+    val filenameField = s"${env.SystemFieldPrefix}source_filename"
+    if (!Utils.hasColumn(input, filenameField)) {
+      input.withColumn(filenameField, lit(filename))
+    } else {
+      input
+    }
+  }
 
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
