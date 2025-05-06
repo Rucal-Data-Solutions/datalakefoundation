@@ -21,7 +21,7 @@ class Watermark(
     expression: String
 ) extends Serializable {
 
-  val wmd = new WatermarkData(entity_id)(environment = environment)
+  private val wmd = new WatermarkData(entity_id)(environment = environment)
 
   override def toString(): String =
     s"${operation} ${column_name} > ${Function}"
@@ -61,6 +61,10 @@ class Watermark(
 
   final def Reset: Unit =
     wmd.Reset(this)
+
+  final def Reset(newValue: String): Unit ={
+    wmd.Reset(this, newValue)
+  }
 }
 
 object Watermark {

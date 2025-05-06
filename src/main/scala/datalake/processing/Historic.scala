@@ -1,5 +1,9 @@
 package datalake.processing
 
+import datalake.metadata._
+import datalake.core.implicits._
+import datalake.core.FileOperations
+
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -7,39 +11,67 @@ import org.apache.spark.sql.{ DataFrame, Column, SaveMode }
 
 import io.delta.tables._
 
-import datalake.metadata._
-import datalake.core.implicits._
-import org.apache.spark.sql.delta.catalog.DeltaTableV2
-import datalake.core.FileOperations
-
-
 final object Historic extends ProcessStrategy {
 
-  throw new org.apache.commons.lang.NotImplementedException ("Historic strategy not implemented.")
+  def Process(processing: Processing): Unit = {
+    implicit val env:Environment = processing.environment
 
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
-  spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "false")
+    if (!FileOperations.exists(processing.destination)) {
+      logger.info("Diverting to full load (First Run)")
+      Full.Process(processing)
+    } else {
+      val datalake_source = processing.getSource
+      val source: DataFrame = datalake_source.source_df
 
-  def Process(processing: Processing) = {
-    val source: DataFrame = processing.getSource.source
+      val part_values: List[String] = datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
+      val partition_filters: Array[String] = datalake_source.partition_columns match {
+        case Some(part) => part.toArray.map(c => s"target.${c._1} IN(${c._2.toString()})")
+        case None => Array.empty[String]
+      }
+      
+      val deltaTable = DeltaTable.forPath(processing.destination)
+      val explicit_partFilter = partition_filters.mkString(" AND ")
+      
+      // Check for schema changes
+      val schemaChanges = source.datalake_schemacompare(deltaTable.toDF.schema)
+      if (schemaChanges.nonEmpty) {
+        logger.warn(s"Schema changes detected during Historic processing:")
+        schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
+      }
 
-    // firstly Merge load
-    Merge.Process(processing)
+      logger.debug("Starting Historic Merge operation")
 
-    // Get the last version of the destination table for comparison
-    val latestVersion: Long = DeltaTable
-      .forPath(processing.destination)
-      .history(1)
-      .select("version")
-      .limit(1).collect()(0).getAs[Long](0)
+      // merge operation for SCD Type 2
+      deltaTable.as("target")
+        .merge(
+          source.as("source"),
+          s"target.${processing.primaryKeyColumnName} = source.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = true" +
+          (if (partition_filters.nonEmpty) 
+            s" AND $explicit_partFilter" else "")
+        )
+        .whenMatched(s"target.${env.SystemFieldPrefix}SourceHash <> source.${env.SystemFieldPrefix}SourceHash")
+        .updateExpr(
+          Map(
+            s"${env.SystemFieldPrefix}ValidTo" -> s"cast('${processing.processingTime}' as timestamp)",
+            s"${env.SystemFieldPrefix}IsCurrent" -> "false"
+          )
+        )
+        .whenNotMatched() // Insert actual new records (new PrimaryKey)
+        .insertAll()
+        .execute()
 
-    val deltaTable = DeltaTable.forPath(spark, processing.destination, Map("versionAsOf" -> latestVersion.toString()) )
+      // Insert new versions for updated records
+      val updatedRecords = source.as("source")
+        .join(
+          deltaTable.toDF.as("target"),
+          expr(s"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName} AND target.IsCurrent = false AND target.ValidTo = cast('${processing.processingTime}' as timestamp)")
+        )
+        .select("source.*")
 
-
-    //TODO: OUTDATE changed records
-
-    //TODO: CREATE New records from changes.
+      updatedRecords.write
+        .format("delta")
+        .mode("append")
+        .save(processing.destination)
+    }
   }
 }

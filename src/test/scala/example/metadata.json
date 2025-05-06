@@ -6,7 +6,9 @@
 		"raw_path": "/${connection}/${entity}",
 		"bronze_path": "/${connection}/${entity}",
 		"silver_path": "/${connection}/${destination}",
-		"secure_container_suffix": "-secure"
+		"secure_container_suffix": "-secure",
+		"systemfield_prefix": "dlf_"
+
 	},
 	"connections": [
 		{
@@ -21,6 +23,26 @@
 	"entities": [
 		{
 			"id": 1,
+			"name": "TestEntity",
+			"group": "TEST",
+			"enabled": true,
+			"connection": "AdventureWorksSql",
+			"processtype": "historic",
+			"watermark": [],
+			"columns": [
+				{
+					"name": "id",
+					"newname": "",
+					"fieldroles": [
+						"businesskey"
+					]
+				}
+			],
+			"settings": {},
+			"transformations": []
+		},
+		{
+			"id": 2,
 			"name": "person",
 			"group": "AVW",
 			"enabled": true,
@@ -68,7 +90,7 @@
 			}
 		},
 		{
-			"id": 2,
+			"id": 3,
 			"name": "person",
 			"enabled": true,
 			"connection": "AdventureWorksSql",

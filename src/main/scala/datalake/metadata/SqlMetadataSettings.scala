@@ -2,7 +2,7 @@ package datalake.metadata
 
 import java.sql._
 import java.util.Properties
-import org.apache.commons.lang.NotImplementedException
+
 import org.apache.spark.sql.{ SparkSession, DataFrame, Row }
 import org.apache.spark.sql.functions.{ col, lit }
 import org.apache.arrow.flatbuf.Bool
@@ -24,10 +24,6 @@ case class SqlServerSettings(
 
 class SqlMetadataSettings extends DatalakeMetadataSettings {
 
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
-
   def initialize(settings: SqlServerSettings): Unit = {
     val connectionString =
       s"jdbc:sqlserver://${settings.server}:${settings.port};database=${settings.database};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30"
@@ -45,8 +41,11 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
       super.initialize(_jsonString.asInstanceOf[ConfigString])
     }
     catch {
-      case e: SQLServerException => { println(e.getMessage()) }
-      case e: Exception => {println(s"Unexpected Error: ${e.getMessage()}")}
+      case e: Exception => {
+        println(s"Failed to initialize metadata, Message: ${e.getMessage()}")
+        logger.error(e)
+        throw e
+      }
     }
 
   }

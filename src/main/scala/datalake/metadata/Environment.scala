@@ -13,13 +13,14 @@ import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
 
 class Environment(
-    name: String,
-    root_folder: String,
-    timezone: String,
-    raw_path: String,
-    bronze_path: String,
-    silver_path: String,
-    secure_container_suffix: String
+  private val name: String,
+  private val root_folder: String,
+  private val timezone: String,
+  private val raw_path: String,
+  private val bronze_path: String,
+  private val silver_path: String,
+  private val secure_container_suffix: String,
+  private val systemfield_prefix: String = null
 ) extends Serializable {
 
   override def toString(): String = s"Environment: ${this.name}"
@@ -69,5 +70,9 @@ class Environment(
     if (silverPath.startsWith("/")) silverPath = silverPath.drop(1)
     if (silverPath.endsWith("/")) silverPath = silverPath.dropRight(1)
     silverPath
+  }
+
+  def SystemFieldPrefix: String = {
+    if (this.systemfield_prefix == null) "" else this.systemfield_prefix
   }
 }

@@ -17,15 +17,11 @@ import datalake.metadata._
 
 final object Full extends ProcessStrategy {
 
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
-  import spark.implicits._
-
   def Process(processing: Processing): Unit = {
     implicit val env: Environment = processing.environment
 
     val datalake_source = processing.getSource
-    val source: DataFrame = datalake_source.source
+    val source: DataFrame = datalake_source.source_df
 
     val part_values: List[String] =
       datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
@@ -41,9 +37,9 @@ final object Full extends ProcessStrategy {
       .partitionBy(part_values: _*)
       .mode(SaveMode.Overwrite)
       .options(
-        Map[String, String](
-          ("partitionOverwriteMode", "dynamic")
-        )
+      Map[String, String](
+        ("partitionOverwriteMode", "dynamic")
+      )
       )
       .delta(processing.destination)
 
