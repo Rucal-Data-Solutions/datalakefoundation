@@ -5,7 +5,7 @@ import datalake.processing._
 
 import java.util.TimeZone
 
-import org.apache.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -35,6 +35,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
 
   if (!metadataSettings.isInitialized) {
     val e = new MetadataNotInitializedException("Config is not initialized")
+    logger.error(e.getMessage, e)
     throw e
   }
   else {

@@ -6,7 +6,7 @@ package datalake.core
 import org.apache.spark.sql.{ DataFrame, Dataset, Row, DataFrameWriter, DataFrameReader }
 import org.apache.spark.sql.types.{StructType}
 import java.time.LocalDateTime
-import org.apache.derby.iapi.types.DataType
+// import org.apache.derby.iapi.types.DataType
 
 object implicits {
 
@@ -27,41 +27,44 @@ object implicits {
       return resultingDf
     }
 
-    def datalake_schemacompare(targetSchema: StructType): String = {
+    def datalake_schemacompare(targetSchema: StructType): Array[(DatalakeColumn, String)] = {
 
-      val targetColumns = targetSchema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) ).toSet[DatalakeColumn]
-      val sourceColumns = df.schema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) ).toSet[DatalakeColumn]
+      val targetColumns = targetSchema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) )
+      val sourceColumns = df.schema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) )
 
-      val addedColumns = sourceColumns -- targetColumns
-      val deletedColumns = targetColumns -- sourceColumns
+      // Find columns that exist in source but not in target (added)
+      val addedColumns = sourceColumns.filter(sourceCol => 
+        !targetColumns.exists(_.name == sourceCol.name)
+      )
+
+      // Find columns that exist in target but not in source (removed)
+      val removedColumns = targetColumns.filter(targetCol => 
+        !sourceColumns.exists(_.name == targetCol.name)
+      )
 
       val schemaDifferences = scala.collection.mutable.ArrayBuffer.empty[(DatalakeColumn, String)]
 
       if (addedColumns.nonEmpty) {
         addedColumns.foreach { col =>
-          schemaDifferences += (col -> "Added")
+          schemaDifferences += (col -> "New")
         }
       }
 
-      if (deletedColumns.nonEmpty) {
-        deletedColumns.foreach { col =>
-          schemaDifferences += (col -> "Deleted")
+      if (removedColumns.nonEmpty) {
+        removedColumns.foreach { col =>
+          schemaDifferences += (col -> "Missing")
         }
       }
 
 
+      if (schemaDifferences.nonEmpty) {
+        println("Schema differences found:")
+        schemaDifferences.foreach { diff =>
+          println(s"Column: ${diff._1}, Difference: ${diff._2}")
+        }
+      }
 
-
-      // if (schemaDifferences.nonEmpty) {
-      //   println("Schema differences found:")
-      //   schemaDifferences.foreach { diff =>
-      //     println(s"Column: ${diff.columnName}, Difference: ${diff.difference}")
-      //   }
-      // } else {
-      //   println("No schema differences found.")
-      // }
-
-      return "TEST"
+      return schemaDifferences.toArray
     }
 
   }

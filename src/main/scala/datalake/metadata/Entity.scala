@@ -42,7 +42,7 @@ class Entity(
   implicit val environment: Environment = metadata.getEnvironment
   implicit val logger = LogManager.getLogger(this.getClass()) 
 
-  private val resolved_paths: Paths = resolvePaths
+  private val resolved_paths: Paths = parsePaths
 
   override def toString(): String =
     s"Entity: (${this.id}) - ${this.name}"
@@ -98,6 +98,7 @@ class Entity(
     this.processtype.toLowerCase match {
       case Full.Name  => Full
       case Merge.Name => Merge
+      case Historic.Name => Historic
       case "delta" => Merge //allow old delta for backwards compatibility
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"
@@ -111,7 +112,7 @@ class Entity(
 
   final def getPaths: Paths = resolved_paths
 
-  private def resolvePaths: Paths = {
+  private def parsePaths: Paths = {
     val today =
       java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
 
@@ -129,21 +130,21 @@ class Entity(
       silverPath ++= "-secure"
     }
 
-    // overrides for raw
+    // environment override for raw
     _settings.get("raw_path") match {
       case Some(value:  String) => rawPath ++= value.normalized_path
       case _ =>
         rawPath ++= environment.RawPath.normalized_path
     }
 
-    // overrides for bronze
+    // environment override for bronze
     _settings.get("bronze_path") match {
       case Some(value: String) => bronzePath ++= value.normalized_path
       case _ =>
         bronzePath ++= environment.BronzePath.normalized_path
     }
 
-    // overrides for silver
+    // environment override for silver
     _settings.get("silver_path") match {
       case Some(value: String) => silverPath ++= value.normalized_path
       case _ =>
@@ -160,6 +161,7 @@ class Entity(
 
     return Paths(retRawPath, retBronzePath, retSilverPath)
   }
+
 
   /**
    * Retrieves the business key of the entity.

@@ -1,10 +1,12 @@
 package datalake.processing
 
-import org.apache.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
+import org.apache.spark.broadcast.Broadcast
+
 import scala.util.{ Try, Success, Failure }
 
 import java.util.TimeZone
@@ -16,35 +18,49 @@ import io.delta.tables._
 import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
+import datalake.log._
 
 
-case class DatalakeSource(source: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
+case class DatalakeSource(source_df: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
-class Processing(entity: Entity, sliceFile: String) {
+class Processing(entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment = entity.Environment
   
-  @transient 
-  lazy private val logger = LogManager.getLogger(this.getClass())
+  private val columns = entity.Columns
 
-  val entity_id = entity.Id
-  val primaryKeyColumnName: String = s"PK_${entity.Destination}"
-  val columns = entity.Columns
-  val paths = entity.getPaths
-  val watermarkColumns = entity.Watermark
-  val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
-  val destination: String = paths.silverpath
-  val entitySettings = entity.Settings
+  final val entity_id = entity.Id
+  final val primaryKeyColumnName: String = s"PK_${entity.Destination}"
 
-  val columnsToRename = columns
-    .filter(c => c.NewName != "")
-    .map(c => (c.Name, c.NewName))
-    .toMap
+  final val paths = entity.getPaths
+  final val watermarkColumns = entity.Watermark
+  final val entitySettings = entity.Settings
+  
+  final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
+  final lazy val destination: String = paths.silverpath
+  // final lazy val destinationTable: String = entity.Connection.Name + "_" + entity.Name
 
-  private val spark: SparkSession =
+  final lazy val processingTime = {
+    if (options.contains("processing.time")) {
+      try {
+        LocalDateTime.parse(options("processing.time")).toString
+      } catch {
+        case _: Exception =>
+          logger.error(s"Invalid processing.time value: ${options("processing.time")} - falling back to current time.")
+          LocalDateTime.now(environment.Timezone.toZoneId).toString
+      }
+    } else {
+      LocalDateTime.now(environment.Timezone.toZoneId).toString
+    }
+  }
+
+  private implicit val spark: SparkSession =
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
+
+  @transient 
+  lazy private val logger = DatalakeLogManager.getLogger(this.getClass())
 
   def getSource: DatalakeSource = {
 
@@ -56,21 +72,24 @@ class Processing(entity: Entity, sliceFile: String) {
 
     val pre_process = dfSlice.transform(injectTransformations)
 
-    val watermark_values = getWatermarkValues(pre_process, watermarkColumns)
+    val new_watermark_values = getWatermarkValues(pre_process, watermarkColumns)
 
     val transformedDF = pre_process
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
+      .transform(addTemporalTrackingColumns)
       .transform(addPrimaryKey)
       .transform(castColumns)
       .transform(renameColumns)
       .transform(addDeletedColumn)
       .transform(addLastSeen)
+      .transform(addFilenameColumn(_, sliceFile))
       .datalake_normalize()
 
     val part_values = getPartitionValues(transformedDF)
 
-    new DatalakeSource(transformedDF, watermark_values, part_values)
+
+    new DatalakeSource(transformedDF, new_watermark_values, part_values)
   }
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: List[Watermark]): Option[List[(Watermark, Any)]] = {
@@ -107,17 +126,18 @@ class Processing(entity: Entity, sliceFile: String) {
     * @param input The input dataset to calculate the source hash for.
     * @return The input dataset with the "SourceHash" column added, if it didn't exist.
     **/
-  private def calculateSourceHash(input: Dataset[Row]): Dataset[Row] ={
-    if (Utils.hasColumn(input, "SourceHash") == false) {
-      return input.withColumn(
-        "SourceHash",
+  private def calculateSourceHash(input: Dataset[Row])(implicit env: Environment): Dataset[Row] ={
+    val hashfield = s"${env.SystemFieldPrefix}SourceHash"
+    if (Utils.hasColumn(input, hashfield) == false) {
+      input.withColumn(
+        hashfield,
         sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
       )
     } else
-      return input
+      input
   }
 
-  // Check PK in slice, add if it doesnt exits.
+  // Check PK in slice, add if it doesn't exits.
   private def addPrimaryKey(input: Dataset[Row]): Dataset[Row] =
     if (primaryKeyColumnName != null && Utils.hasColumn(input, primaryKeyColumnName) == false) {
       val pkColumns = entity.Columns("businesskey").map(c => col(c.Name))
@@ -140,6 +160,23 @@ class Processing(entity: Entity, sliceFile: String) {
       input
     }
 
+  /**
+   * Adds temporal tracking columns (ValidFrom, ValidTo, IsCurrent) to the input Dataset[Row] if the process type is Historic.
+   * 
+   * @param input The input Dataset[Row] to which the columns will be added.
+   * @return The modified Dataset[Row] with temporal tracking columns if the process type is Historic, 
+   *         otherwise returns the original input Dataset[Row].
+   */
+  private def addTemporalTrackingColumns(input: Dataset[Row])(implicit env: Environment): Dataset[Row] =
+    if (entity.ProcessType == Historic) {
+      input
+        .withColumn(s"${env.SystemFieldPrefix}ValidFrom", lit(processingTime).cast(TimestampType))
+        .withColumn(s"${env.SystemFieldPrefix}ValidTo", lit("2999-12-31").cast(TimestampType))
+        .withColumn(s"${env.SystemFieldPrefix}IsCurrent", lit(true).cast("Boolean"))
+    } else {
+      input
+    }
+
   // Cast all columns according to metadata (if available)
   private def castColumns(input: Dataset[Row]): Dataset[Row] =
     columns.foldLeft(input) { (tempdf, column) =>
@@ -152,25 +189,31 @@ class Processing(entity: Entity, sliceFile: String) {
     }
 
   // Rename columns that need renaming
-  private def renameColumns(input: Dataset[Row]): Dataset[Row] =
+  private def renameColumns(input: Dataset[Row]): Dataset[Row] = {
+    val columnsToRename = columns
+      .filter(c => c.NewName != "")
+      .map(c => (c.Name, c.NewName))
+      .toMap
+
     columnsToRename.foldLeft(input) {(tempdb, rencol) =>
       input.withColumnRenamed(rencol._1, rencol._2)  
     }
+  }
 
 
   // check for the deleted column (source can identify deletes with this record) add if it doesn't exist
-  private def addDeletedColumn(input: Dataset[Row]): Dataset[Row] =
-    if (Utils.hasColumn(input, "deleted") == false) {
-      input.withColumn("deleted", lit("false").cast("Boolean"))
+  private def addDeletedColumn(input: Dataset[Row])(implicit env: Environment): Dataset[Row] =
+    if (Utils.hasColumn(input, s"${env.SystemFieldPrefix}deleted") == false) {
+      input.withColumn(s"${env.SystemFieldPrefix}deleted", lit("false").cast("Boolean"))
     } else {
       input
     }
 
   // add lastseen date
-  private def addLastSeen(input: Dataset[Row]): Dataset[Row] = {
+  private def addLastSeen(input: Dataset[Row])(implicit env: Environment): Dataset[Row] = {
     val timezoneId = environment.Timezone.toZoneId
     val now = LocalDateTime.now(timezoneId)
-    input.withColumn("lastSeen", to_timestamp(lit(now.toString)))
+    input.withColumn(s"${env.SystemFieldPrefix}lastSeen", to_timestamp(lit(processingTime)))
   }
 
   private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
@@ -204,7 +247,16 @@ class Processing(entity: Entity, sliceFile: String) {
     else
       input
   }
- 
+
+  private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
+    val filenameField = s"${env.SystemFieldPrefix}source_filename"
+    if (!Utils.hasColumn(input, filenameField)) {
+      input.withColumn(filenameField, lit(filename))
+    } else {
+      input
+    }
+  }
+
   final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
     watermark_values match {
       case Some(watermarkList) =>
@@ -213,15 +265,17 @@ class Processing(entity: Entity, sliceFile: String) {
     }
   }
 
-  def Process(stategy: ProcessStrategy = entity.ProcessType): Unit =
+  final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
     try {
-      stategy.Process(this)
+      strategy.Process(this)
       WriteWatermark(getSource.watermark_values) 
     }
     catch {
       case e:Throwable => {
         logger.error("Unhandled exception during processing", e)
+        // e.printStackTrace()
         throw e
       }
     }
+
 }
