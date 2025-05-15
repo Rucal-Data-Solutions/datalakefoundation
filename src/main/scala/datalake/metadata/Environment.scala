@@ -75,4 +75,8 @@ class Environment(
   def SystemFieldPrefix: String = {
     if (this.systemfield_prefix == null) "" else this.systemfield_prefix
   }
+
+  def SecureContainerSuffix: String = {
+      if (this.secure_container_suffix == null) "" else this.secure_container_suffix
+  }
 }
