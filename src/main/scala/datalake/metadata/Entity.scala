@@ -126,8 +126,8 @@ class Entity(
     val silverPath = new StringBuilder(s"$root_folder/silver")
 
     if (_securehandling) {
-      bronzePath ++= "-secure"
-      silverPath ++= "-secure"
+      bronzePath ++= environment.SecureContainerSuffix
+      silverPath ++= environment.SecureContainerSuffix
     }
 
     // environment override for raw
