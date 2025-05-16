@@ -45,7 +45,7 @@ class Entity(
   private val resolved_paths: Paths = parsePaths
 
   override def toString(): String =
-    s"Entity: (${this.id}) - ${this.name}"
+    s"(${this.id}) - ${this.name}"
 
   final def Id: Int =
     this.id
@@ -126,8 +126,8 @@ class Entity(
     val silverPath = new StringBuilder(s"$root_folder/silver")
 
     if (_securehandling) {
-      bronzePath ++= environment.BronzePath
-      silverPath ++= environment.SilverPath
+      bronzePath ++= environment.SecureContainerSuffix
+      silverPath ++= environment.SecureContainerSuffix
     }
 
     // environment override for raw
