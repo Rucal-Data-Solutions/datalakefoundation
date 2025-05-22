@@ -17,31 +17,32 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.hadoop.fs.Path
 import java.sql.Timestamp
 
-class DatalakeJsonMetadataTest extends AnyFunSuite with BeforeAndAfterAll {
-
+trait SparkSessionTest extends Suite with BeforeAndAfterAll {
   val conf: SparkConf = new SparkConf()
     .setMaster("local[*]")
-    .setAppName("Rucal DatalakeMetadataTest")
+    .setAppName("Rucal Unit Tests")
     .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
 
-  var spark: SparkSession = _
+  lazy val spark: SparkSession = SparkSession
+    .builder()
+    .config(conf)
+    .getOrCreate()
 
   override def beforeAll(): Unit = {
-    val conf: SparkConf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("Rucal SimpleSparkTest")
-      .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-      .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-
-    spark = SparkSession
-      .builder()
-      .config(conf)
-      .enableHiveSupport()
-      .getOrCreate()
-
     spark.sparkContext.setLogLevel("ERROR")
+    super.beforeAll()
   }
+
+  override def afterAll(): Unit = {
+    if (spark != null) {
+      spark.stop()
+    }
+    super.afterAll()
+  }
+}
+
+class DatalakeJsonMetadataTest extends AnyFunSuite with SparkSessionTest {
 
   test("Generate ADF Json") {
     try {
@@ -66,23 +67,7 @@ class DatalakeJsonMetadataTest extends AnyFunSuite with BeforeAndAfterAll {
 
 }
 
-class SparkEnvironmentTests extends AnyFunSuite with BeforeAndAfterAll {
-
-  val conf: SparkConf = new SparkConf()
-    .setMaster("local[*]")
-    .setAppName("Rucal Unit Tests")
-    .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-    .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-
-  lazy val spark: SparkSession = SparkSession
-    .builder()
-    .config(conf)
-    .getOrCreate()
-
-  override def afterAll(): Unit =
-    if (spark != null) {
-      spark.stop()
-    }
+class SparkEnvironmentTests extends AnyFunSuite with SparkSessionTest {
 
   test("Spark Version") {
     import spark.implicits._ // Now spark is a stable var, so we import implicits inside the test
@@ -107,34 +92,18 @@ class SparkEnvironmentTests extends AnyFunSuite with BeforeAndAfterAll {
   }
 }
 
-class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
-
-  val conf: SparkConf = new SparkConf()
-    .setMaster("local[*]")
-    .setAppName("Rucal Processing Tests")
-    .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-    .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-
-  lazy val spark: SparkSession = SparkSession
-    .builder()
-    .config(conf)
-    .getOrCreate()
-
-  override def afterAll(): Unit =
-    if (spark != null) {
-      spark.stop()
-    }
+class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
   test("Historic processing should maintain temporal integrity") {
     import spark.implicits._
 
-    val testBasePath = java.nio.file.Files.createTempDirectory("historic_test").toString
-    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    val temporaryTestDirectory = java.nio.file.Files.createTempDirectory("historic_test").toString
+    val bronzeFolder = new java.io.File(s"$temporaryTestDirectory/bronze")
     if (!bronzeFolder.exists()) {
       bronzeFolder.mkdirs()
     }
 
-    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    val silverFolder = new java.io.File(s"$temporaryTestDirectory/silver")
     if (!silverFolder.exists()) {
       silverFolder.mkdirs()
     }
@@ -147,7 +116,7 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
 
       val env = new Environment(
         "DEBUG (OVERRIDE)",
-        testBasePath.replace("\\", "/"),
+        temporaryTestDirectory.replace("\\", "/"),
         "Europe/Amsterdam",
         "/${connection}/${entity}",
         "/${connection}/${entity}",
@@ -195,7 +164,7 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
       assert(result(1).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:01:00"), "ValidFrom of the second record should be 1 minute after the processing.time option")
 
     } finally
-      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
+      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(temporaryTestDirectory))
   }
 
   test("System field prefix should reflect the prefix in the environment") {
