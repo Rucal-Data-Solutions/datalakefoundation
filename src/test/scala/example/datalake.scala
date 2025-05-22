@@ -29,6 +29,8 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll {
     .config(conf)
     .getOrCreate()
 
+  val testBasePath = java.nio.file.Files.createTempDirectory("dlf_tempdir").toString
+
   override def beforeAll(): Unit = {
     spark.sparkContext.setLogLevel("ERROR")
     super.beforeAll()
@@ -38,6 +40,7 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll {
     if (spark != null) {
       spark.stop()
     }
+    org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
     super.afterAll()
   }
 }
@@ -97,13 +100,12 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
   test("Historic processing should maintain temporal integrity") {
     import spark.implicits._
 
-    val temporaryTestDirectory = java.nio.file.Files.createTempDirectory("historic_test").toString
-    val bronzeFolder = new java.io.File(s"$temporaryTestDirectory/bronze")
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
     if (!bronzeFolder.exists()) {
       bronzeFolder.mkdirs()
     }
 
-    val silverFolder = new java.io.File(s"$temporaryTestDirectory/silver")
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
     if (!silverFolder.exists()) {
       silverFolder.mkdirs()
     }
@@ -111,60 +113,57 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val initialData = Seq((1, "John", "Data1")).toDF("id", "name", "data")
     val updatedData = Seq((1, "John", "Data2")).toDF("id", "name", "data")
 
-    try {
-      val processingTimeOption = "2025-05-05T12:00:00"
+    val processingTimeOption = "2025-05-05T12:00:00"
 
-      val env = new Environment(
-        "DEBUG (OVERRIDE)",
-        temporaryTestDirectory.replace("\\", "/"),
-        "Europe/Amsterdam",
-        "/${connection}/${entity}",
-        "/${connection}/${entity}",
-        "/${connection}/${destination}",
-        "-secure"
-      )
+    val env = new Environment(
+      "DEBUG (OVERRIDE)",
+      testBasePath.replace("\\", "/"),
+      "Europe/Amsterdam",
+      "/${connection}/${entity}",
+      "/${connection}/${entity}",
+      "/${connection}/${destination}",
+      "-secure"
+    )
 
-      val settings = new JsonMetadataSettings()
-      val user_dir = System.getProperty("user.dir")
-      settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
 
-      val metadata = new Metadata(settings, env)
-      val testEntity = metadata.getEntity(1)
-      val paths = testEntity.getPaths
+    val metadata = new Metadata(settings, env)
+    val testEntity = metadata.getEntity(1)
+    val paths = testEntity.getPaths
 
-      val initialSlice = "initial_slice.parquet"
-      val updatedSlice = "updated_slice.parquet"
-      initialData.write.parquet(s"${paths.bronzepath}/$initialSlice")
-      updatedData.write.parquet(s"${paths.bronzepath}/$updatedSlice")
+    val initialSlice = "initial_slice.parquet"
+    val updatedSlice = "updated_slice.parquet"
+    initialData.write.parquet(s"${paths.bronzepath}/$initialSlice")
+    updatedData.write.parquet(s"${paths.bronzepath}/$updatedSlice")
 
-      val proc1 = new Processing(testEntity, initialSlice, Map("processing.time" -> processingTimeOption))
-      proc1.Process()
+    val proc1 = new Processing(testEntity, initialSlice, Map("processing.time" -> processingTimeOption))
+    proc1.Process()
 
-      val newTime = java.time.LocalDateTime
-        .parse(processingTimeOption, java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
-        .plusMinutes(1)
-        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+    val newTime = java.time.LocalDateTime
+      .parse(processingTimeOption, java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+      .plusMinutes(1)
+      .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
 
-      val proc2 = new Processing(testEntity, updatedSlice, Map("processing.time" -> newTime))
-      proc2.Process()
+    val proc2 = new Processing(testEntity, updatedSlice, Map("processing.time" -> newTime))
+    proc2.Process()
 
-      val result_df = spark.read.format("delta").load(paths.silverpath).orderBy("ValidFrom")
-      val result = result_df.collect()
+    val result_df = spark.read.format("delta").load(paths.silverpath).orderBy("ValidFrom")
+    val result = result_df.collect()
 
-      result_df.show(false)
+    result_df.show(false)
 
-      assert(result.length == 2, "Should have two records after update")
-      assert(
-        result(0).getAs[Timestamp]("ValidTo") === result(1).getAs[Timestamp]("ValidFrom"),
-        "ValidTo of first record should equal ValidFrom of second record"
-      )
-      assert(result(0).getAs[Boolean]("IsCurrent") === false, "First record should not be current")
-      assert(result(1).getAs[Boolean]("IsCurrent") === true, "Second record should be current")
-      assert(result(0).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:00:00"), "ValidFrom of the first record should match the processing.time option")
-      assert(result(1).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:01:00"), "ValidFrom of the second record should be 1 minute after the processing.time option")
+    assert(result.length == 2, "Should have two records after update")
+    assert(
+      result(0).getAs[Timestamp]("ValidTo") === result(1).getAs[Timestamp]("ValidFrom"),
+      "ValidTo of first record should equal ValidFrom of second record"
+    )
+    assert(result(0).getAs[Boolean]("IsCurrent") === false, "First record should not be current")
+    assert(result(1).getAs[Boolean]("IsCurrent") === true, "Second record should be current")
+    assert(result(0).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:00:00"), "ValidFrom of the first record should match the processing.time option")
+    assert(result(1).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:01:00"), "ValidFrom of the second record should be 1 minute after the processing.time option")
 
-    } finally
-      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(temporaryTestDirectory))
   }
 
   test("System field prefix should reflect the prefix in the environment") {
@@ -172,60 +171,58 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     import org.apache.spark.sql.functions._
     import org.apache.commons.io.FileUtils
 
-    val testBasePath = java.nio.file.Files.createTempDirectory("prefix_test").toString
     val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
     if (!bronzeFolder.exists()) { bronzeFolder.mkdirs() }
     val silverFolder = new java.io.File(s"$testBasePath/silver")
     if (!silverFolder.exists()) { silverFolder.mkdirs() }
 
-    try {
-      val randomPrefix = scala.util.Random.alphanumeric.filter(_.isLetter).take(3).mkString.toLowerCase + "_"
-      val df = Seq((1, "John", "Data1")).toDF("id", "name", "data")
 
-      val env = new Environment(
-        "DEBUG (OVERRIDE)",
-        testBasePath.replace("\\", "/"),
-        "Europe/Amsterdam",
-        "/${connection}/${entity}",
-        "/${connection}/${entity}",
-        "/${connection}/${destination}",
-        "-secure",
-        systemfield_prefix = randomPrefix
-      )
+    val randomPrefix = scala.util.Random.alphanumeric.filter(_.isLetter).take(3).mkString.toLowerCase + "_"
+    val df = Seq((1, "John", "Data1")).toDF("id", "name", "data")
 
-      val settings = new JsonMetadataSettings()
-      val user_dir = System.getProperty("user.dir")
-      settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
+    val env = new Environment(
+      "DEBUG (OVERRIDE)",
+      testBasePath.replace("\\", "/"),
+      "Europe/Amsterdam",
+      "/${connection}/${entity}",
+      "/${connection}/${entity}",
+      "/${connection}/${destination}",
+      "-secure",
+      systemfield_prefix = randomPrefix
+    )
 
-      val metadata = new Metadata(settings, env)
-      val testEntity = metadata.getEntity(1)
-      val inMemoryDataFile = "inmemory_data.parquet"
-      df.write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$inMemoryDataFile")
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, env)
+    val testEntity = metadata.getEntity(1)
+    val inMemoryDataFile = "inmemory_data.parquet"
+    df.write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$inMemoryDataFile")
 
 
-      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testEntity.getPaths.silverpath))
-      val proc = new Processing(testEntity, inMemoryDataFile)
-      proc.Process()
+    org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testEntity.getPaths.silverpath))
+    val proc = new Processing(testEntity, inMemoryDataFile)
+    proc.Process()
 
-      val silverDf = spark.read.format("delta").load(testEntity.getPaths.silverpath)
+    val silverDf = spark.read.format("delta").load(testEntity.getPaths.silverpath)
 
-      val expectedColumns = Seq(
-        "id",
-        "name",
-        "data",
-        "PK_testentity",
-        randomPrefix + "SourceHash",
-        randomPrefix + "ValidFrom",
-        randomPrefix + "ValidTo",
-        randomPrefix + "IsCurrent",
-        randomPrefix + "deleted",
-        randomPrefix + "lastSeen"
-      )
+    val expectedColumns = Seq(
+      "id",
+      "name",
+      "data",
+      "PK_testentity",
+      randomPrefix + "SourceHash",
+      randomPrefix + "ValidFrom",
+      randomPrefix + "ValidTo",
+      randomPrefix + "IsCurrent",
+      randomPrefix + "deleted",
+      randomPrefix + "lastSeen"
+    )
 
-      expectedColumns.foreach { colName =>
-        assert(silverDf.columns.contains(colName), s"Expected column: '$colName'")
-      }
-    } finally
-      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
+    expectedColumns.foreach { colName =>
+      assert(silverDf.columns.contains(colName), s"Expected column: '$colName'")
+    }
+
   }
 }
