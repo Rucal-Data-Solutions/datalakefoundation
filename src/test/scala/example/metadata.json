@@ -2,7 +2,7 @@
 	"environment": {
 		"name": "DEBUG",
 		"timezone": "Europe/Amsterdam",
-		"root_folder": "D:/Datalake",
+		"root_folder": "/DatalakeData",
 		"raw_path": "/${connection}/${entity}",
 		"bronze_path": "/${connection}/${entity}",
 		"silver_path": "/${connection}/${destination}",
