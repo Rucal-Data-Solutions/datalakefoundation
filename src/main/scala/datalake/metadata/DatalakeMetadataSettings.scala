@@ -3,7 +3,7 @@ package datalake.metadata
 import datalake.core._
 import datalake.core.implicits._
 import datalake.processing._
-import datalake.log.DatalakeLogManager
+
 
 import scala.util.Try
 
@@ -30,7 +30,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
   import spark.implicits._
 
   @transient 
-  lazy final val logger: Logger = DatalakeLogManager.getLogger(this.getClass())
+  lazy final val logger: Logger = LogManager.getLogger(this.getClass())
 
   // def initialize(initParameter: initParam)
   type ConfigString

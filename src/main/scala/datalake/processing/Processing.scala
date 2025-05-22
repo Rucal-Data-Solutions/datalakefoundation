@@ -60,7 +60,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   import spark.implicits._
 
   @transient 
-  lazy private val logger = DatalakeLogManager.getLogger(this.getClass())
+  lazy private val logger = LogManager.getLogger(this.getClass())
 
   def getSource: DatalakeSource = {
 
@@ -193,10 +193,9 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     val columnsToRename = columns
       .filter(c => c.NewName != "")
       .map(c => (c.Name, c.NewName))
-      .toMap
 
-    columnsToRename.foldLeft(input) {(tempdb, rencol) =>
-      input.withColumnRenamed(rencol._1, rencol._2)  
+    columnsToRename.foldLeft(input) { case (tempDb, (oldName, newName)) =>
+      tempDb.withColumnRenamed(oldName, newName)
     }
   }
 
