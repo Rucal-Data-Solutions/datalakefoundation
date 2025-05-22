@@ -48,7 +48,7 @@ class DatalakeJsonMetadataTest extends AnyFunSuite with BeforeAndAfterAll {
       val metadatasettings = new JsonMetadataSettings()
       val user_dir = System.getProperty("user.dir")
 
-      metadatasettings.initialize(f"${user_dir}\\src\\test\\scala\\example\\metadata.json")
+      metadatasettings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
 
       implicit val metadata = new Metadata(metadatasettings)
       println(metadata.getEnvironment.Name)
@@ -157,7 +157,7 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
 
       val settings = new JsonMetadataSettings()
       val user_dir = System.getProperty("user.dir")
-      settings.initialize(f"${user_dir}\\src\\test\\scala\\example\\metadata.json")
+      settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
 
       val metadata = new Metadata(settings, env)
       val testEntity = metadata.getEntity(1)
@@ -226,7 +226,7 @@ class ProcessingTests extends AnyFunSuite with BeforeAndAfterAll {
 
       val settings = new JsonMetadataSettings()
       val user_dir = System.getProperty("user.dir")
-      settings.initialize(f"${user_dir}\\src\\test\\scala\\example\\metadata.json")
+      settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
 
       val metadata = new Metadata(settings, env)
       val testEntity = metadata.getEntity(1)
