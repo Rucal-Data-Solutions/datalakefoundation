@@ -127,7 +127,8 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
     val settings = new JsonMetadataSettings()
     val user_dir = System.getProperty("user.dir")
-    settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
+
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
 
     val metadata = new Metadata(settings, env)
     val testEntity = metadata.getEntity(1)
