@@ -60,7 +60,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   import spark.implicits._
 
   @transient 
-  lazy private val logger = DatalakeLogManager.getLogger(this.getClass())
+  lazy private val logger = LogManager.getLogger(this.getClass())
 
   def getSource: DatalakeSource = {
 

@@ -22,7 +22,7 @@ abstract class ProcessStrategy {
     SparkSession.builder.enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  final val logger = DatalakeLogManager.getLogger(this.getClass())
+  final val logger = LogManager.getLogger(this.getClass())
 
   final val Name: String = {
     val cls = this.getClass()
