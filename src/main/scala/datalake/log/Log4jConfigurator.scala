@@ -13,7 +13,7 @@ object Log4jConfigurator {
       val ctx = LoggerContext.getContext(false)
       val config = ctx.getConfiguration
 
-      val parquetAppender = ParquetAppender.createAppender(spark, "/mnt/system/log/dlf.parquet")
+      val parquetAppender = ParquetAppender.createAppender(spark, "dlf_log.parquet")
       parquetAppender.start()
 
       val loggerName = "datalake"
