@@ -1,4 +1,4 @@
-package datalake.log
+package unit_tests
 
 import org.apache.logging.log4j.core.LogEvent
 import org.apache.logging.log4j.core.impl.Log4jLogEvent
@@ -11,24 +11,11 @@ import org.scalatest.matchers.should.Matchers
 import java.io.File
 import org.apache.commons.io.FileUtils
 
+import datalake.log._
 
-class ParquetAppenderSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
-  
-  private var spark: SparkSession = _
-  private val testParquetPath = "target/test-logs.parquet"
 
-  override def beforeAll(): Unit = {
-    spark = SparkSession.builder()
-      .master("local[1]")
-      .appName("ParquetAppenderTest")
-      .getOrCreate()
-    FileUtils.deleteDirectory(new File(testParquetPath))
-  }
-
-  override def afterAll(): Unit = {
-    if (spark != null) spark.stop()
-    FileUtils.deleteDirectory(new File(testParquetPath))
-  }
+class ParquetAppenderSpec extends AnyFlatSpec with Matchers with SparkSessionTest {
+  private val testParquetPath = s"${testBasePath}/test-logs.parquet"
 
   "ParquetAppender" should "buffer and write logs correctly" in {
     val appender = ParquetAppender.createAppender(
