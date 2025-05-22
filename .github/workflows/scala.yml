@@ -36,7 +36,8 @@ jobs:
         sudo mv sbt /usr/local/bin/
 
     - name: Run tests
-      run: ./sbt/bin/sbt test
+      run: /usr/local/bin/sbt test
+      
     
     - name: Sbt Dependency Submission
       uses: scalacenter/sbt-dependency-submission@v2.2.2
