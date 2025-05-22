@@ -29,14 +29,12 @@ jobs:
         distribution: 'temurin'
         cache: 'sbt'
 
-    - name: Install sbt
-      run: |
-        echo "Installing sbt..."
-        curl -L https://github.com/sbt/sbt/releases/download/v1.8.0/sbt-1.8.0.tgz | tar xz
-        sudo mv sbt /usr/local/bin/
+    - name: Setup sbt launcher
+      uses: sbt/setup-sbt@v1
+        
 
-    - name: Run tests
-      run: /usr/local/bin/sbt test
+    - name: Build and tests
+      run: sbt +test
 
     
     - name: Sbt Dependency Submission
