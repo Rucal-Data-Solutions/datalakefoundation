@@ -14,7 +14,7 @@ object DataFactory {
   /**
    * Retrieves the configuration items for the given object.
    *
-   * @param obj The object for which configuration items are to be retrieved.
+   * @param arg The object for which configuration items are to be retrieved.
    *            Accepted data types: EntityGroup, Connection, EntityId(INT)
    * @param metadata Instance of the metadata class containing information about the entities and connections.
    * @return A string representation of the enabled entities for the given object. (Ignored if only a entityId(Int) is provided)

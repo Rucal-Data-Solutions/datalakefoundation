@@ -10,7 +10,7 @@ import org.apache.hadoop.fs.{ FileSystem, Path }
 
 class Utils(spark: SparkSession){
   
-  private def createSprakTable(name: String, path: String): Unit={
+  private def createSparkTable(name: String, path: String): Unit={
     spark.sql(f"CREATE DATABASE IF NOT EXISTS silver")
     spark.sql(f"DROP TABLE IF EXISTS silver.${name}")
     spark.sql(f"CREATE TABLE silver.${name} USING DELTA LOCATION '${path}'")
