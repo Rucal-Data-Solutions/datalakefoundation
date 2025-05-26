@@ -24,8 +24,7 @@ lazy val root = (project in file("."))
     libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8" % "provided",
     libraryDependencies += "io.delta" %% "delta-spark" % "3.2.0",
     
-
-
+    fork := true,
     javaOptions ++= Seq(
       "--add-opens=java.base/java.lang=ALL-UNNAMED"
       ,"--add-opens=java.base/java.lang.invoke=ALL-UNNAMED"
