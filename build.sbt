@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion     := "2.12.18"
+ThisBuild / scalaVersion     := "2.13.12"
 ThisBuild / version          := "1.2.1"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
@@ -22,7 +22,7 @@ lazy val root = (project in file("."))
     libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.22.1" % "provided",
 
     libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8" % "provided",
-    libraryDependencies += "io.delta" %% "delta-spark" % "3.2.0",
+    libraryDependencies += "io.delta" %% "delta-spark" % "3.3.1",
     
     fork := true,
     javaOptions ++= Seq(
