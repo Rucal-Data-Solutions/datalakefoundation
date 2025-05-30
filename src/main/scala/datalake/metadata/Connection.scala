@@ -19,7 +19,7 @@ import org.json4s.JsonAST.{JField, JObject, JInt, JNull, JValue, JString}
 
 
 class Connection(
-    metadata: Metadata,
+    metadata: datalake.metadata.Metadata,
     code: String,
     name: String,
     enabled: Option[Boolean],
@@ -52,7 +52,7 @@ class Connection(
 
 }
 
-class ConnectionSerializer(metadata: Metadata)
+class ConnectionSerializer(metadata: datalake.metadata.Metadata)
     extends CustomSerializer[Connection](implicit formats =>
       (
         { case j: JObject =>

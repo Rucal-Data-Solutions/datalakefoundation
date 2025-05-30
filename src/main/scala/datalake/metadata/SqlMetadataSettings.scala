@@ -37,7 +37,7 @@ class SqlMetadataSettings extends DatalakeMetadataSettings {
         .option("query", "SELECT config FROM cfg.fnGetFoundationConfig()")
         .load()
 
-      val _jsonString = _configJson.head.apply(0).toString()
+      val _jsonString = _configJson.head().apply(0).toString()
       super.initialize(_jsonString.asInstanceOf[ConfigString])
     }
     catch {

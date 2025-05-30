@@ -15,7 +15,7 @@ class EntityColumn(
     name: String,
     newname: Option[String],
     datatype: Option[String],
-    fieldroles: Array[String],
+    fieldroles: Seq[String],
     expression: Option[String]
 ) {
 
@@ -65,7 +65,7 @@ class EntityColumn(
       case None => None
     }
 
-  final def FieldRoles: Array[String] =
+  final def FieldRoles: Seq[String] =
     this.fieldroles
 
   final def Expression: String =

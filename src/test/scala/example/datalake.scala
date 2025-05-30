@@ -23,10 +23,13 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll {
     .setAppName("Rucal Unit Tests")
     .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+    // .set("spark.sql.warehouse.dir", java.nio.file.Files.createTempDirectory("spark-warehouse").toString)
+    .set("spark.driver.host", "localhost")
 
   lazy val spark: SparkSession = SparkSession
     .builder()
     .config(conf)
+    .enableHiveSupport()
     .getOrCreate()
 
   val testBasePath = java.nio.file.Files.createTempDirectory("dlf_tempdir").toString

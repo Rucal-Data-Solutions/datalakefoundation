@@ -1,6 +1,7 @@
 package datalake.processing
 
 import org.apache.logging.log4j.{LogManager, Logger, Level}
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -26,7 +27,7 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
-  implicit val environment = entity.Environment
+  implicit val environment: datalake.metadata.Environment = entity.Environment
   
   private val columns = entity.Columns
 
@@ -56,11 +57,11 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   }
 
   private implicit val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+    SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
   @transient 
-  lazy private val logger = LogManager.getLogger(this.getClass())
+  private lazy val logger = LogManager.getLogger(this.getClass)
 
   def getSource: DatalakeSource = {
 
@@ -131,7 +132,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     if (Utils.hasColumn(input, hashfield) == false) {
       input.withColumn(
         hashfield,
-        sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
+        sha2(concat_ws("", ArraySeq.unsafeWrapArray(input.columns.map(c => col("`" + c + "`").cast("string"))).toSeq: _*), 256)
       )
     } else
       input

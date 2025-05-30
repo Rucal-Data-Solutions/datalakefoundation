@@ -55,11 +55,11 @@ final object Merge extends ProcessStrategy {
         .whenMatched(s"source.${env.SystemFieldPrefix}deleted = true")
         .update(Map(s"${env.SystemFieldPrefix}deleted" -> lit("true"), s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
         .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash != target.${env.SystemFieldPrefix}SourceHash")
-        .updateAll
+        .updateAll()
         .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash == target.${env.SystemFieldPrefix}SourceHash")
         .update(Map(s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
         .whenNotMatched(s"source.${env.SystemFieldPrefix}deleted = false")
-        .insertAll
+        .insertAll()
         .execute()
 
     }

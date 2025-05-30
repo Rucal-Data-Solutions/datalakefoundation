@@ -27,7 +27,7 @@ class SystemDataTableDefinition(name: String, schema: List[DatalakeColumn]) exte
 class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
     environment: Environment
 ) extends Serializable {
-  private val spark: SparkSession = SparkSession.builder.enableHiveSupport().getOrCreate()
+  private val spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
   val deltaTablePath = s"${environment.RootFolder}/system/${table_definition.Name}"
