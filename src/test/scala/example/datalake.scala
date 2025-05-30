@@ -79,7 +79,7 @@ class SparkEnvironmentTests extends AnyFunSuite with SparkSessionTest {
     import spark.implicits._ // Now spark is a stable var, so we import implicits inside the test
 
     info(s"spark version: ${spark.version}")
-    assert(spark.version === "3.5.1", s"spark version: ${spark.version}")
+    assert(spark.version === "3.5.2", s"spark version: ${spark.version}")
 
     // spark.conf.getAll.foreach(println)
 
