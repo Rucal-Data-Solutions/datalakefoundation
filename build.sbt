@@ -1,5 +1,5 @@
 ThisBuild / scalaVersion     := "2.13.16"
-ThisBuild / version          := "1.2.1"
+ThisBuild / version          := "1.2.5"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 val sparkVersion = "3.5.2"

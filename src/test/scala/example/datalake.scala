@@ -231,7 +231,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
   }
 
-  test("getSource should compute watermark and partitions correctly") {
+  test("Check Watermark") {
     import spark.implicits._
 
     val bronzeFolder = new java.io.File(s"$testBasePath/bronze")

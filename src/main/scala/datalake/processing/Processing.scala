@@ -151,11 +151,11 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
       //check if input contains duplicates according to the businesskey, if so, raise an error.
       if(pkColumns.length > 0){
         val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"), col("count"))
-        val dupCount = duplicates.count()
-        if(dupCount > 0) {
+        
+        if(!duplicates.isEmpty) {
           duplicates.show(truncate = false)
 
-          val error_msg = f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."
+          val error_msg = f"${duplicates.count()} duplicate key(s) (according to the businesskey) found in slice, can't continue."
           throw(DuplicateBusinesskeyException(error_msg))
         }
       }
