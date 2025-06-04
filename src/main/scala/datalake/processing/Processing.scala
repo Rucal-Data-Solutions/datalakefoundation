@@ -68,7 +68,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     logger.info(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
-    if(dfSlice.count() == 0)
+    if (dfSlice.isEmpty)
       logger.warn("Slice contains no data (RowCount=0)")
 
     val pre_process = dfSlice.transform(injectTransformations)
@@ -95,12 +95,16 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: List[Watermark]): Option[List[(Watermark, Any)]] = {
     if (wm_columns.nonEmpty) {
-          Some(wm_columns.map(wm => 
-              (wm, slice.agg(max(wm.Column_Name)).head().get(0))
-          ).filter(_._2 != null))
-        } else {
-          None
-        }
+      val aggExpressions = wm_columns.map(wm => max(col(wm.Column_Name)).alias(wm.Column_Name))
+      val row = slice.agg(aggExpressions.head, aggExpressions.tail: _*).head()
+      Some(
+        wm_columns
+          .map(wm => (wm, row.getAs[Any](wm.Column_Name)))
+          .filter(_._2 != null)
+      )
+    } else {
+      None
+    }
   }
 
   private def getPartitionValues(slice: DataFrame): Option[List[(String, String)]] = {
