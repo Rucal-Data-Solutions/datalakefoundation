@@ -229,4 +229,45 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     }
 
   }
+
+  test("getSource should compute watermark and partitions correctly") {
+    import spark.implicits._
+
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    if (!bronzeFolder.exists()) { bronzeFolder.mkdirs() }
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    if (!silverFolder.exists()) { silverFolder.mkdirs() }
+
+    val env = new Environment(
+      "DEBUG (OVERRIDE)",
+      testBasePath.replace("\\", "/"),
+      "Europe/Amsterdam",
+      "/${connection}/${entity}",
+      "/${connection}/${entity}",
+      "/${connection}/${destination}",
+      "-secure"
+    )
+
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, env)
+    val testEntity = metadata.getEntity(2)
+    val sliceFile = "wm_slice.parquet"
+    Seq((1, 10L), (2, 5L)).toDF("ID", "SeqNr")
+      .write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$sliceFile")
+
+    val proc = new Processing(testEntity, sliceFile)
+    val src = proc.getSource
+
+    val wmValue = src.watermark_values.get.find(_._1.Column_Name == "SeqNr").get._2
+    assert(wmValue == 10L)
+
+    val partitions = src.partition_columns.get.toMap
+    assert(partitions.size == 1)
+    assert(partitions("Administration") == "\"950\"")
+
+    assert(src.source_df.count() == 2)
+  }
 }
