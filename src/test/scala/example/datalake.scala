@@ -8,6 +8,7 @@ import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 
 import org.scalatest._
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 import datalake.metadata._
 import datalake.processing._
@@ -17,7 +18,7 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.hadoop.fs.Path
 import java.sql.Timestamp
 
-trait SparkSessionTest extends Suite with BeforeAndAfterAll {
+trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
   val conf: SparkConf = new SparkConf()
     .setMaster("local[*]")
     .setAppName("Rucal Unit Tests")
