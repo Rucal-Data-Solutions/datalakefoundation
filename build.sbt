@@ -1,5 +1,5 @@
 ThisBuild / scalaVersion     := "2.13.16"
-ThisBuild / version          := "1.2.5"
+ThisBuild / version          := "1.3.0"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 val sparkVersion = "3.5.2"
@@ -8,9 +8,9 @@ lazy val root = (project in file("."))
   .settings(
     name := "datalakefoundation",
     libraryDependencies ++= Seq(
-      "org.scala-lang" % "scala-library" % scalaVersion.value,
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value
+      "org.scala-lang" % "scala-library" % scalaVersion.value % "provided",
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided",
+      "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided"
     ),
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
