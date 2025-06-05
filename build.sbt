@@ -1,5 +1,6 @@
 ThisBuild / scalaVersion     := "2.13.16"
 ThisBuild / version          := "1.3.0"
+
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 val sparkVersion = "3.5.2"
@@ -45,4 +46,5 @@ lazy val root = (project in file("."))
       "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
       "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
     )
+
   )
