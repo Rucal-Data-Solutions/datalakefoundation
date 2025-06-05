@@ -24,8 +24,7 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
     .setAppName("Rucal Unit Tests")
     .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-    // .set("spark.sql.warehouse.dir", java.nio.file.Files.createTempDirectory("spark-warehouse").toString)
-    .set("spark.driver.host", "localhost")
+
 
   lazy val spark: SparkSession = SparkSession
     .builder()
@@ -53,11 +52,18 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
   }
 
   override def afterAll(): Unit = {
-    if (spark != null) {
-      spark.stop()
+    try {
+      if (spark != null) {
+        spark.streams.active.foreach(_.stop())  // Stop any active streams
+        spark.stop()
+        spark.sparkContext.stop()
+      }
+      SparkSession.clearActiveSession()  // Clear the active session
+      SparkSession.clearDefaultSession() // Clear the default session
+      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
+    } finally {
+      super.afterAll()
     }
-    org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
-    super.afterAll()
   }
 }
 
