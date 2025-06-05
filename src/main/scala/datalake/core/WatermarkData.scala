@@ -15,7 +15,7 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
         "watermark",
         List(
           DatalakeColumn("entity_id", IntegerType, false, true),
-          DatalakeColumn("column_name", StringType, false, false),
+          DatalakeColumn("column_name", StringType, false, true),
           DatalakeColumn("timestamp", TimestampType, false, false),
           DatalakeColumn("source_type", StringType, false, false),
           DatalakeColumn("value", StringType, false, false)
