@@ -19,7 +19,7 @@ lazy val root = (project in file("."))
       "org.apache.spark" %% "spark-hive" % sparkVersion % "provided"
     ),
 
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.16" % "provided",
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.16" % "test",
     libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.22.1" % "provided",
     libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.22.1" % "provided",
 
