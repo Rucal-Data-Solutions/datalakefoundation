@@ -6,6 +6,7 @@ package datalake.core
 import org.apache.spark.sql.{ DataFrame, Dataset, Row, DataFrameWriter, DataFrameReader }
 import org.apache.spark.sql.types.{StructType}
 import java.time.LocalDateTime
+import scala.collection.immutable.ArraySeq
 // import org.apache.derby.iapi.types.DataType
 
 object implicits {
@@ -15,8 +16,8 @@ object implicits {
     def datalake_normalize(): DataFrame = {
       val columns = df.columns
 
-      // dorp sys columns
-      val dfWOsys = df.drop(columns.filter(col => col.startsWith("sys_")): _*)
+      // drop sys columns
+      val dfWOsys = df.drop(ArraySeq.unsafeWrapArray(columns.filter(col => col.startsWith("sys_"))).toSeq: _*)
       
       val regex = """[ +-.,;{}()\n\t=]+"""
       val replacingColumns = columns.map(regex.r.replaceAllIn(_, ""))

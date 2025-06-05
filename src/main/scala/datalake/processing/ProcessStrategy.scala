@@ -19,7 +19,7 @@ import datalake.log._
 
 abstract class ProcessStrategy {
   implicit val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+    SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
   final val logger = LogManager.getLogger(this.getClass())

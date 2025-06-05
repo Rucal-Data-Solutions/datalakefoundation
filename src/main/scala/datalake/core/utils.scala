@@ -30,20 +30,20 @@ object Utils {
 object FileOperations {
 
   private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+    SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
   // Create Hadoop Configuration from Spark
   private val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
   def remove(path: Path, force: Boolean):Unit ={
-    // To Delete File
-    if (fs.exists(path) && fs.isFile(path))
-      fs.delete(path, force)
-
-    // To Delete Directory
-    if (fs.exists(path) && fs.isDirectory(path))
-      fs.delete(path, force)
+    // To Delete File or Directory
+    if (fs.exists(path)) {
+      val status = fs.getFileStatus(path)
+      if (status.isFile || status.isDirectory) {
+        fs.delete(path, force)
+      }
+    }
 
   }
 

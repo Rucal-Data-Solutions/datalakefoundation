@@ -14,7 +14,7 @@ import org.apache.commons.io.FileUtils
 import datalake.log._
 
 
-class ParquetAppenderSpec extends AnyFlatSpec with Matchers with SparkSessionTest {
+class ParquetAppenderSpec extends AnyFlatSpec with SparkSessionTest {
   private val testParquetPath = s"${testBasePath}/test-logs.parquet"
 
   "ParquetAppender" should "buffer and write logs correctly" in {

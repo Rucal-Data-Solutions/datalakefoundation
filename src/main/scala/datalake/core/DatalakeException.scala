@@ -1,11 +1,8 @@
 package datalake.core
 
-// import org.slf4j.{LoggerFactory, Logger}
-// import org.slf4j.event.Level
 import org.apache.logging.log4j.{LogManager, Logger, Level}
 
-
-class DatalakeException(msg: String, lvl: Level) extends Exception(msg){
-    @transient lazy val logger = LogManager.getLogger(this.getClass())
-    logger.error(msg, this)
+class DatalakeException(msg: String, lvl: Level) extends Exception(msg) {
+    @transient private lazy val logger = LogManager.getLogger(this.getClass)
+    logger.log(lvl, msg, this)
 }

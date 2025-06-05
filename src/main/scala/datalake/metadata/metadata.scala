@@ -22,18 +22,18 @@ case class ProcessStrategyNotSupportedException(message: String) extends Datalak
 
 class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) extends Serializable {
   
-  def this(metadataSettings: DatalakeMetadataSettings) {
+  def this(metadataSettings: DatalakeMetadataSettings) ={
     this(metadataSettings, metadataSettings.getEnvironment())
   }
 
   private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+    SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
   @transient 
   lazy private val logger: Logger = LogManager.getLogger(this.getClass())
 
-  if (!metadataSettings.isInitialized) {
+  if (!metadataSettings.isInitialized()) {
     val e = new MetadataNotInitializedException("Config is not initialized")
     logger.error(e.getMessage, e)
     throw e

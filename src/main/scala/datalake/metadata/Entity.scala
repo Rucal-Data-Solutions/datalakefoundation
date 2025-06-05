@@ -14,7 +14,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
-import org.apache.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{LogManager, Logger, Level}
 
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
@@ -25,7 +25,7 @@ case class Paths(rawpath: String, bronzepath: String, silverpath: String) extend
 
 
 class Entity(
-    metadata: Metadata,
+    metadata: datalake.metadata.Metadata,
     id: Int,
     name: String,
     group: Option[String],
@@ -40,7 +40,8 @@ class Entity(
     val transformations: List[EntityTransformation]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
-  implicit val logger = LogManager.getLogger(this.getClass()) 
+  @transient 
+  implicit val logger: Logger = LogManager.getLogger(this.getClass)
 
   private val resolved_paths: Paths = parsePaths
 
@@ -200,7 +201,7 @@ class Entity(
 
 }
 
-class EntitySerializer(metadata: Metadata)
+class EntitySerializer(metadata: datalake.metadata.Metadata)
     extends CustomSerializer[Entity](implicit formats =>
       (
         { case j: JObject =>
@@ -236,7 +237,7 @@ class EntitySerializer(metadata: Metadata)
             JField("name", JString(entity.Name)),
             JField("group", JString(entity.Group)),
             JField("destination", JString(entity.Destination)),
-            JField("enabled", JBool(entity.isEnabled)),
+            JField("enabled", JBool(entity.isEnabled())),
             JField("connection", JString(entity.Connection.Code)),
             JField("connection_name", JString(entity.Connection.Name)),
             JField("processtype", JString(entity.ProcessType.Name)),

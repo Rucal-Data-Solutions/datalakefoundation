@@ -64,7 +64,7 @@ final object Historic extends ProcessStrategy {
       val updatedRecords = source.as("source")
         .join(
           deltaTable.toDF.as("target"),
-          expr(s"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName} AND target.IsCurrent = false AND target.ValidTo = cast('${processing.processingTime}' as timestamp)")
+          expr(s"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = false AND target.${env.SystemFieldPrefix}ValidTo = cast('${processing.processingTime}' as timestamp)")
         )
         .select("source.*")
 

@@ -1,6 +1,7 @@
 package datalake.processing
 
 import org.apache.logging.log4j.{LogManager, Logger, Level}
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -26,7 +27,7 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 
 // Bronze(Source) -> Silver(Target)
 class Processing(entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
-  implicit val environment = entity.Environment
+  implicit val environment: datalake.metadata.Environment = entity.Environment
   
   private val columns = entity.Columns
 
@@ -56,25 +57,19 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   }
 
   private implicit val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+    SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
   @transient 
-  lazy private val logger = LogManager.getLogger(this.getClass())
+  private lazy val logger = LogManager.getLogger(this.getClass)
 
   def getSource: DatalakeSource = {
-
     logger.info(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
-    if(dfSlice.count() == 0)
-      logger.warn("Slice contains no data (RowCount=0)")
-
-    val pre_process = dfSlice.transform(injectTransformations)
-
-    val new_watermark_values = getWatermarkValues(pre_process, watermarkColumns)
-
-    val transformedDF = pre_process
+    // Combine all transformations into a single chain before any actions
+    val transformedDF = dfSlice
+      .transform(injectTransformations)
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
       .transform(addTemporalTrackingColumns)
@@ -85,21 +80,31 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
       .transform(addLastSeen)
       .transform(addFilenameColumn(_, sliceFile))
       .datalake_normalize()
+      .cache() // Cache the DataFrame since it will be used multiple times
 
+    // Now trigger actions after all transformations are done
+    if (transformedDF.isEmpty) {
+      logger.warn("Slice contains no data (RowCount=0)")
+    }
+
+    val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
     val part_values = getPartitionValues(transformedDF)
-
 
     new DatalakeSource(transformedDF, new_watermark_values, part_values)
   }
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: List[Watermark]): Option[List[(Watermark, Any)]] = {
     if (wm_columns.nonEmpty) {
-          Some(wm_columns.map(wm => 
-              (wm, slice.agg(max(wm.Column_Name)).head().get(0))
-          ).filter(_._2 != null))
-        } else {
-          None
-        }
+      val aggExpressions = wm_columns.map(wm => max(col(wm.Column_Name)).alias(wm.Column_Name))
+      val row = slice.agg(aggExpressions.head, aggExpressions.tail: _*).head()
+      Some(
+        wm_columns
+          .map(wm => (wm, row.getAs[Any](wm.Column_Name)))
+          .filter(_._2 != null)
+      )
+    } else {
+      None
+    }
   }
 
   private def getPartitionValues(slice: DataFrame): Option[List[(String, String)]] = {
@@ -131,7 +136,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     if (Utils.hasColumn(input, hashfield) == false) {
       input.withColumn(
         hashfield,
-        sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
+        sha2(concat_ws("", ArraySeq.unsafeWrapArray(input.columns.map(c => col("`" + c + "`").cast("string"))).toSeq: _*), 256)
       )
     } else
       input
@@ -146,11 +151,11 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
       //check if input contains duplicates according to the businesskey, if so, raise an error.
       if(pkColumns.length > 0){
         val duplicates = returnDF.groupBy(pkColumns: _*).agg(count("*").alias("count")).filter("count > 1").select(concat_ws("_", pkColumns: _*).alias("duplicatekey"), col("count"))
-        val dupCount = duplicates.count()
-        if(dupCount > 0) {
+        
+        if(!duplicates.isEmpty) {
           duplicates.show(truncate = false)
 
-          val error_msg = f"${dupCount} duplicate key(s) (according to the businesskey) found in slice, can't continue."
+          val error_msg = f"${duplicates.count()} duplicate key(s) (according to the businesskey) found in slice, can't continue."
           throw(DuplicateBusinesskeyException(error_msg))
         }
       }
