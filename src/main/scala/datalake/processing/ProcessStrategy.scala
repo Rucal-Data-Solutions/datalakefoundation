@@ -3,7 +3,7 @@ package datalake.processing
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
-import org.apache.logging.log4j.LogManager
+// import org.apache.logging.log4j.LogManager
 
 import scala.util.{ Try, Success, Failure }
 import java.util.TimeZone
@@ -22,7 +22,7 @@ abstract class ProcessStrategy {
     SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
 
-  final val logger = LogManager.getLogger(this.getClass())
+  final val logger = DatalakeLogManager.getLogger(this.getClass())
 
   final val Name: String = {
     val cls = this.getClass()

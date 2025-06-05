@@ -1,7 +1,6 @@
 package datalake.processing
 
-import org.apache.logging.log4j.{LogManager, Logger, Level}
-import scala.collection.immutable.ArraySeq
+import org.apache.logging.log4j.{Logger, Level}
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
@@ -61,7 +60,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   import spark.implicits._
 
   @transient 
-  private lazy val logger = LogManager.getLogger(this.getClass)
+  private lazy val logger = DatalakeLogManager.getLogger(this.getClass)
 
   def getSource: DatalakeSource = {
     logger.info(f"loading slice: ${sliceFileFullPath}")
@@ -136,7 +135,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     if (Utils.hasColumn(input, hashfield) == false) {
       input.withColumn(
         hashfield,
-        sha2(concat_ws("", ArraySeq.unsafeWrapArray(input.columns.map(c => col("`" + c + "`").cast("string"))).toSeq: _*), 256)
+        sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
       )
     } else
       input

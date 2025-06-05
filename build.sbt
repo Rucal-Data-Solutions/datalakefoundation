@@ -1,30 +1,35 @@
-ThisBuild / scalaVersion     := "2.13.16"
-ThisBuild / version          := "1.3.0"
+lazy val scala213 = "2.13.16"
+lazy val scala212 = "2.12.18"
+lazy val supportedScalaVersions = List(scala212, scala213)
 
+ThisBuild / scalaVersion     := scala213
+ThisBuild / version          := "1.3.0"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
-val sparkVersion = "3.5.2"
+lazy val sparkVersion = "3.5.2"
 
 lazy val root = (project in file("."))
   .settings(
     name := "datalakefoundation",
+    crossScalaVersions := supportedScalaVersions,
+
     libraryDependencies ++= Seq(
-      "org.scala-lang" % "scala-library" % scalaVersion.value % "provided",
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided",
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided"
+      "org.scala-lang" % "scala-library" % scalaVersion.value % Provided,
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided,
+      "org.scala-lang" % "scala-compiler" % scalaVersion.value % Provided
     ),
     libraryDependencies ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
-      "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-      "org.apache.spark" %% "spark-hive" % sparkVersion % "provided"
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-hive" % sparkVersion % Provided
     ),
 
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.16" % "test",
-    libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.22.1" % "provided",
-    libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.22.1" % "provided",
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.16" % Test,
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.22.1" % Provided,
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.22.1" % Provided,
 
-    libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8" % "provided",
-    libraryDependencies += "io.delta" %% "delta-spark" % "3.3.1" % "provided",
+    libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8" % Provided,
+    libraryDependencies += "io.delta" %% "delta-spark" % "3.3.1" % Provided,
 
     // Make sure we have common-io for FileUtils in tests
     libraryDependencies += "commons-io" % "commons-io" % "2.13.0",

@@ -2,8 +2,9 @@ package datalake.metadata
 
 import datalake.core._
 import datalake.core.Utils._
-import datalake.processing._
 import datalake.core.implicits._
+import datalake.processing._
+import datalake.log._
 
 import java.util.TimeZone
 import java.time.LocalDateTime
@@ -40,8 +41,10 @@ class Entity(
     val transformations: List[EntityTransformation]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
-  @transient 
-  implicit val logger: Logger = LogManager.getLogger(this.getClass)
+
+  @transient
+  lazy private val logger: Logger = LogManager.getLogger(this.getClass)
+  
 
   private val resolved_paths: Paths = parsePaths
 
