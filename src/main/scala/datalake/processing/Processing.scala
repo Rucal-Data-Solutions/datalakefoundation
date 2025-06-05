@@ -64,18 +64,12 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   private lazy val logger = LogManager.getLogger(this.getClass)
 
   def getSource: DatalakeSource = {
-
     logger.info(f"loading slice: ${sliceFileFullPath}")
     val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
 
-    if (dfSlice.isEmpty)
-      logger.warn("Slice contains no data (RowCount=0)")
-
-    val pre_process = dfSlice.transform(injectTransformations)
-
-    val new_watermark_values = getWatermarkValues(pre_process, watermarkColumns)
-
-    val transformedDF = pre_process
+    // Combine all transformations into a single chain before any actions
+    val transformedDF = dfSlice
+      .transform(injectTransformations)
       .transform(addCalculatedColumns)
       .transform(calculateSourceHash)
       .transform(addTemporalTrackingColumns)
@@ -86,9 +80,15 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
       .transform(addLastSeen)
       .transform(addFilenameColumn(_, sliceFile))
       .datalake_normalize()
+      .cache() // Cache the DataFrame since it will be used multiple times
 
+    // Now trigger actions after all transformations are done
+    if (transformedDF.isEmpty) {
+      logger.warn("Slice contains no data (RowCount=0)")
+    }
+
+    val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
     val part_values = getPartitionValues(transformedDF)
-
 
     new DatalakeSource(transformedDF, new_watermark_values, part_values)
   }
