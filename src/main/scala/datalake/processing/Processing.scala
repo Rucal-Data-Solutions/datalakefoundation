@@ -18,7 +18,9 @@ import io.delta.tables._
 import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
-import datalake.log._
+// import datalake.log._
+
+import org.apache.logging.log4j.LogManager
 
 
 case class DatalakeSource(source_df: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
@@ -60,7 +62,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
   import spark.implicits._
 
   @transient 
-  private lazy val logger = DatalakeLogManager.getLogger(this.getClass)
+  private lazy val logger = LogManager.getLogger(this.getClass)
 
   def getSource: DatalakeSource = {
     logger.info(f"loading slice: ${sliceFileFullPath}")

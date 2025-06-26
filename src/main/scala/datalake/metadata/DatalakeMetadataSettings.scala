@@ -3,8 +3,6 @@ package datalake.metadata
 import datalake.core._
 import datalake.core.implicits._
 import datalake.processing._
-import datalake.log._
-
 
 import scala.util.Try
 
@@ -13,7 +11,7 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.sql.SparkSession
-import org.apache.logging.log4j.{Logger, Level}
+import org.apache.logging.log4j.{Logger, Level, LogManager}
 
 
 
@@ -31,7 +29,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
   import spark.implicits._
 
   @transient 
-  lazy final val logger: Logger = DatalakeLogManager.getLogger(this.getClass())
+  lazy final val logger: Logger = LogManager.getLogger(this.getClass())
 
   // def initialize(initParameter: initParam)
   type ConfigString
