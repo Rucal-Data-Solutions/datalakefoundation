@@ -23,7 +23,7 @@ import datalake.core.implicits._
 import org.apache.logging.log4j.LogManager
 
 
-case class DatalakeSource(source_df: DataFrame, watermark_values: Option[List[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
+case class DatalakeSource(source_df: DataFrame, watermark_values: Option[Array[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
@@ -94,7 +94,7 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     new DatalakeSource(transformedDF, new_watermark_values, part_values)
   }
 
-  private def getWatermarkValues(slice: DataFrame, wm_columns: List[Watermark]): Option[List[(Watermark, Any)]] = {
+  private def getWatermarkValues(slice: DataFrame, wm_columns: Array[Watermark]): Option[Array[(Watermark, Any)]] = {
     if (wm_columns.nonEmpty) {
       val aggExpressions = wm_columns.map(wm => max(col(wm.Column_Name)).alias(wm.Column_Name))
       val row = slice.agg(aggExpressions.head, aggExpressions.tail: _*).head()
@@ -262,10 +262,10 @@ class Processing(entity: Entity, sliceFile: String, options: Map[String, String]
     }
   }
 
-  final def WriteWatermark(watermark_values: Option[List[(Watermark, Any)]]): Unit = {
+  final def WriteWatermark(watermark_values: Option[Array[(Watermark, Any)]]): Unit = {
     watermark_values match {
-      case Some(watermarkList) =>
-        this.entity.WriteWatermark(watermarkList)
+      case Some(watermarkArray) =>
+        this.entity.WriteWatermark(watermarkArray)
       case None => logger.info("no watermark defined")
     }
   }

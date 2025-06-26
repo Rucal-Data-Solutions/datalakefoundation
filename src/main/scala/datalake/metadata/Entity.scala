@@ -35,10 +35,10 @@ class Entity(
     secure: Option[Boolean],
     connection: String,
     processtype: String,
-    watermark: List[Watermark],
-    columns: List[EntityColumn],
+    watermark: Array[Watermark],
+    columns: Array[EntityColumn],
     val settings: JObject,
-    val transformations: List[EntityTransformation]
+    val transformations: Array[EntityTransformation]
 ) extends Serializable {
   implicit val environment: Environment = metadata.getEnvironment
 
@@ -79,7 +79,7 @@ class Entity(
   final def Environment: Environment =
     metadata.getEnvironment
 
-  final def Columns: List[EntityColumn] =
+  final def Columns: Array[EntityColumn] =
     this.columns
 
   /**
@@ -88,14 +88,14 @@ class Entity(
    * @param fieldrole The field role or array of fieldrole to filter the columns by.
    * @return A list of EntityColumn objects that match the specified field roles.
    */
-  final def Columns(fieldrole: String*): List[EntityColumn] =
+  final def Columns(fieldrole: String*): Array[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
 
-  final def Columns(column_filter: EntityColumnFilter): List[EntityColumn]=
+  final def Columns(column_filter: EntityColumnFilter): Array[EntityColumn]=
     this.columns.filter(c => c == column_filter)
 
-  final def Watermark: List[Watermark] =
+  final def Watermark: Array[Watermark] =
     this.watermark
 
   final def ProcessType: ProcessStrategy =
@@ -172,7 +172,7 @@ class Entity(
    *
    * @return A list of strings representing the business key columns.
    */
-  final def getBusinessKey: List[String] =
+  final def getBusinessKey: Array[String] =
     this
       .Columns("businesskey")
       .map(column => column.Name)
@@ -196,7 +196,7 @@ class Entity(
       .map(c => (c.Name, c.NewName))
       .toMap
 
-  final def WriteWatermark(watermark_values: List[(Watermark, Any)]): Unit = {
+  final def WriteWatermark(watermark_values: Array[(Watermark, Any)]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData(this.id)
     watermarkData.WriteWatermark(watermark_values)
@@ -224,10 +224,10 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
             processtype = (j \ "processtype").extract[String],
-            watermark = watermarkJson.extract[List[Watermark]],
-            columns = (j \ "columns").extract[List[EntityColumn]],
+            watermark = watermarkJson.extract[Array[Watermark]],
+            columns = (j \ "columns").extract[Array[EntityColumn]],
             settings = (j \ "settings").extract[JObject],
-            transformations = (j \ "transformations").extract[List[EntityTransformation]]
+            transformations = (j \ "transformations").extract[Array[EntityTransformation]]
           )
 
         },

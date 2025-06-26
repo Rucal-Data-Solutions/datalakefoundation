@@ -44,7 +44,7 @@
 		{
 			"id": 2,
 			"name": "person",
-			"group": "AVW",
+			"group": "avw",
 			"enabled": true,
 			"connection": "AdventureWorksSql",
 			"processtype": "delta",

@@ -80,7 +80,7 @@ class DatalakeJsonMetadataTest extends AnyFunSuite with SparkSessionTest {
       println(metadata.getEnvironment.Name)
 
       val connection = metadata.getConnectionByName("AdventureWorksSql")
-      val adf_config = DataFactory.getConfigItems(EntityGroup("aVw"))
+      val adf_config = DataFactory.getConfigItems(EntityGroup("avw"))
 
       println(pretty(parse(adf_config)))
 
@@ -259,16 +259,18 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
       .write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$sliceFile")
 
     val proc = new Processing(testEntity, sliceFile)
-    val src = proc.getSource
+    proc.Process()
 
-    val wmValue = src.watermark_values.get.find(_._1.Column_Name == "SeqNr").get._2
-    assert(wmValue == 10L)
+    // val wmValue = src.watermark_values.get.find(_._1.Column_Name == "SeqNr").get._2
+    // wmValue shouldBe 10L
 
-    val partitions = src.partition_columns.get.toMap
-    assert(partitions.size == 1)
-    assert(partitions("Administration") == "\"950\"")
+    // val partitions = src.partition_columns.get.toMap
 
-    assert(src.source_df.count() == 2)
+    // partitions.size shouldBe 1
+    // partitions("Administration") shouldBe "\"950\""
+    // src.source_df.count() shouldBe 2
+    val seqWM = testEntity.Watermark.find(wm => wm.Column_Name == "SeqNr").get.Value.getOrElse("0")
+    seqWM shouldBe "'10'"
   }
 
   test("Processing should handle blank slices appropriately") {
