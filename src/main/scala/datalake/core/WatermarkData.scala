@@ -30,7 +30,7 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
       try {
         val lastRow = df.get
           .filter((col("entity_id") === entity_id) && (col("column_name") === column_name))
-          .sort(col("timestamp").desc)
+          .agg(max("timestamp"))
           .head()
         val _value = lastRow.getAs[String]("value")
         val _datatype = lastRow.getAs[String]("source_type")
