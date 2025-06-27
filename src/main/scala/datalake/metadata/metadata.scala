@@ -27,7 +27,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
   }
 
   private implicit val spark: SparkSession =
-    SparkSession.builder().enableHiveSupport().getOrCreate()
+    SparkSession.builder().getOrCreate()
   import spark.implicits._
 
   @transient 

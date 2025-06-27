@@ -22,13 +22,13 @@ abstract class ProcessStrategy {
   implicit val spark: SparkSession =
     SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
-
+  
   final val logger = LogManager.getLogger(this.getClass())
 
   final val Name: String = {
     val cls = this.getClass()
     cls.getSimpleName().dropRight(1).toLowerCase()
   }
-  
-  def Process(processing: Processing): Unit
+
+  def Process(processing: Processing)(implicit spark: SparkSession): Unit
 }

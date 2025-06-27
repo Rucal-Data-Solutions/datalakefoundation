@@ -2,7 +2,6 @@ package datalake.processing
 
 import datalake.metadata._
 import datalake.core.implicits._
-import datalake.core.FileOperations
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -13,10 +12,10 @@ import io.delta.tables._
 
 final object Historic extends ProcessStrategy {
 
-  def Process(processing: Processing): Unit = {
+  def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
-    if (!FileOperations.exists(processing.destination)) {
+    if (!DeltaTable.isDeltaTable(spark, processing.destination)) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {

@@ -4,10 +4,12 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, Row, SaveMode }
+
 import java.util.TimeZone
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.sql.Timestamp
+
 import io.delta.tables._
 
 import datalake.core._
@@ -18,11 +20,11 @@ import datalake.metadata._
 
 final object Merge extends ProcessStrategy {
 
-  def Process(processing: Processing): Unit = {
+  def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
     // first time? Do A full load
-    if (!FileOperations.exists(processing.destination)) {
+    if (!DeltaTable.isDeltaTable(spark, processing.destination)) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {

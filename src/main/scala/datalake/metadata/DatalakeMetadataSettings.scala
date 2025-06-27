@@ -25,7 +25,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
   private var _environment_settings: JValue = _
 
   implicit val spark: SparkSession =
-    SparkSession.builder().enableHiveSupport().getOrCreate()
+    SparkSession.builder().getOrCreate()
   import spark.implicits._
 
   @transient 

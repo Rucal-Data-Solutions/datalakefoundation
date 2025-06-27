@@ -5,6 +5,7 @@ import datalake.metadata._
 import org.apache.spark.sql.{ DataFrame, SparkSession, Row }
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.functions.col
+import scala.jdk.CollectionConverters._
 
 import io.delta.tables._
 import java.sql.Timestamp
@@ -35,8 +36,8 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
   val schema = table_definition.Schema
 
   final def Append(rows: Seq[Row]): Unit = {
-    val data = spark.sparkContext.parallelize(rows)
-    val append_df = spark.createDataFrame(data, schema)
+    // val data = spark.sparkContext.parallelize(rows)
+    val append_df = spark.createDataFrame(rows.asJava, schema)
 
     append_df.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
   }

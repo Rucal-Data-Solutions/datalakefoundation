@@ -17,7 +17,7 @@ import datalake.metadata._
 
 final object Full extends ProcessStrategy {
 
-  def Process(processing: Processing): Unit = {
+  def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env: Environment = processing.environment
 
     val datalake_source = processing.getSource
