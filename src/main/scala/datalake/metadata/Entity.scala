@@ -22,7 +22,7 @@ import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
 
-case class Paths(rawpath: String, bronzepath: String, silverpath: String) extends Serializable
+import datalake.metadata.{IOOutput, Paths, CatalogTables}
 
 
 class Entity(
@@ -46,7 +46,7 @@ class Entity(
   lazy private val logger: Logger = LogManager.getLogger(this.getClass)
   
 
-  private val resolved_paths: Paths = parsePaths
+  private val resolvedOutput: IOOutput = parseOutput()
 
   override def toString(): String =
     s"(${this.id}) - ${this.name}"
@@ -114,7 +114,44 @@ class Entity(
     mergedSettings.values
   }
 
-  final def getPaths: Paths = resolved_paths
+  final def IOOutput: IOOutput = resolvedOutput
+
+  final def getPaths: Paths = resolvedOutput match {
+    case p: Paths => p
+    case _        => throw new IllegalStateException("Paths not configured")
+  }
+
+  final def getCatalogTables: CatalogTables = resolvedOutput match {
+    case t: CatalogTables => t
+    case _                => throw new IllegalStateException("Catalog tables not configured")
+  }
+
+  private def parseOutput(): IOOutput = {
+    val outputSetting = this.Settings.get("io_output") match {
+      case Some(value: String) => value.toLowerCase
+      case _                   => environment.IOOutput.toLowerCase
+    }
+
+    outputSetting match {
+      case "catalog" | "catalogtables" | "tables" => parseCatalogTables
+      case _                                       => parsePaths
+    }
+  }
+
+  private def parseCatalogTables: CatalogTables = {
+    val _settings = this.Settings
+    val bronzeTable = _settings.get("bronze_table") match {
+      case Some(value: String) => value
+      case _ => s"${this.Connection.Name}_${this.Name}"
+    }
+
+    val silverTable = _settings.get("silver_table") match {
+      case Some(value: String) => value
+      case _ => s"${this.Connection.Name}_${this.Destination}"
+    }
+
+    CatalogTables(bronzeTable, silverTable)
+  }
 
   private def parsePaths: Paths = {
     val today =
@@ -235,6 +272,11 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
           val combinedSettings = entity.Connection.settings merge entity.settings
 
 
+          val ioField = entity.IOOutput match {
+            case p: Paths         => JField("paths", parse(write(p)))
+            case t: CatalogTables => JField("catalog_tables", parse(write(t)))
+          }
+
           JObject(
             JField("id", JInt(entity.Id)),
             JField("name", JString(entity.Name)),
@@ -247,7 +289,7 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
             JField("watermark", parse(write(entity.Watermark))),
             JField("columns", parse(write(entity.Columns))),
             JField("settings", combinedSettings),
-            JField("paths", parse(write(entity.getPaths)))
+            ioField
           )
         }
       )

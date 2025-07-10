@@ -43,7 +43,8 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
     "/${connection}/${entity}",
     "/${connection}/${destination}",
     "-secure",
-    systemfield_prefix = randomPrefix
+    systemfield_prefix = randomPrefix,
+    io_output = "paths"
   )
 
   override def beforeAll(): Unit = {
@@ -245,7 +246,8 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${entity}",
       "/${connection}/${destination}",
-      "-secure"
+      "-secure",
+      io_output = "paths"
     )
 
     val settings = new JsonMetadataSettings()

@@ -51,6 +51,10 @@ processing.Process()
 - **Fallback**: If an invalid timestamp is provided, the system will log an error and fall back to the current time.
 - **Disclaimer**: The date is not checked for temporal succession, meaning that if an earlier date is used, anomalies (especially in historic processing) may occur.
 
+### IO Output
+Use `io_output` in the `environment` section to configure whether entities return file system paths (`paths`) or catalog table names (`catalog`).
+Individual entities can override this setting in their `settings` block using the same property. The default value is `paths` for backward compatibility.
+
 ## Scala 2.13 Migration
 Databricks Runtime 16.4 LTS introduces Scala 2.13 support. The project now uses
 Scala 2.13.12 with Spark 3.5.1 and Delta Lake 3.3.1 to match this runtime.
