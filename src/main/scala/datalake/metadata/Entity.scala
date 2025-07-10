@@ -139,16 +139,41 @@ class Entity(
   }
 
   private def parseCatalogTables: CatalogTables = {
+    val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
     val _settings = this.Settings
-    val bronzetable = _settings.get("bronze_table") match {
+    val _connection = this.Connection
+
+    // Initialize expression evaluator with all available variables
+    val settingsVars = _settings.map(s => Try(LiteralEvalParameter(s"settings_${s._1}", s._2.toString())).getOrElse(LiteralEvalParameter(s"settings_${s._1}", "Invalid_Config_Value"))).toSeq
+    val availableVars = Seq(
+      LiteralEvalParameter("today", today),
+      LiteralEvalParameter("entity", this.Name),
+      LiteralEvalParameter("destination", this.Destination),
+      LiteralEvalParameter("connection", _connection.Name)
+    )
+    val expr = new Expressions(settingsVars ++ availableVars)
+
+    // Get bronze table name with connection settings and expression evaluation
+    val bronzeTableTemplate = _settings.get("bronze_table") match {
       case Some(value: String) => value
-      case _ => s"${this.Connection.Name}_${this.Name}"
+      case _ => _settings.get("catalog_prefix") match {
+        case Some(prefix: String) => s"${prefix}_${this.Name}"
+        case _ => s"${this.Connection.Name}_${this.Name}"
+      }
     }
 
-    val silvertable = _settings.get("silver_table") match {
+    // Get silver table name with connection settings and expression evaluation
+    val silverTableTemplate = _settings.get("silver_table") match {
       case Some(value: String) => value
-      case _ => s"${this.Connection.Name}_${this.Destination}"
+      case _ => _settings.get("catalog_prefix") match {
+        case Some(prefix: String) => s"${prefix}_${this.Destination}"
+        case _ => s"${this.Connection.Name}_${this.Destination}"
+      }
     }
+
+    // Evaluate expressions in table names
+    val bronzetable = expr.EvaluateExpression(bronzeTableTemplate)
+    val silvertable = expr.EvaluateExpression(silverTableTemplate)
 
     CatalogTables(bronzetable, silvertable)
   }
