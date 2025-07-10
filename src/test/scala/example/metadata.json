@@ -77,7 +77,7 @@
 				}
 			],
 			"settings": {
-				"rawpath": "/test/${entity}",
+				"raw_path": "/test/${entity}",
 				"schema": "Person",
 				"table": "Person",
 				"frequency": {
