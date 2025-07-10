@@ -21,7 +21,7 @@ case class Environment(
   private val silver_path: String,
   private val secure_container_suffix: String,
   private val systemfield_prefix: String = null,
-  private val io_output: String = "paths"
+  private val output: String = "paths"
 ) extends Serializable {
 
   override def toString(): String = s"Environment: ${this.name}"
@@ -81,5 +81,5 @@ case class Environment(
       if (this.secure_container_suffix == null) "" else this.secure_container_suffix
   }
 
-  def IOOutput: String = this.io_output
+  def IOOutput: String = this.output
 }

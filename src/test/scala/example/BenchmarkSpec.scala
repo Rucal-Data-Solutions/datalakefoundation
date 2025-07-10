@@ -30,7 +30,7 @@ class BenchmarkSpec extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${destination}",
       "-secure",
-      io_output = "paths"
+      output = "paths"
     )
 
     val settings = new JsonMetadataSettings()

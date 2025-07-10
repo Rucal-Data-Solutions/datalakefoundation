@@ -127,30 +127,30 @@ class Entity(
   }
 
   private def parseOutput(): IOOutput = {
-    val outputSetting = this.Settings.get("io_output") match {
+    val outputSetting = this.Settings.get("output") match {
       case Some(value: String) => value.toLowerCase
       case _                   => environment.IOOutput.toLowerCase
     }
 
     outputSetting match {
-      case "catalog" | "catalogtables" | "tables" => parseCatalogTables
+      case "catalog" => parseCatalogTables
       case _                                       => parsePaths
     }
   }
 
   private def parseCatalogTables: CatalogTables = {
     val _settings = this.Settings
-    val bronzeTable = _settings.get("bronze_table") match {
+    val bronzetable = _settings.get("bronze_table") match {
       case Some(value: String) => value
       case _ => s"${this.Connection.Name}_${this.Name}"
     }
 
-    val silverTable = _settings.get("silver_table") match {
+    val silvertable = _settings.get("silver_table") match {
       case Some(value: String) => value
       case _ => s"${this.Connection.Name}_${this.Destination}"
     }
 
-    CatalogTables(bronzeTable, silverTable)
+    CatalogTables(bronzetable, silvertable)
   }
 
   private def parsePaths: Paths = {
@@ -272,7 +272,7 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
           val combinedSettings = entity.Connection.settings merge entity.settings
 
 
-          val ioField = entity.IOOutput match {
+          val outputField = entity.IOOutput match {
             case p: Paths         => JField("paths", parse(write(p)))
             case t: CatalogTables => JField("catalog_tables", parse(write(t)))
           }
@@ -289,7 +289,7 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
             JField("watermark", parse(write(entity.Watermark))),
             JField("columns", parse(write(entity.Columns))),
             JField("settings", combinedSettings),
-            ioField
+            outputField
           )
         }
       )

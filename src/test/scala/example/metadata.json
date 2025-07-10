@@ -7,8 +7,8 @@
 		"bronze_path": "/${connection}/${entity}",
 		"silver_path": "/${connection}/${destination}",
 		"secure_container_suffix": "-secure",
-		"systemfield_prefix": "dlf_"
-
+		"systemfield_prefix": "dlf_",
+		"output": "paths"
 	},
 	"connections": [
 		{
@@ -123,6 +123,54 @@
 				}
 			],
 			"settings": {
+				"schema": "Person",
+				"table": "Person",
+				"frequency": {
+					"interval": "weekly",
+					"value": [
+						"Mon",
+						"Sat"
+					]
+				}
+			}
+		},
+		{
+			"id": 4,
+			"name": "group",
+			"group": "avw",
+			"enabled": true,
+			"connection": "AdventureWorksSql",
+			"processtype": "delta",
+			"watermark": [
+				{
+					"column_name": "SeqNr",
+					"operation": "or",
+					"operation_group": 0,
+					"expression": "'${last_value}'"
+				}
+			],
+			"columns": [
+				{
+					"name": "",
+					"newname": "Administration",
+					"datatype": "integer",
+					"fieldroles": [
+						"calculated",
+						"businesskey",
+						"partition"
+					],
+					"expression": "950"
+				},
+				{
+					"name": "ID",
+					"newname": "",
+					"fieldroles": [
+						"businesskey"
+					]
+				}
+			],
+			"settings": {
+				"output": "catalog",
 				"schema": "Person",
 				"table": "Person",
 				"frequency": {
