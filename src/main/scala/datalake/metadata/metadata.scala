@@ -5,7 +5,7 @@ import datalake.processing._
 
 import java.util.TimeZone
 
-import org.apache.logging.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{Logger, Level, LogManager}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -22,18 +22,18 @@ case class ProcessStrategyNotSupportedException(message: String) extends Datalak
 
 class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) extends Serializable {
   
-  def this(metadataSettings: DatalakeMetadataSettings) {
+  def this(metadataSettings: DatalakeMetadataSettings) ={
     this(metadataSettings, metadataSettings.getEnvironment())
   }
 
-  private val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+  private implicit val spark: SparkSession =
+    SparkSession.builder().getOrCreate()
   import spark.implicits._
 
   @transient 
   lazy private val logger: Logger = LogManager.getLogger(this.getClass())
 
-  if (!metadataSettings.isInitialized) {
+  if (!metadataSettings.isInitialized()) {
     val e = new MetadataNotInitializedException("Config is not initialized")
     logger.error(e.getMessage, e)
     throw e

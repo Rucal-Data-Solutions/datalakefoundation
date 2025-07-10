@@ -75,7 +75,7 @@ class ParquetAppender(
 object ParquetAppender {
   def createAppender(
       spark: SparkSession,
-      parquetPath: String = "/tmp/spark-logs.parquet",
+      parquetPath: String = "./spark-logs.parquet",
       threshold: Int = 10
   ): ParquetAppender = {
     new ParquetAppender(

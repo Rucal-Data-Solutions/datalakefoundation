@@ -8,6 +8,7 @@ import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 
 import org.scalatest._
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
 import datalake.metadata._
 import datalake.processing._
@@ -17,19 +18,33 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.hadoop.fs.Path
 import java.sql.Timestamp
 
-trait SparkSessionTest extends Suite with BeforeAndAfterAll {
+trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
   val conf: SparkConf = new SparkConf()
     .setMaster("local[*]")
     .setAppName("Rucal Unit Tests")
     .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
 
+
   lazy val spark: SparkSession = SparkSession
     .builder()
     .config(conf)
+    .enableHiveSupport()
     .getOrCreate()
 
   val testBasePath = java.nio.file.Files.createTempDirectory("dlf_tempdir").toString
+
+  val randomPrefix = scala.util.Random.alphanumeric.filter(_.isLetter).take(3).mkString.toLowerCase + "_"
+  val override_env = new Environment(
+    "DEBUG (OVERRIDE)",
+    testBasePath.replace("\\", "/"),
+    "Europe/Amsterdam",
+    "/${connection}/${entity}",
+    "/${connection}/${entity}",
+    "/${connection}/${destination}",
+    "-secure",
+    systemfield_prefix = randomPrefix
+  )
 
   override def beforeAll(): Unit = {
     spark.sparkContext.setLogLevel("ERROR")
@@ -37,11 +52,18 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll {
   }
 
   override def afterAll(): Unit = {
-    if (spark != null) {
-      spark.stop()
+    try {
+      if (spark != null) {
+        spark.streams.active.foreach(_.stop())  // Stop any active streams
+        spark.stop()
+        spark.sparkContext.stop()
+      }
+      SparkSession.clearActiveSession()  // Clear the active session
+      SparkSession.clearDefaultSession() // Clear the default session
+      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
+    } finally {
+      super.afterAll()
     }
-    org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
-    super.afterAll()
   }
 }
 
@@ -58,7 +80,7 @@ class DatalakeJsonMetadataTest extends AnyFunSuite with SparkSessionTest {
       println(metadata.getEnvironment.Name)
 
       val connection = metadata.getConnectionByName("AdventureWorksSql")
-      val adf_config = DataFactory.getConfigItems(EntityGroup("aVw"))
+      val adf_config = DataFactory.getConfigItems(EntityGroup("avw"))
 
       println(pretty(parse(adf_config)))
 
@@ -76,7 +98,7 @@ class SparkEnvironmentTests extends AnyFunSuite with SparkSessionTest {
     import spark.implicits._ // Now spark is a stable var, so we import implicits inside the test
 
     info(s"spark version: ${spark.version}")
-    assert(spark.version === "3.5.1", s"spark version: ${spark.version}")
+    assert(spark.version === "3.5.2", s"spark version: ${spark.version}")
 
     // spark.conf.getAll.foreach(println)
 
@@ -115,22 +137,12 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
     val processingTimeOption = "2025-05-05T12:00:00"
 
-    val env = new Environment(
-      "DEBUG (OVERRIDE)",
-      testBasePath.replace("\\", "/"),
-      "Europe/Amsterdam",
-      "/${connection}/${entity}",
-      "/${connection}/${entity}",
-      "/${connection}/${destination}",
-      "-secure"
-    )
-
     val settings = new JsonMetadataSettings()
     val user_dir = System.getProperty("user.dir")
 
     settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
 
-    val metadata = new Metadata(settings, env)
+    val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
     val paths = testEntity.getPaths
 
@@ -150,24 +162,24 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val proc2 = new Processing(testEntity, updatedSlice, Map("processing.time" -> newTime))
     proc2.Process()
 
-    val result_df = spark.read.format("delta").load(paths.silverpath).orderBy("ValidFrom")
+    val result_df = spark.read.format("delta").load(paths.silverpath).orderBy(s"${randomPrefix}ValidFrom")
     val result = result_df.collect()
 
     result_df.show(false)
 
     assert(result.length == 2, "Should have two records after update")
     assert(
-      result(0).getAs[Timestamp]("ValidTo") === result(1).getAs[Timestamp]("ValidFrom"),
+      result(0).getAs[Timestamp](s"${randomPrefix}ValidTo") === result(1).getAs[Timestamp](s"${randomPrefix}ValidFrom"),
       "ValidTo of first record should equal ValidFrom of second record"
     )
-    assert(result(0).getAs[Boolean]("IsCurrent") === false, "First record should not be current")
-    assert(result(1).getAs[Boolean]("IsCurrent") === true, "Second record should be current")
-    assert(result(0).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:00:00"), "ValidFrom of the first record should match the processing.time option")
-    assert(result(1).getAs[Timestamp]("ValidFrom") === Timestamp.valueOf("2025-05-05 12:01:00"), "ValidFrom of the second record should be 1 minute after the processing.time option")
+    assert(result(0).getAs[Boolean](s"${randomPrefix}IsCurrent") === false, "First record should not be current")
+    assert(result(1).getAs[Boolean](s"${randomPrefix}IsCurrent") === true, "Second record should be current")
+    assert(result(0).getAs[Timestamp](s"${randomPrefix}ValidFrom") === Timestamp.valueOf("2025-05-05 12:00:00"), "ValidFrom of the first record should match the processing.time option")
+    assert(result(1).getAs[Timestamp](s"${randomPrefix}ValidFrom") === Timestamp.valueOf("2025-05-05 12:01:00"), "ValidFrom of the second record should be 1 minute after the processing.time option")
 
   }
 
-  test("System field prefix should reflect the prefix in the environment") {
+  test("System field prefix") {
     import spark.implicits._
     import org.apache.spark.sql.functions._
     import org.apache.commons.io.FileUtils
@@ -178,25 +190,15 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     if (!silverFolder.exists()) { silverFolder.mkdirs() }
 
 
-    val randomPrefix = scala.util.Random.alphanumeric.filter(_.isLetter).take(3).mkString.toLowerCase + "_"
+
     val df = Seq((1, "John", "Data1")).toDF("id", "name", "data")
 
-    val env = new Environment(
-      "DEBUG (OVERRIDE)",
-      testBasePath.replace("\\", "/"),
-      "Europe/Amsterdam",
-      "/${connection}/${entity}",
-      "/${connection}/${entity}",
-      "/${connection}/${destination}",
-      "-secure",
-      systemfield_prefix = randomPrefix
-    )
 
     val settings = new JsonMetadataSettings()
     val user_dir = System.getProperty("user.dir")
     settings.initialize(f"${user_dir}/src/test/scala/example/metadata.json")
 
-    val metadata = new Metadata(settings, env)
+    val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
     val inMemoryDataFile = "inmemory_data.parquet"
     df.write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$inMemoryDataFile")
@@ -225,5 +227,102 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
       assert(silverDf.columns.contains(colName), s"Expected column: '$colName'")
     }
 
+
+  }
+
+  test("Check Watermark") {
+    import spark.implicits._
+
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    if (!bronzeFolder.exists()) { bronzeFolder.mkdirs() }
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    if (!silverFolder.exists()) { silverFolder.mkdirs() }
+
+    val env = new Environment(
+      "DEBUG (OVERRIDE)",
+      testBasePath.replace("\\", "/"),
+      "Europe/Amsterdam",
+      "/${connection}/${entity}",
+      "/${connection}/${entity}",
+      "/${connection}/${destination}",
+      "-secure"
+    )
+
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, env)
+    val testEntity = metadata.getEntity(2)
+    val sliceFile = "wm_slice.parquet"
+    Seq((1, 10L), (2, 5L)).toDF("ID", "SeqNr")
+      .write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$sliceFile")
+
+    val proc = new Processing(testEntity, sliceFile)
+    proc.Process()
+
+    // val wmValue = src.watermark_values.get.find(_._1.Column_Name == "SeqNr").get._2
+    // wmValue shouldBe 10L
+
+    // val partitions = src.partition_columns.get.toMap
+
+    // partitions.size shouldBe 1
+    // partitions("Administration") shouldBe "\"950\""
+    // src.source_df.count() shouldBe 2
+    val seqWM = testEntity.Watermark.find(wm => wm.Column_Name == "SeqNr").get.Value.getOrElse("0")
+    seqWM shouldBe "'10'"
+  }
+
+  test("Processing should handle blank slices appropriately") {
+    import spark.implicits._
+    import org.apache.commons.io.FileUtils
+
+    // Set up test directories
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    if (!bronzeFolder.exists()) bronzeFolder.mkdirs()
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    if (!silverFolder.exists()) silverFolder.mkdirs()
+
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, override_env)
+    val testEntity = metadata.getEntity(1)
+    val paths = testEntity.getPaths
+
+    // Create and write a blank slice
+    val emptyData = Seq.empty[(Int, String, String)].toDF("id", "name", "data")
+    val blankSlice = "blank_slice.parquet"
+    emptyData.write.parquet(s"${paths.bronzepath}/$blankSlice")
+
+    // Test 1: Processing a blank slice as first run
+    val proc1 = new Processing(testEntity, blankSlice)
+    proc1.Process(Full)
+
+    // Verify no data was written
+    val result1 = spark.read.format("delta").load(paths.silverpath)
+    assert(result1.count() === 0, "No data should be written when processing a blank slice as first run")
+
+    // Test 2: Processing a blank slice with existing data
+    val existingData = Seq((1, "John", "Data1")).toDF("id", "name", "data")
+    val dataSlice = "data_slice.parquet"
+    existingData.write.parquet(s"${paths.bronzepath}/$dataSlice")
+
+    // First process the data slice
+    val procData = new Processing(testEntity, dataSlice)
+    procData.Process(Full)
+
+    // Then process the blank slice
+    val proc2 = new Processing(testEntity, blankSlice)
+    proc2.Process(Merge)
+
+    // Verify existing data was preserved
+    val result2 = spark.read.format("delta").load(paths.silverpath)
+    assert(result2.count() === 1, "Existing data should be preserved when processing a blank slice")
+    val row = result2.collect()(0)
+    assert(row.getAs[Int]("id") === 1, "Existing data should remain unchanged")
+    assert(row.getAs[String]("name") === "John", "Existing data should remain unchanged")
+    assert(row.getAs[String]("data") === "Data1", "Existing data should remain unchanged")
   }
 }

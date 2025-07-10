@@ -24,8 +24,8 @@ object DataFactory {
     implicit val formats: Formats = DefaultFormats + FieldSerializer[EntityColumn]() + new EntitySerializer(metadata) + new WatermarkSerializer(metadata)
 
     val entities = arg match {
-      case group: EntityGroup => metadata.getEntities(group).filter(_.isEnabled)
-      case connection: Connection => metadata.getEntities(connection).filter(_.isEnabled)
+      case group: EntityGroup => metadata.getEntities(group).filter(_.isEnabled())
+      case connection: Connection => metadata.getEntities(connection).filter(_.isEnabled())
       case entityId: Int => metadata.getEntities(entityId)
       case _ => throw new Exception(s"Invalid parameter type ${arg.getClass().getTypeName()}")
     }

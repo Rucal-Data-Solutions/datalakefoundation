@@ -51,6 +51,13 @@ processing.Process()
 - **Fallback**: If an invalid timestamp is provided, the system will log an error and fall back to the current time.
 - **Disclaimer**: The date is not checked for temporal succession, meaning that if an earlier date is used, anomalies (especially in historic processing) may occur.
 
+## Scala 2.13 Migration
+Databricks Runtime 16.4 LTS introduces Scala 2.13 support. The project now uses
+Scala 2.13.12 with Spark 3.5.1 and Delta Lake 3.3.1 to match this runtime.
+Review custom code and dependencies for compatibility with Scala 2.13 when
+upgrading your environment.
+
 ## Notes
-This documentation is a work in progress. For additional details or questions, please contact the maintainer.
+This documentation is a work in progress. For additional details or questions,
+please contact the maintainer.
 

@@ -4,7 +4,6 @@ import datalake.core._
 import datalake.core.implicits._
 import datalake.processing._
 
-
 import scala.util.Try
 
 import org.json4s._
@@ -12,7 +11,7 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.sql.SparkSession
-import org.apache.logging.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{Logger, Level, LogManager}
 
 
 
@@ -26,7 +25,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
   private var _environment_settings: JValue = _
 
   implicit val spark: SparkSession =
-    SparkSession.builder.enableHiveSupport().getOrCreate()
+    SparkSession.builder().getOrCreate()
   import spark.implicits._
 
   @transient 
@@ -40,7 +39,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
 
     logger.info("Parsing datalake config")
 
-    // Parse the JSON string
+    // Parse the JSON string using safer extraction pattern
     val json = parse(_json)
     logger.debug(pretty(json))
 
@@ -48,8 +47,8 @@ abstract class DatalakeMetadataSettings extends Serializable {
     _entities = (json \ "entities").extract[List[JValue]]
     _environment_settings = json \ "environment"
 
-    // Check if all entity IDs are unique
-    val entityIds = _entities.map(j => (j \ "id").extract[Int])
+    // Check if all entity IDs are unique using safer extraction
+    val entityIds = _entities.flatMap(j => (j \ "id").extractOpt[Int])
     if (entityIds.size != entityIds.toSet.size) {
       throw new DatalakeException("Duplicate EntityIDs found in JSON.", Level.ERROR)
     }
@@ -61,7 +60,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
   final def isInitialized(): Boolean =
     _isInitialized
 
-  final def setMetadata(metadata: Metadata) {
+  final def setMetadata(metadata: datalake.metadata.Metadata) : Unit = {
     _metadata = metadata
   }
   
