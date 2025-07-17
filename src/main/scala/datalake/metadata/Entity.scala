@@ -15,15 +15,14 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
-import org.apache.logging.log4j.{LogManager, Logger, Level}
+import org.apache.logging.log4j.{ LogManager, Logger, Level }
 
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
 import org.json4s.jackson.Serialization.{ read, write }
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString, JBool }
 
-import datalake.metadata.{IOOutput, Paths, CatalogTables}
-
+import datalake.metadata.{ OutputMethod, Paths, Output, PathLocation, TableLocation }
 
 class Entity(
     metadata: datalake.metadata.Metadata,
@@ -43,10 +42,9 @@ class Entity(
   implicit val environment: Environment = metadata.getEnvironment
 
   @transient
-  lazy private val logger: Logger = LogManager.getLogger(this.getClass)
-  
+  private lazy val logger: Logger = LogManager.getLogger(this.getClass)
 
-  private val resolvedOutput: IOOutput = parseOutput()
+  private val resolvedOutput: OutputMethod = parseOutput()
 
   override def toString(): String =
     s"(${this.id}) - ${this.name}"
@@ -61,11 +59,11 @@ class Entity(
     this.group.getOrElse("").toLowerCase()
 
   /** Get the destination name for this entity
-    * @return String containing the destination name.
+    * @return
+    *   String containing the destination name.
     */
-  final def Destination: String ={
+  final def Destination: String =
     this.destination.getOrElse(this.name).toLowerCase()
-  }
 
   final def isEnabled(): Boolean =
     this.enabled & this.Connection.isEnabled
@@ -82,17 +80,18 @@ class Entity(
   final def Columns: Array[EntityColumn] =
     this.columns
 
-  /**
-   * Filters the columns of the entity based on the specified field roles.
-   *
-   * @param fieldrole The field role or array of fieldrole to filter the columns by.
-   * @return A list of EntityColumn objects that match the specified field roles.
-   */
+  /** Filters the columns of the entity based on the specified field roles.
+    *
+    * @param fieldrole
+    *   The field role or array of fieldrole to filter the columns by.
+    * @return
+    *   A list of EntityColumn objects that match the specified field roles.
+    */
   final def Columns(fieldrole: String*): Array[EntityColumn] =
     this.columns
       .filter(c => fieldrole.exists(fr => c.FieldRoles.contains(fr)))
 
-  final def Columns(column_filter: EntityColumnFilter): Array[EntityColumn]=
+  final def Columns(column_filter: EntityColumnFilter): Array[EntityColumn] =
     this.columns.filter(c => c == column_filter)
 
   final def Watermark: Array[Watermark] =
@@ -100,10 +99,10 @@ class Entity(
 
   final def ProcessType: ProcessStrategy =
     this.processtype.toLowerCase match {
-      case Full.Name  => Full
-      case Merge.Name => Merge
+      case Full.Name     => Full
+      case Merge.Name    => Merge
       case Historic.Name => Historic
-      case "delta" => Merge //allow old delta for backwards compatibility
+      case "delta"       => Merge // allow old delta for backwards compatibility
       case _ => throw ProcessStrategyNotSupportedException(
           s"Process Type ${this.processtype} not supported"
         )
@@ -114,74 +113,67 @@ class Entity(
     mergedSettings.values
   }
 
-  final def IOOutput: IOOutput = resolvedOutput
+  final def OutputMethod: OutputMethod = resolvedOutput
 
   final def getPaths: Paths = resolvedOutput match {
     case p: Paths => p
-    case _        => throw new IllegalStateException("Paths not configured")
+    case Output(raw, PathLocation(bp), PathLocation(sp)) =>
+      Paths(raw, bp, sp)
+    case _ => throw new IllegalStateException("Paths not configured")
   }
 
-  final def getCatalogTables: CatalogTables = resolvedOutput match {
-    case t: CatalogTables => t
-    case _                => throw new IllegalStateException("Catalog tables not configured")
-  }
-
-  private def parseOutput(): IOOutput = {
-    val outputSetting = this.Settings.get("output") match {
+  private def parseOutput(): OutputMethod = {
+    val generalSetting = this.Settings.get("output_method") match {
       case Some(value: String) => value.toLowerCase
-      case _                   => environment.IOOutput.toLowerCase
+      case _                   => environment.OutputMethod.toLowerCase
     }
 
-    outputSetting match {
-      case "catalog" => parseCatalogTables
-      case _                                       => parsePaths
+    // if bronzetable setting is present, use catalog as output.
+    val bronzeSetting = this.Settings.get("bronze_table") match {
+      case Some(value: String) => "catalog"
+      case _                   => environment.BronzeOutput.toLowerCase
     }
-  }
 
-  private def parseCatalogTables: CatalogTables = {
-    val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
-    val _settings = this.Settings
-    val _connection = this.Connection
+    // if silvertable setting is present, use catalog as output.
+    val silverSetting = this.Settings.get("silver_table") match {
+      case Some(value: String) => "catalog"
+      case _                   => environment.SilverOutput.toLowerCase
+    }
 
-    // Initialize expression evaluator with all available variables
-    val settingsVars = _settings.map(s => Try(LiteralEvalParameter(s"settings_${s._1}", s._2.toString())).getOrElse(LiteralEvalParameter(s"settings_${s._1}", "Invalid_Config_Value"))).toSeq
-    val availableVars = Seq(
-      LiteralEvalParameter("today", today),
-      LiteralEvalParameter("entity", this.Name),
-      LiteralEvalParameter("destination", this.Destination),
-      LiteralEvalParameter("connection", _connection.Name)
+    val bronzeType = if (bronzeSetting == null) generalSetting else bronzeSetting
+    val silverType = if (silverSetting == null) generalSetting else silverSetting
+
+    val paths = parsePaths
+
+    def tableName(layer: String, default: String): String =
+      this.Settings.get(s"${layer}_table") match {
+        case Some(value: String) => parseString(value)
+        case _                   => parseString(default)
+      }
+
+    def location(
+        layer: String,
+        layerType: String,
+        defaultPath: String,
+        defaultTable: String
+    ): OutputLocation =
+      layerType match {
+        case "catalog" =>
+          TableLocation(tableName(layer, defaultTable))
+        case _ => PathLocation(defaultPath)
+      }
+
+    val bronzeLoc = location("bronze", bronzeType, paths.bronzepath, s"bronze_${this.Connection.Name}.${this.Name}")
+    val silverLoc = location("silver", silverType, paths.silverpath, s"silver_${this.Connection.Name}.${this.Destination}"
     )
-    val expr = new Expressions(settingsVars ++ availableVars)
 
-    // Get bronze table name with connection settings and expression evaluation
-    val bronzeTableTemplate = _settings.get("bronze_table") match {
-      case Some(value: String) => value
-      case _ => _settings.get("catalog_prefix") match {
-        case Some(prefix: String) => s"${prefix}_${this.Name}"
-        case _ => s"${this.Connection.Name}_${this.Name}"
-      }
+    (bronzeLoc, silverLoc) match {
+      case (PathLocation(bp), PathLocation(sp)) => Paths(paths.rawpath, bp, sp)
+      case _                                    => Output(paths.rawpath, bronzeLoc, silverLoc)
     }
-
-    // Get silver table name with connection settings and expression evaluation
-    val silverTableTemplate = _settings.get("silver_table") match {
-      case Some(value: String) => value
-      case _ => _settings.get("catalog_prefix") match {
-        case Some(prefix: String) => s"${prefix}_${this.Destination}"
-        case _ => s"${this.Connection.Name}_${this.Destination}"
-      }
-    }
-
-    // Evaluate expressions in table names
-    val bronzetable = expr.EvaluateExpression(bronzeTableTemplate)
-    val silvertable = expr.EvaluateExpression(silverTableTemplate)
-
-    CatalogTables(bronzetable, silvertable)
   }
 
   private def parsePaths: Paths = {
-    val today =
-      java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
-
     val _settings = this.Settings
     val _connection = this.Connection
     val _securehandling = this.Secure
@@ -198,7 +190,7 @@ class Entity(
 
     // environment override for raw
     _settings.get("raw_path") match {
-      case Some(value:  String) => rawPath ++= value.normalized_path
+      case Some(value: String) => rawPath ++= value.normalized_path
       case _ =>
         rawPath ++= environment.RawPath.normalized_path
     }
@@ -217,44 +209,59 @@ class Entity(
         silverPath ++= environment.SilverPath.normalized_path
     }
 
-    // // interpret variables
-    val settingsVars = _settings.map(s => Try(LiteralEvalParameter(s"settings_${s._1}", s._2.toString())).getOrElse(LiteralEvalParameter(s"settings_${s._1}", "Invalid_Config_Value")) ).toSeq
-    val availableVars = Seq(LiteralEvalParameter("today", today), LiteralEvalParameter("entity", this.Name), LiteralEvalParameter("destination", this.Destination), LiteralEvalParameter("connection", _connection.Name))
-    val expr = new Expressions(settingsVars ++ availableVars)
-    val retRawPath = expr.EvaluateExpression(rawPath.toString)
-    val retBronzePath = expr.EvaluateExpression(bronzePath.toString)
-    val retSilverPath = expr.EvaluateExpression(silverPath.toString)
+    val retRawPath = parseString(rawPath.toString)
+    val retBronzePath = parseString(bronzePath.toString)
+    val retSilverPath = parseString(silverPath.toString)
 
-    return Paths(retRawPath, retBronzePath, retSilverPath)
+    Paths(retRawPath, retBronzePath, retSilverPath)
   }
 
+  private def parseString(value: String): String = {
+    val today =
+      java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"))
+    val _settings = this.Settings
+    val _connection = this.Connection
+    val settingsVars = _settings
+      .map(s =>
+        Try(LiteralEvalParameter(s"settings_${s._1}", s._2.toString())).getOrElse(
+          LiteralEvalParameter(s"settings_${s._1}", "Invalid_Config_Value")
+        )
+      )
+      .toSeq
+    val availableVars = Seq(
+      LiteralEvalParameter("today", today),
+      LiteralEvalParameter("entity", this.Name),
+      LiteralEvalParameter("destination", this.Destination),
+      LiteralEvalParameter("connection", _connection.Name)
+    )
+    val expr = new Expressions(settingsVars ++ availableVars)
+    expr.EvaluateExpression(value)
+  }
 
-  /**
-   * Retrieves the business key of the entity.
-   *
-   * @return A list of strings representing the business key columns.
-   */
+  /** Retrieves the business key of the entity.
+    *
+    * @return
+    *   A list of strings representing the business key columns.
+    */
   final def getBusinessKey: Array[String] =
     this
       .Columns("businesskey")
       .map(column => column.Name)
 
-      
-  /**
-   * Retrieves the list of partition columns for this entity.
-   *
-   * @return The list of partition column names.
-   */
+  /** Retrieves the list of partition columns for this entity.
+    *
+    * @return
+    *   The list of partition column names.
+    */
   final def getPartitionColumns: List[String] =
     this
       .Columns("partition")
       .map(column => column.Name)
       .toList
 
-
   final def getRenamedColumns: scala.collection.Map[String, String] =
     this.columns
-      .filter(c => (c.NewName.toString() != "" && c.NewName != c.Name && c.Name != ""))
+      .filter(c => c.NewName.toString() != "" && c.NewName != c.Name && c.Name != "")
       .map(c => (c.Name, c.NewName))
       .toMap
 
@@ -296,10 +303,21 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
         { case entity: Entity =>
           val combinedSettings = entity.Connection.settings merge entity.settings
 
-
-          val outputField = entity.IOOutput match {
-            case p: Paths         => JField("paths", parse(write(p)))
-            case t: CatalogTables => JField("catalog_tables", parse(write(t)))
+          val outputField = entity.OutputMethod match {
+            case p: Paths => JField("paths", parse(write(p)))
+            case o: Output =>
+              val bronzeField = o.bronze match {
+                case PathLocation(p)  => JField("bronze_path", JString(p))
+                case TableLocation(t) => JField("bronze_table", JString(t))
+              }
+              val silverField = o.silver match {
+                case PathLocation(p)  => JField("silver_path", JString(p))
+                case TableLocation(t) => JField("silver_table", JString(t))
+              }
+              JField(
+                "output",
+                JObject(JField("raw_path", JString(o.rawpath)), bronzeField, silverField)
+              )
           }
 
           JObject(
