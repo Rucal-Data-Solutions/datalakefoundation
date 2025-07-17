@@ -57,11 +57,12 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     )
 
     // Assert that the entity returns Paths
-    assert(entity.OutputMethod.isInstanceOf[Paths])
+    entity.OutputMethod shouldBe a [Paths]
+
     val paths = entity.OutputMethod.asInstanceOf[Paths]
-    assert(paths.rawpath.contains("/data/raw"))
-    assert(paths.bronzepath.contains("/data/bronze"))
-    assert(paths.silverpath.contains("/data/silver"))
+    paths.rawpath should startWith("/data/raw")
+    paths.bronzepath should startWith("/data/bronze")
+    paths.silverpath should startWith("/data/silver")
   }
 
   test("Entity with catalog settings should return CatalogTables") {
@@ -115,10 +116,10 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     )
 
     // Assert that the entity returns TableLocation
-    assert(entity.OutputMethod.isInstanceOf[Output])  
+    entity.OutputMethod shouldBe a[Output]
     val tables = entity.OutputMethod.asInstanceOf[Output]
-    assert(tables.bronze == TableLocation("custom_bronze"))
-    assert(tables.silver == TableLocation("custom_silver"))
+    tables.bronze shouldBe TableLocation("custom_bronze")
+    tables.silver shouldBe TableLocation("custom_silver")
   }
 
   test("Entity can override environment output_method setting") {

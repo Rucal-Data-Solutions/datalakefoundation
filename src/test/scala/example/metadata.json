@@ -78,6 +78,7 @@
 			],
 			"settings": {
 				"raw_path": "/test/${entity}",
+				"silver_table": "test_connection.${destination}",
 				"schema": "Person",
 				"table": "Person",
 				"frequency": {
