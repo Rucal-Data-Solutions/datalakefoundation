@@ -34,7 +34,7 @@ jobs:
         
 
     - name: Build and tests
-      run: sbt test
+      run: sbt + test
 
     
     - name: Sbt Dependency Submission
