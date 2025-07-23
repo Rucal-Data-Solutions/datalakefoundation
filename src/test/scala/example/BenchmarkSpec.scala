@@ -1,4 +1,4 @@
-package unit_tests
+package datalake.metadata
 
 import org.scalatest.funsuite.AnyFunSuite
 

@@ -140,20 +140,23 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
     val (bronzePath, silverPath) = (paths.bronzepath, paths.silverpath)
 
-    // Create test data
-    val testData = (1 to 10000)
-      .map(i => (i, s"Name_$i", s"Data_$i"))
-      .toDF("id", "name", "data")
+    // Generate unique test identifier to avoid conflicts with concurrent tests
+    val testId = s"full_load_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    val fullSlice = "full_load.parquet"
+    // Create test data with test identifier
+    val testData = (1 to 10000)
+      .map(i => (i, s"Name_$i", s"Data_$i", testId))
+      .toDF("id", "name", "data", "test_id")
+
+    val fullSlice = s"full_load_${testId}.parquet"
     testData.write.mode("overwrite").parquet(s"$bronzePath/$fullSlice")
 
     // Process full load
     val proc = new Processing(testEntity, fullSlice)
     proc.Process(Full)
 
-    // Verify results
-    val result = spark.read.format("delta").load(silverPath)
+    // Verify results - filter by test_id to avoid interference from other tests
+    val result = spark.read.format("delta").load(silverPath).filter($"test_id" === testId)
 
     // Check row count
     assert(result.count() === 10000, "Full load should process all records")
@@ -183,8 +186,11 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
       silverFolder.mkdirs()
     }
 
-    val initialData = Seq((1, "John", "Data1")).toDF("id", "name", "data")
-    val updatedData = Seq((1, "John", "Data2")).toDF("id", "name", "data")
+    // Generate unique test identifier to avoid conflicts with concurrent tests
+    val testId = s"historic_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+
+    val initialData = Seq((1, "John", "Data1", testId)).toDF("id", "name", "data", "test_id")
+    val updatedData = Seq((1, "John", "Data2", testId)).toDF("id", "name", "data", "test_id")
 
     val processingTimeOption = "2025-05-05T12:00:00"
 
@@ -197,8 +203,8 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val testEntity = metadata.getEntity(1)
     val paths = testEntity.getPaths
 
-    val initialSlice = "initial_slice.parquet"
-    val updatedSlice = "updated_slice.parquet"
+    val initialSlice = s"initial_slice_${testId}.parquet"
+    val updatedSlice = s"updated_slice_${testId}.parquet"
     initialData.write.parquet(s"${paths.bronzepath}/$initialSlice")
     updatedData.write.parquet(s"${paths.bronzepath}/$updatedSlice")
 
@@ -213,7 +219,10 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val proc2 = new Processing(testEntity, updatedSlice, Map("processing.time" -> newTime))
     proc2.Process()
 
-    val result_df = spark.read.format("delta").load(paths.silverpath).orderBy(s"${randomPrefix}ValidFrom")
+    // Filter results by test_id to avoid interference from other tests
+    val result_df = spark.read.format("delta").load(paths.silverpath)
+      .filter($"test_id" === testId)
+      .orderBy(s"${randomPrefix}ValidFrom")
     val result = result_df.collect()
 
     result_df.show(false)
@@ -240,10 +249,10 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val silverFolder = new java.io.File(s"$testBasePath/silver")
     if (!silverFolder.exists()) { silverFolder.mkdirs() }
 
+    // Generate unique test identifier to avoid conflicts with concurrent tests
+    val testId = s"system_prefix_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-
-    val df = Seq((1, "John", "Data1")).toDF("id", "name", "data")
-
+    val df = Seq((1, "John", "Data1", testId)).toDF("id", "name", "data", "test_id")
 
     val settings = new JsonMetadataSettings()
     val user_dir = System.getProperty("user.dir")
@@ -251,20 +260,22 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
-    val inMemoryDataFile = "inmemory_data.parquet"
+    val inMemoryDataFile = s"inmemory_data_${testId}.parquet"
     df.write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$inMemoryDataFile")
-
 
     org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testEntity.getPaths.silverpath))
     val proc = new Processing(testEntity, inMemoryDataFile)
     proc.Process()
 
+    // Filter results by test_id to avoid interference from other tests
     val silverDf = spark.read.format("delta").load(testEntity.getPaths.silverpath)
+      .filter($"test_id" === testId)
 
     val expectedColumns = Seq(
       "id",
       "name",
       "data",
+      "test_id",
       "PK_testentity",
       randomPrefix + "SourceHash",
       randomPrefix + "ValidFrom",
@@ -309,9 +320,11 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val testEntity = metadata.getEntity(2)
     val om = testEntity.OutputMethod 
 
+    // Generate unique test identifier to avoid conflicts with concurrent tests
+    val testId = s"watermark_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    val sliceFile = "wm_slice.parquet"
-    Seq((1, 10L), (2, 5L)).toDF("ID", "SeqNr")
+    val sliceFile = s"wm_slice_${testId}.parquet"
+    Seq((1, 10L, testId), (2, 5L, testId)).toDF("ID", "SeqNr", "test_id")
       .write.mode("overwrite").parquet(s"${om.asInstanceOf[Output].bronze.asInstanceOf[PathLocation].path}/$sliceFile")
 
     val proc = new Processing(testEntity, sliceFile)
@@ -347,22 +360,26 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val testEntity = metadata.getEntity(1)
     val paths = testEntity.getPaths
 
+    // Generate unique test identifier to avoid conflicts with concurrent tests
+    val testId = s"blank_slice_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+
     // Create and write a blank slice
-    val emptyData = Seq.empty[(Int, String, String)].toDF("id", "name", "data")
-    val blankSlice = "blank_slice.parquet"
+    val emptyData = Seq.empty[(Int, String, String, String)].toDF("id", "name", "data", "test_id")
+    val blankSlice = s"blank_slice_${testId}.parquet"
     emptyData.write.parquet(s"${paths.bronzepath}/$blankSlice")
 
     // Test 1: Processing a blank slice as first run
     val proc1 = new Processing(testEntity, blankSlice)
     proc1.Process(Full)
 
-    // Verify no data was written
+    // Verify no data was written for this test
     val result1 = spark.read.format("delta").load(paths.silverpath)
+      .filter($"test_id" === testId)
     assert(result1.count() === 0, "No data should be written when processing a blank slice as first run")
 
     // Test 2: Processing a blank slice with existing data
-    val existingData = Seq((1, "John", "Data1")).toDF("id", "name", "data")
-    val dataSlice = "data_slice.parquet"
+    val existingData = Seq((1, "John", "Data1", testId)).toDF("id", "name", "data", "test_id")
+    val dataSlice = s"data_slice_${testId}.parquet"
     existingData.write.parquet(s"${paths.bronzepath}/$dataSlice")
 
     // First process the data slice
@@ -373,12 +390,14 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val proc2 = new Processing(testEntity, blankSlice)
     proc2.Process(Merge)
 
-    // Verify existing data was preserved
+    // Verify existing data was preserved for this test
     val result2 = spark.read.format("delta").load(paths.silverpath)
+      .filter($"test_id" === testId)
     assert(result2.count() === 1, "Existing data should be preserved when processing a blank slice")
     val row = result2.collect()(0)
     assert(row.getAs[Int]("id") === 1, "Existing data should remain unchanged")
     assert(row.getAs[String]("name") === "John", "Existing data should remain unchanged")
     assert(row.getAs[String]("data") === "Data1", "Existing data should remain unchanged")
+    assert(row.getAs[String]("test_id") === testId, "Test ID should match")
   }
 }
