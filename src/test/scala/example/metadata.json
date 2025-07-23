@@ -38,7 +38,7 @@
 					]
 				}
 			],
-			"settings": {},
+			"settings": {"silver_table": "silver_tst.${destination}"},
 			"transformations": []
 		},
 		{

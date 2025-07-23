@@ -1,4 +1,4 @@
-package unit_tests
+package datalake.metadata
 
 import org.apache.spark.{ SparkConf, SparkContext }
 import org.apache.spark.SparkContext._
@@ -119,6 +119,56 @@ class SparkEnvironmentTests extends AnyFunSuite with SparkSessionTest {
 }
 
 class ProcessingTests extends AnyFunSuite with SparkSessionTest {
+
+  test("Full Load Processing") {
+    import spark.implicits._
+    import org.apache.commons.io.FileUtils
+
+    // Set up test directories
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    if (!bronzeFolder.exists()) bronzeFolder.mkdirs()
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    if (!silverFolder.exists()) silverFolder.mkdirs()
+
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, override_env)
+    val testEntity = metadata.getEntity(1)
+    val paths = testEntity.getPaths
+
+    val (bronzePath, silverPath) = (paths.bronzepath, paths.silverpath)
+
+    // Create test data
+    val testData = (1 to 10000)
+      .map(i => (i, s"Name_$i", s"Data_$i"))
+      .toDF("id", "name", "data")
+
+    val fullSlice = "full_load.parquet"
+    testData.write.mode("overwrite").parquet(s"$bronzePath/$fullSlice")
+
+    // Process full load
+    val proc = new Processing(testEntity, fullSlice)
+    proc.Process(Full)
+
+    // Verify results
+    val result = spark.read.format("delta").load(silverPath)
+
+    // Check row count
+    assert(result.count() === 10000, "Full load should process all records")
+
+    // Check schema and data integrity
+    assert(result.columns.contains(s"${randomPrefix}ValidFrom"), "Should have ValidFrom timestamp")
+    assert(result.columns.contains(s"${randomPrefix}ValidTo"), "Should have ValidTo timestamp")
+    assert(result.columns.contains(s"${randomPrefix}IsCurrent"), "Should have IsCurrent flag")
+
+    // Sample validation
+    val sampleRow = result.filter($"id" === 1).first()
+    assert(sampleRow.getAs[String]("name") === "Name_1")
+    assert(sampleRow.getAs[String]("data") === "Data_1")
+    assert(sampleRow.getAs[Boolean](s"${randomPrefix}IsCurrent") === true)
+  }
 
   test("Historic processing should maintain temporal integrity") {
     import spark.implicits._
@@ -247,6 +297,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${destination}",
       "-secure",
+      systemfield_prefix = randomPrefix,
       output_method = "paths"
     )
 
@@ -256,9 +307,12 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
     val metadata = new Metadata(settings, env)
     val testEntity = metadata.getEntity(2)
+    val om = testEntity.OutputMethod 
+
+
     val sliceFile = "wm_slice.parquet"
     Seq((1, 10L), (2, 5L)).toDF("ID", "SeqNr")
-      .write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$sliceFile")
+      .write.mode("overwrite").parquet(s"${om.asInstanceOf[Output].bronze.asInstanceOf[PathLocation].path}/$sliceFile")
 
     val proc = new Processing(testEntity, sliceFile)
     proc.Process()

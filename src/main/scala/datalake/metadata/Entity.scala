@@ -119,7 +119,18 @@ class Entity(
     case p: Paths => p
     case Output(raw, PathLocation(bp), PathLocation(sp)) =>
       Paths(raw, bp, sp)
-    case _ => throw new IllegalStateException("Paths not configured")
+    case Output(raw, bronze, silver) =>
+      // Fall back to environmental defaults when TableLocation is present
+      val defaultPaths = parsePaths
+      val bronzePath = bronze match {
+        case PathLocation(bp) => bp
+        case TableLocation(_) => defaultPaths.bronzepath
+      }
+      val silverPath = silver match {
+        case PathLocation(sp) => sp
+        case TableLocation(_) => defaultPaths.silverpath
+      }
+      Paths(raw, bronzePath, silverPath)
   }
 
   private def parseOutput(): OutputMethod = {

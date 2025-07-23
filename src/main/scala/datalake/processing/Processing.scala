@@ -27,8 +27,10 @@ case class DatalakeSource(source_df: DataFrame, watermark_values: Option[Array[(
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
-class Processing(entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
+class Processing(private val entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment: datalake.metadata.Environment = entity.Environment
+  
+  def getOutputMethod: OutputMethod = entity.OutputMethod
   
   private val columns = entity.Columns
 
