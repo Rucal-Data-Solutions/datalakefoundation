@@ -5,8 +5,6 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.FieldSerializer
 import org.json4s.jackson.Serialization.{read, write}
-// import unit_tests.SparkSessionTest
-
 class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
   
   test("Entity with default settings should return Paths") {
