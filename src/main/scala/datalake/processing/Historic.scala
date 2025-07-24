@@ -15,10 +15,33 @@ final object Historic extends ProcessStrategy {
   def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
-    if (!DeltaTable.isDeltaTable(spark, processing.destination)) {
+    val isFirstRun = processing.destination match {
+      case PathLocation(path) => 
+        !DeltaTable.isDeltaTable(spark, path)
+      case TableLocation(table) => 
+        // For table locations, we need a more robust check
+        // isDeltaTable with table names can be unreliable, so we check if table exists and is Delta
+        try {
+          // First check if table exists at all
+          if (!spark.catalog.tableExists(table)) {
+            true // Table doesn't exist, so it's first run
+          } else {
+            // Table exists, check if it's a Delta table by trying to create a DeltaTable reference
+            DeltaTable.forName(table)
+            false // If we can create DeltaTable reference, it's Delta and not first run
+          }
+        } catch {
+          case _: Exception => 
+            // If we can't create DeltaTable reference or any other error, consider it first run
+            true
+        }
+    }
+
+    if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
+      logger.debug("Incremental load (Subsequent Runs)")
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
 
@@ -28,7 +51,10 @@ final object Historic extends ProcessStrategy {
         case None => Array.empty[String]
       }
       
-      val deltaTable = DeltaTable.forPath(processing.destination)
+      val deltaTable = processing.destination match {
+        case PathLocation(path) => DeltaTable.forPath(path)
+        case TableLocation(table) => DeltaTable.forName(table)
+      }
       val explicit_partFilter = partition_filters.mkString(" AND ")
       
       // Check for schema changes
@@ -67,10 +93,16 @@ final object Historic extends ProcessStrategy {
         )
         .select("source.*")
 
-      updatedRecords.write
+      val updatewriter  =  updatedRecords.write
         .format("delta")
         .mode("append")
-        .save(processing.destination)
+
+      processing.destination match {
+        case PathLocation(path) => 
+          updatewriter.save(path)
+        case TableLocation(table) =>
+          updatewriter.saveAsTable(table)
+      }
     }
   }
 }

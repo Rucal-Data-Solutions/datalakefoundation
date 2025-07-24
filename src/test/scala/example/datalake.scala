@@ -18,7 +18,7 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.hadoop.fs.Path
 import java.sql.Timestamp
 
-trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
+trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterEach with Matchers {
   val conf: SparkConf = new SparkConf()
     .setMaster("local[*]")
     .setAppName("Rucal Unit Tests")
@@ -50,6 +50,48 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with Matchers {
   override def beforeAll(): Unit = {
     spark.sparkContext.setLogLevel("ERROR")
     super.beforeAll()
+  }
+
+  override def beforeEach(): Unit = {
+    // Clean up any existing test data before each test
+    cleanupTestData()
+    super.beforeEach()
+  }
+
+  protected def cleanupTestData(): Unit = {
+    import org.apache.commons.io.FileUtils
+    
+    try {
+      // Clean up file system paths
+      val silverFolder = new java.io.File(s"$testBasePath/silver")
+      if (silverFolder.exists()) {
+        FileUtils.cleanDirectory(silverFolder)
+      }
+      
+      // Clean up any test tables in the metastore
+      // Get list of databases that might contain test tables
+      val testDatabases = spark.sql("SHOW DATABASES").collect()
+        .map(_.getString(0))
+        .filter(db => db.startsWith("test_") || db.startsWith("silver_"))
+      
+      testDatabases.foreach { dbName =>
+        try {
+          val tables = spark.sql(s"SHOW TABLES IN `$dbName`").collect()
+          tables.foreach { tableRow =>
+            val tableName = tableRow.getString(1)
+            try {
+              spark.sql(s"DROP TABLE IF EXISTS `$dbName`.`$tableName`")
+            } catch {
+              case _: Exception => // Ignore individual table cleanup errors
+            }
+          }
+        } catch {
+          case _: Exception => // Ignore if database doesn't exist or can't be accessed
+        }
+      }
+    } catch {
+      case _: Exception => // Ignore cleanup errors - tests should still run
+    }
   }
 
   override def afterAll(): Unit = {
@@ -137,6 +179,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
     val paths = testEntity.getPaths
+    val ioLocations = testEntity.OutputMethod
 
     val (bronzePath, silverPath) = (paths.bronzepath, paths.silverpath)
 
@@ -156,7 +199,11 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     proc.Process(Full)
 
     // Verify results - filter by test_id to avoid interference from other tests
-    val result = spark.read.format("delta").load(silverPath).filter($"test_id" === testId)
+    val result = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path).filter($"test_id" === testId)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table).filter($"test_id" === testId)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
 
     // Check row count
     assert(result.count() === 10000, "Full load should process all records")
@@ -175,6 +222,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
   test("Historic processing should maintain temporal integrity") {
     import spark.implicits._
+    import org.apache.commons.io.FileUtils
 
     val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
     if (!bronzeFolder.exists()) {
@@ -202,28 +250,46 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
     val paths = testEntity.getPaths
+    val ioLocations = testEntity.OutputMethod
 
     val initialSlice = s"initial_slice_${testId}.parquet"
     val updatedSlice = s"updated_slice_${testId}.parquet"
     initialData.write.parquet(s"${paths.bronzepath}/$initialSlice")
     updatedData.write.parquet(s"${paths.bronzepath}/$updatedSlice")
 
+    // First processing - should create the delta table (first run diverts to Full)
     val proc1 = new Processing(testEntity, initialSlice, Map("processing.time" -> processingTimeOption))
-    proc1.Process()
+    proc1.Process(Historic) // Explicitly specify Historic strategy
+
+    // Check what's in the table after first load
+    val afterFirstLoad = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
+    println("=== After First Load ===")
+    afterFirstLoad.filter($"test_id" === testId).show(false)
 
     val newTime = java.time.LocalDateTime
       .parse(processingTimeOption, java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
       .plusMinutes(1)
       .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
 
+    // Second processing - should now use Historic merge logic
     val proc2 = new Processing(testEntity, updatedSlice, Map("processing.time" -> newTime))
-    proc2.Process()
+    proc2.Process(Historic) // Explicitly specify Historic strategy
 
+
+    val result_df = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
     // Filter results by test_id to avoid interference from other tests
-    val result_df = spark.read.format("delta").load(paths.silverpath)
+    val filtered_result_df = result_df
       .filter($"test_id" === testId)
       .orderBy(s"${randomPrefix}ValidFrom")
-    val result = result_df.collect()
+    val result = filtered_result_df.collect()
 
     result_df.show(false)
 
@@ -260,6 +326,8 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
+    val ioLocations = testEntity.OutputMethod
+
     val inMemoryDataFile = s"inmemory_data_${testId}.parquet"
     df.write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$inMemoryDataFile")
 
@@ -268,8 +336,13 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     proc.Process()
 
     // Filter results by test_id to avoid interference from other tests
-    val silverDf = spark.read.format("delta").load(testEntity.getPaths.silverpath)
-      .filter($"test_id" === testId)
+    val silver_df = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path).filter($"test_id" === testId)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table).filter($"test_id" === testId)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
+
+    val testsetDf = silver_df.filter($"test_id" === testId)
 
     val expectedColumns = Seq(
       "id",
@@ -286,7 +359,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     )
 
     expectedColumns.foreach { colName =>
-      assert(silverDf.columns.contains(colName), s"Expected column: '$colName'")
+      assert(testsetDf.columns.contains(colName), s"Expected column: '$colName'")
     }
 
 
@@ -342,6 +415,114 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     seqWM shouldBe "'10'"
   }
 
+  test("Merge processing should handle incremental updates correctly") {
+    import spark.implicits._
+    import org.apache.commons.io.FileUtils
+
+    // Set up test directories
+    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+    if (!bronzeFolder.exists()) bronzeFolder.mkdirs()
+    val silverFolder = new java.io.File(s"$testBasePath/silver")
+    if (!silverFolder.exists()) silverFolder.mkdirs()
+
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, override_env)
+    val testEntity = metadata.getEntity(3) // Using entity 3 which has delta processtype but no silver_table setting
+    val paths = testEntity.getPaths
+    val ioLocations = testEntity.OutputMethod
+
+    // Generate unique test identifier to avoid conflicts with concurrent tests
+    val testId = s"merge_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+
+    // Clean up any existing data for this entity to ensure clean test
+    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+
+    // Step 1: Initial full load - create baseline data
+    val initialData = Seq(
+      (1, 100L, "John", "Initial Data", testId),
+      (2, 200L, "Jane", "Initial Data", testId),
+      (3, 300L, "Bob", "Initial Data", testId)
+    ).toDF("ID", "SeqNr", "name", "data", "test_id")
+
+    val initialSlice = s"initial_slice_${testId}.parquet"
+    initialData.write.mode("overwrite").parquet(s"${paths.bronzepath}/$initialSlice")
+
+    val initialProc = new Processing(testEntity, initialSlice)
+    initialProc.Process() // This should create the initial delta table
+
+    // Verify initial load
+    val initialResult = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path).filter($"test_id" === testId)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table).filter($"test_id" === testId)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
+    assert(initialResult.count() === 3, "Initial load should create 3 records")
+
+    // Step 2: Merge operation with updates, inserts, and deletes
+    val mergeData = Seq(
+      // Update existing record (ID=1, new SeqNr will trigger update)
+      (1, 110L, "John Updated", "Updated Data", testId), 
+      // Keep existing record unchanged (ID=2, same SeqNr should update lastSeen only)
+      (2, 200L, "Jane", "Initial Data", testId),
+      // Insert new record (ID=4)
+      (4, 400L, "Alice", "New Data", testId)
+      // ID=3 is missing from this batch - should be marked as deleted if it has deletion tracking
+    ).toDF("ID", "SeqNr", "name", "data", "test_id")
+
+    val mergeSlice = s"merge_slice_${testId}.parquet"
+    mergeData.write.mode("overwrite").parquet(s"${paths.bronzepath}/$mergeSlice")
+
+    val mergeProc = new Processing(testEntity, mergeSlice)
+    mergeProc.Process()
+
+    // Step 3: Verify merge results
+    val mergeResult = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path).filter($"test_id" === testId)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table).filter($"test_id" === testId)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
+
+    mergeResult.show(false)
+    
+    val resultData = mergeResult.orderBy("ID").collect()
+
+    // Should have 4 records total (3 original + 1 new)
+    assert(resultData.length === 4, s"Should have 4 records after merge, but got ${resultData.length}")
+
+    // Verify ID=1 was updated
+    val record1 = resultData.find(_.getAs[Int]("ID") == 1).get
+    assert(record1.getAs[String]("name") === "John Updated", "Record 1 should be updated")
+    assert(record1.getAs[String]("data") === "Updated Data", "Record 1 data should be updated")
+    assert(record1.getAs[Long]("SeqNr") === 110L, "Record 1 SeqNr should be updated")
+
+    // Verify ID=2 exists and has updated lastSeen (data unchanged)
+    val record2 = resultData.find(_.getAs[Int]("ID") == 2).get
+    assert(record2.getAs[String]("name") === "Jane", "Record 2 should remain unchanged")
+    assert(record2.getAs[String]("data") === "Initial Data", "Record 2 data should remain unchanged")
+    assert(record2.getAs[Long]("SeqNr") === 200L, "Record 2 SeqNr should remain unchanged")
+
+    // Verify ID=3 still exists (not deleted unless explicit deletion tracking is implemented)
+    val record3 = resultData.find(_.getAs[Int]("ID") == 3).get
+    assert(record3.getAs[String]("name") === "Bob", "Record 3 should still exist")
+    assert(record3.getAs[Long]("SeqNr") === 300L, "Record 3 SeqNr should remain unchanged")
+
+    // Verify ID=4 was inserted
+    val record4 = resultData.find(_.getAs[Int]("ID") == 4).get
+    assert(record4.getAs[String]("name") === "Alice", "Record 4 should be inserted")
+    assert(record4.getAs[String]("data") === "New Data", "Record 4 data should be correct")
+    assert(record4.getAs[Long]("SeqNr") === 400L, "Record 4 SeqNr should be correct")
+
+    // Verify all records have system fields
+    resultData.foreach { row =>
+      assert(row.schema.fieldNames.contains(s"${randomPrefix}lastSeen"), "Should have lastSeen field")
+      assert(row.schema.fieldNames.contains(s"${randomPrefix}SourceHash"), "Should have SourceHash field")
+      assert(row.schema.fieldNames.contains(s"${randomPrefix}deleted"), "Should have deleted field")
+    }
+  }
+
   test("Processing should handle blank slices appropriately") {
     import spark.implicits._
     import org.apache.commons.io.FileUtils
@@ -359,6 +540,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(1)
     val paths = testEntity.getPaths
+    val ioLocations = testEntity.OutputMethod
 
     // Generate unique test identifier to avoid conflicts with concurrent tests
     val testId = s"blank_slice_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -373,8 +555,16 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     proc1.Process(Full)
 
     // Verify no data was written for this test
-    val result1 = spark.read.format("delta").load(paths.silverpath)
-      .filter($"test_id" === testId)
+    val result1 = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path).filter($"test_id" === testId)
+      case tableLoc: TableLocation => 
+        try {
+          spark.read.table(tableLoc.table).filter($"test_id" === testId)
+        } catch {
+          case _: Exception => spark.emptyDataFrame.filter($"test_id" === testId) // Table might not exist for blank slice
+        }
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
     assert(result1.count() === 0, "No data should be written when processing a blank slice as first run")
 
     // Test 2: Processing a blank slice with existing data
@@ -391,8 +581,11 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
     proc2.Process(Merge)
 
     // Verify existing data was preserved for this test
-    val result2 = spark.read.format("delta").load(paths.silverpath)
-      .filter($"test_id" === testId)
+    val result2 = ioLocations.silver match {
+      case pathLoc: PathLocation => spark.read.format("delta").load(pathLoc.path).filter($"test_id" === testId)
+      case tableLoc: TableLocation => spark.read.table(tableLoc.table).filter($"test_id" === testId)
+      case _ => throw new IllegalStateException("Unexpected output method type")
+    }
     assert(result2.count() === 1, "Existing data should be preserved when processing a blank slice")
     val row = result2.collect()(0)
     assert(row.getAs[Int]("id") === 1, "Existing data should remain unchanged")

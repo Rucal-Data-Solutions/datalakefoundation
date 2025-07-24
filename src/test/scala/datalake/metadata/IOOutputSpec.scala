@@ -54,10 +54,15 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
       transformations = Array()
     )
 
-    // Assert that the entity returns Paths
-    entity.OutputMethod shouldBe a [Paths]
+    // Assert that the entity returns Output with PathLocations
+    entity.OutputMethod shouldBe a [Output]
 
-    val paths = entity.OutputMethod.asInstanceOf[Paths]
+    val output = entity.OutputMethod
+    output.bronze shouldBe a [PathLocation]
+    output.silver shouldBe a [PathLocation]
+    
+    // Verify that getPaths works correctly
+    val paths = entity.getPaths
     paths.rawpath should startWith("/data/raw")
     paths.bronzepath should startWith("/data/bronze")
     paths.silverpath should startWith("/data/silver")

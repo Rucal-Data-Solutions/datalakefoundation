@@ -24,7 +24,28 @@ final object Merge extends ProcessStrategy {
     implicit val env:Environment = processing.environment
 
     // first time? Do A full load
-    if (!DeltaTable.isDeltaTable(spark, processing.destination)) {
+    val isFirstRun = processing.destination match {
+      case PathLocation(path) => !DeltaTable.isDeltaTable(spark, path)
+      case TableLocation(table) => 
+        // For table locations, we need a more robust check
+        // isDeltaTable with table names can be unreliable, so we check if table exists and is Delta
+        try {
+          // First check if table exists at all
+          if (!spark.catalog.tableExists(table)) {
+            true // Table doesn't exist, so it's first run
+          } else {
+            // Table exists, check if it's a Delta table by trying to create a DeltaTable reference
+            DeltaTable.forName(table)
+            false // If we can create DeltaTable reference, it's Delta and not first run
+          }
+        } catch {
+          case _: Exception => 
+            // If we can't create DeltaTable reference or any other error, consider it first run
+            true
+        }
+    }
+
+    if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
     } else {
@@ -36,7 +57,10 @@ final object Merge extends ProcessStrategy {
         case None => Array.empty[String]
       }
 
-      val deltaTable = DeltaTable.forPath(processing.destination)
+      val deltaTable = processing.destination match {
+        case PathLocation(path) => DeltaTable.forPath(path)
+        case TableLocation(table) => DeltaTable.forName(table)
+      }
       val explicit_partFilter = partition_values.mkString(" AND ")
 
       val schemaChanges = source.datalake_schemacompare(deltaTable.toDF.schema)

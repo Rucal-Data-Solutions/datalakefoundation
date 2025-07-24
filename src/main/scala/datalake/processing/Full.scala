@@ -33,7 +33,7 @@ final object Full extends ProcessStrategy {
       logger.debug(s"No partitions defined")
     }
 
-    source.write
+    val writer = source.write
       .partitionBy(part_values: _*)
       .mode(SaveMode.Overwrite)
       .options(
@@ -41,7 +41,27 @@ final object Full extends ProcessStrategy {
         ("partitionOverwriteMode", "dynamic")
       )
       )
-      .delta(processing.destination)
+
+    processing.destination match {
+      case PathLocation(path) => 
+        logger.info(s"Writing to path: $path")
+        writer.delta(path)
+      case TableLocation(table) =>
+        logger.info(s"Writing to table: $table")
+        // Extract database name and create if it doesn't exist
+        val (databaseName, tableName) = table.split("\\.") match {
+          case Array(db, tbl) => (db, tbl)
+          case Array(tbl) => ("default", tbl)
+          case _ => throw new IllegalArgumentException(s"Invalid table name format: $table")
+        }
+        
+        // Create database if it doesn't exist
+        logger.debug(s"Creating database '$databaseName' if it doesn't exist")
+        spark.sql(s"CREATE DATABASE IF NOT EXISTS `$databaseName`")
+        
+        // Use format("delta") to ensure we create a Delta table, not a regular Hive table
+        writer.format("delta").saveAsTable(table)
+    }
 
   }
 }

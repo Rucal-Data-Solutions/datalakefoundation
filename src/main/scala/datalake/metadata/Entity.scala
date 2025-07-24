@@ -44,7 +44,7 @@ class Entity(
   @transient
   private lazy val logger: Logger = LogManager.getLogger(this.getClass)
 
-  private val resolvedOutput: OutputMethod = parseOutput()
+  private val resolvedOutput: Output = parseOutput()
 
   override def toString(): String =
     s"(${this.id}) - ${this.name}"
@@ -113,27 +113,23 @@ class Entity(
     mergedSettings.values
   }
 
-  final def OutputMethod: OutputMethod = resolvedOutput
+  final def OutputMethod: Output = resolvedOutput
 
-  final def getPaths: Paths = resolvedOutput match {
-    case p: Paths => p
-    case Output(raw, PathLocation(bp), PathLocation(sp)) =>
-      Paths(raw, bp, sp)
-    case Output(raw, bronze, silver) =>
-      // Fall back to environmental defaults when TableLocation is present
-      val defaultPaths = parsePaths
-      val bronzePath = bronze match {
-        case PathLocation(bp) => bp
-        case TableLocation(_) => defaultPaths.bronzepath
-      }
-      val silverPath = silver match {
-        case PathLocation(sp) => sp
-        case TableLocation(_) => defaultPaths.silverpath
-      }
-      Paths(raw, bronzePath, silverPath)
+  final def getPaths: Paths = {
+    val output = resolvedOutput
+    val defaultPaths = parsePaths
+    val bronzePath = output.bronze match {
+      case PathLocation(bp) => bp
+      case TableLocation(_) => defaultPaths.bronzepath
+    }
+    val silverPath = output.silver match {
+      case PathLocation(sp) => sp
+      case TableLocation(_) => defaultPaths.silverpath
+    }
+    Paths(output.rawpath, bronzePath, silverPath)
   }
 
-  private def parseOutput(): OutputMethod = {
+  private def parseOutput(): Output = {
     val generalSetting = this.Settings.get("output_method") match {
       case Some(value: String) => value.toLowerCase
       case _                   => environment.OutputMethod.toLowerCase
@@ -178,10 +174,8 @@ class Entity(
     val silverLoc = location("silver", silverType, paths.silverpath, s"silver_${this.Connection.Name}.${this.Destination}"
     )
 
-    (bronzeLoc, silverLoc) match {
-      case (PathLocation(bp), PathLocation(sp)) => Paths(paths.rawpath, bp, sp)
-      case _                                    => Output(paths.rawpath, bronzeLoc, silverLoc)
-    }
+    // Always return Output object
+    Output(paths.rawpath, bronzeLoc, silverLoc)
   }
 
   private def parsePaths: Paths = {
@@ -314,21 +308,20 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
         { case entity: Entity =>
           val combinedSettings = entity.Connection.settings merge entity.settings
 
-          val outputField = entity.OutputMethod match {
-            case p: Paths => JField("paths", parse(write(p)))
-            case o: Output =>
-              val bronzeField = o.bronze match {
-                case PathLocation(p)  => JField("bronze_path", JString(p))
-                case TableLocation(t) => JField("bronze_table", JString(t))
-              }
-              val silverField = o.silver match {
-                case PathLocation(p)  => JField("silver_path", JString(p))
-                case TableLocation(t) => JField("silver_table", JString(t))
-              }
-              JField(
-                "output",
-                JObject(JField("raw_path", JString(o.rawpath)), bronzeField, silverField)
-              )
+          val outputField = {
+            val o = entity.OutputMethod
+            val bronzeField = o.bronze match {
+              case PathLocation(p)  => JField("bronze_path", JString(p))
+              case TableLocation(t) => JField("bronze_table", JString(t))
+            }
+            val silverField = o.silver match {
+              case PathLocation(p)  => JField("silver_path", JString(p))
+              case TableLocation(t) => JField("silver_table", JString(t))
+            }
+            JField(
+              "output",
+              JObject(JField("raw_path", JString(o.rawpath)), bronzeField, silverField)
+            )
           }
 
           JObject(

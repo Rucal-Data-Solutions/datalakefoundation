@@ -21,6 +21,7 @@ import datalake.core.implicits._
 // import datalake.log._
 
 import org.apache.logging.log4j.LogManager
+import datalake.log.DatalakeLogManager
 
 
 case class DatalakeSource(source_df: DataFrame, watermark_values: Option[Array[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
@@ -30,20 +31,19 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 class Processing(private val entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment: datalake.metadata.Environment = entity.Environment
   
-  def getOutputMethod: OutputMethod = entity.OutputMethod
+  def getOutputMethod: Output = entity.OutputMethod
   
   private val columns = entity.Columns
 
   final val entity_id = entity.Id
   final val primaryKeyColumnName: String = s"PK_${entity.Destination}"
 
-  final val paths = entity.getPaths
+  final val ioLocations = entity.OutputMethod
   final val watermarkColumns = entity.Watermark
   final val entitySettings = entity.Settings
   
-  final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
-  final lazy val destination: String = paths.silverpath
-  // final lazy val destinationTable: String = entity.Connection.Name + "_" + entity.Name
+  // final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
+  final lazy val destination: OutputLocation = ioLocations.silver
 
   final lazy val processingTime = {
     if (options.contains("processing.time")) {
@@ -64,11 +64,16 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   import spark.implicits._
 
   @transient 
-  private lazy val logger = LogManager.getLogger(this.getClass)
+  private lazy val logger = DatalakeLogManager.getLogger(this.getClass)
 
   def getSource: DatalakeSource = {
-    logger.info(f"loading slice: ${sliceFileFullPath}")
-    val dfSlice = spark.read.format("parquet").load(sliceFileFullPath)
+    logger.debug(s"getSource called by ${Thread.currentThread().getName}")
+    // logger.info(f"loading slice: ${sliceFileFullPath}")
+
+    val dfSlice = ioLocations.bronze match {
+      case PathLocation(path) => spark.read.parquet(s"$path/$sliceFile")
+      case TableLocation(table) => spark.read.table(table)
+    }
 
     // Combine all transformations into a single chain before any actions
     val transformedDF = dfSlice
