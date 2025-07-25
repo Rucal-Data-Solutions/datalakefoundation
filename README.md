@@ -26,16 +26,17 @@ The library targets Databricks Runtime **16.4 LTS** or later and is compiled for
 
 ## 3. Processing strategies
 
-At the heart of Datalake Foundation is the `Processing` class (in `datalake.processing`). You instantiate it with an `Entity` (from metadata) and a **slice** file name. You then call `Process` with a **strategy** that dictates how the slice is applied to the target table.
+At the heart of Datalake Foundation is the `Processing` class (in `datalake.processing`). You instantiate it with an `Entity` (from metadata) and a **slice** file name. You then call `Process`.
+The process strategy is automaticaly chosen (set in metadata of the entity). the examples below are illustratory, normaly you would call processing.Process() (without parameter) the parameter forces the strategy.
 
 ### 3.1. Full load
 
 **Full** is used for initial loads or full refreshes. It performs an **overwrite** write into the Silver table (dynamic partition mode).
 
 ```scala
-val entity = metadata.getEntity(42).get
+val entity = metadata.getEntity(42)
 val processing = new Processing(entity, "2025‑07‑01–slice.parquet")
-Full.Process(processing)
+processing.Process(Full)
 ```
 
 ### 3.2. Delta (merge) processing
@@ -67,7 +68,7 @@ All strategies accept an optional `processing.time` option (ISO‑8601). If abse
 ```scala
 val options = Map("processing.time" -> "2025-05-05T12:00:00")
 val processing = new Processing(entity, "2025‑04‑30–slice.parquet", options)
-Historic.Process(processing)
+processing.Process(Historic)
 ```
 
 *Disclaimer:* The library does not validate temporal succession; providing an earlier `processing.time` than already processed data can result in inconsistent `ValidFrom/ValidTo` ranges.
