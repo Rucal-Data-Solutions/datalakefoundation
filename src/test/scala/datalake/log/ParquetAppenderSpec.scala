@@ -1,4 +1,4 @@
-package unit_tests
+package datalake.metadata
 
 import org.apache.logging.log4j.core.LogEvent
 import org.apache.logging.log4j.core.impl.Log4jLogEvent
