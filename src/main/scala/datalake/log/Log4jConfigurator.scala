@@ -13,19 +13,22 @@ object Log4jConfigurator {
       val ctx = LoggerContext.getContext(false)
       val config = ctx.getConfiguration
 
-      val parquetAppender = ParquetAppender.createAppender(spark, "dlf_log.parquet")
-      parquetAppender.start()
+      // val parquetAppender = ParquetAppender.createAppender(spark, "dlf_log.parquet")
+      // parquetAppender.start()
 
       val loggerName = "datalake"
       val loggerConfig = Option(config.getLoggerConfig(loggerName))
         .filter(_.getName == loggerName)
         .getOrElse {
-          val newConfig = new LoggerConfig(loggerName, Level.INFO, true)
+          val newConfig = new LoggerConfig(loggerName, Level.DEBUG, true)
           config.addLogger(loggerName, newConfig)
           newConfig
         }
 
-      loggerConfig.addAppender(parquetAppender, Level.INFO, null)
+      // Ensure the datalake logger is always set to DEBUG level
+      // loggerConfig.setLevel(Level.DEBUG)
+
+      // loggerConfig.addAppender(parquetAppender, Level.INFO, null)
 
 
       ctx.updateLoggers()

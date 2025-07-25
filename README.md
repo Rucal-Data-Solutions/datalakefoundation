@@ -146,7 +146,15 @@ Datalake Foundation is upgraded to Scala 2.13 for Databricks Runtime 16.4 LTS
 
 ## 9. Summary
 
-Datalake Foundation standardises data ingestion in a Data Lakehouse architecture. It encapsulates common ingestion patterns—full refresh, incremental merge and SCD Type 2—into reusable processing strategies, driven by JSON/SQL metadata. It handles PK creation and deduplication, temporal tracking and Delta Lake persistence. With `processing.time` overrides and an optional Item Generator, it integrates cleanly into complex orchestration workflows while keeping the ingestion layer declarative.
+### IO Output
+Use `io_output` in the `environment` section to configure whether entities return file system paths (`paths`) or catalog table names (`catalog`).
+Individual entities can override this setting in their `settings` block using the same property. The default value is `paths` for backward compatibility.
+
+## Scala 2.13 Migration
+Databricks Runtime 16.4 LTS introduces Scala 2.13 support. The project now uses
+Scala 2.13.12 with Spark 3.5.1 and Delta Lake 3.3.1 to match this runtime.
+Review custom code and dependencies for compatibility with Scala 2.13 when
+upgrading your environment.
 
 ---
 

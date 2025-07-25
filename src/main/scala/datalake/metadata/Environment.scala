@@ -12,7 +12,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
 
-class Environment(
+case class Environment(
   private val name: String,
   private val root_folder: String,
   private val timezone: String,
@@ -20,7 +20,10 @@ class Environment(
   private val bronze_path: String,
   private val silver_path: String,
   private val secure_container_suffix: String,
-  private val systemfield_prefix: String = null
+  private val systemfield_prefix: String = null,
+  private val output_method: String = "paths",
+  private val bronze_output: String = null,
+  private val silver_output: String = null
 ) extends Serializable {
 
   override def toString(): String = s"Environment: ${this.name}"
@@ -79,4 +82,12 @@ class Environment(
   def SecureContainerSuffix: String = {
       if (this.secure_container_suffix == null) "" else this.secure_container_suffix
   }
+
+  def OutputMethod: String = this.output_method
+
+  def BronzeOutput: String =
+    if (this.bronze_output == null) this.output_method else this.bronze_output
+
+  def SilverOutput: String =
+    if (this.silver_output == null) this.output_method else this.silver_output
 }

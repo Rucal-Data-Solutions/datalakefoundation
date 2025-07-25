@@ -1,4 +1,4 @@
-package unit_tests
+package datalake.metadata
 
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -29,7 +29,8 @@ class BenchmarkSpec extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${entity}",
       "/${connection}/${destination}",
-      "-secure"
+      "-secure", 
+      output_method = "paths"
     )
 
     val settings = new JsonMetadataSettings()
