@@ -310,18 +310,28 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
 
           val outputField = {
             val o = entity.OutputMethod
+            
+            // For backwards compatibility: use "paths" node name when both are PathLocation
+            val nodeName = (o.bronze, o.silver) match {
+              case (PathLocation(_), PathLocation(_)) => "paths"
+              case _ => "output"
+            }
+            
+            // Field names depend on the node type for backwards compatibility
+            val isLegacyFormat = nodeName == "paths"
+            val bronzePathFieldName = if (isLegacyFormat) "bronzepath" else "bronze_path"
+            val silverPathFieldName = if (isLegacyFormat) "silverpath" else "silver_path"
+            
             val bronzeField = o.bronze match {
-              case PathLocation(p)  => JField("bronze_path", JString(p))
+              case PathLocation(p)  => JField(bronzePathFieldName, JString(p))
               case TableLocation(t) => JField("bronze_table", JString(t))
             }
             val silverField = o.silver match {
-              case PathLocation(p)  => JField("silver_path", JString(p))
+              case PathLocation(p)  => JField(silverPathFieldName, JString(p))
               case TableLocation(t) => JField("silver_table", JString(t))
             }
-            JField(
-              "output",
-              JObject(JField("raw_path", JString(o.rawpath)), bronzeField, silverField)
-            )
+            
+            JField(nodeName, JObject(JField("rawpath", JString(o.rawpath)), bronzeField, silverField))
           }
 
           JObject(
