@@ -7,8 +7,8 @@ import org.json4s.FieldSerializer
 import org.json4s.jackson.Serialization.{read, write}
 class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
   
-  test("Entity with default settings should return Paths") {
-    // Create test metadata with default paths setting
+  test("Legacy io_output configuration should return Paths") {
+    // Create test metadata with legacy io_output paths setting
     val metadataSettings = new StringMetadataSettings()
     val configJson = """
     {
@@ -68,8 +68,8 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     paths.silverpath should startWith("/data/silver")
   }
 
-  test("Entity with catalog settings should return CatalogTables") {
-    // Create test metadata with catalog setting
+  test("Entity with catalog output_method should return CatalogTables") {
+    // Create test metadata with catalog output_method setting
     val metadataSettings = new StringMetadataSettings()
     val configJson = """
     {
@@ -98,7 +98,7 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     // Create a metadata instance with the test settings
     implicit val metadata = new Metadata(metadataSettings)
 
-    // Create an entity with catalog settings
+    // Create an entity with catalog output_method settings
     val entity = new Entity(
       metadata = metadata,
       id = 2,
@@ -126,7 +126,7 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
   }
 
   test("Entity can override environment output_method setting") {
-    // Create test metadata with paths as default
+    // Create test metadata with paths as default output_method
     val metadataSettings = new StringMetadataSettings()
     val configJson = """
     {
@@ -171,7 +171,7 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     // Create a metadata instance with the test settings
     implicit val metadata = new Metadata(metadataSettings)
 
-    // Create an entity that overrides to use catalog
+    // Create an entity that overrides environment output_method to use catalog
     val entity = metadata.getEntity(3)
 
     // Assert that the entity returns CatalogTables despite environment setting
