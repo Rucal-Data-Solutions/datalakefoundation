@@ -148,8 +148,9 @@ Datalake Foundation is upgraded to Scala 2.13 for Databricks Runtime 16.4 LTS
 ## 9. Summary
 
 ### IO Output
-Use `io_output` in the `environment` section to configure whether entities return file system paths (`paths`) or catalog table names (`catalog`).
-Individual entities can override this setting in their `settings` block using the same property. The default value is `paths` for backward compatibility.
+
+Use the `output_method` key in the `environment` section to configure whether entities return file paths (`paths`) or catalog tables (`catalog`). Individual entities can override this setting in their `settings` block using the same key. The default value is `paths` for backward compatibility.
+> Note: older configurations may still use the `io_output` key. This is ignored by the current implementation.
 
 ## Scala 2.13 Migration
 Databricks Runtime 16.4 LTS introduces Scala 2.13 support. The project now uses
