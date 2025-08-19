@@ -16,6 +16,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{ DataFrame, Column, Row, Dataset }
 import org.apache.spark.sql.types._
 import org.apache.logging.log4j.{ LogManager, Logger, Level }
+import datalake.log.DatalakeLogManager
 
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods.{ render, parse }
@@ -39,10 +40,13 @@ class Entity(
     val settings: JObject,
     val transformations: Array[EntityTransformation]
 ) extends Serializable {
+  private implicit val spark: SparkSession =
+    SparkSession.builder().getOrCreate()
+  
   implicit val environment: Environment = metadata.getEnvironment
 
   @transient
-  private lazy val logger: Logger = LogManager.getLogger(this.getClass)
+  private lazy val logger: Logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
   private val resolvedOutput: Output = parseOutput()
 

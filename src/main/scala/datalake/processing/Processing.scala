@@ -64,7 +64,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   import spark.implicits._
 
   @transient 
-  private lazy val logger = DatalakeLogManager.getLogger(this.getClass)
+  private lazy val logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
   def getSource: DatalakeSource = {
     logger.debug(s"getSource called by ${Thread.currentThread().getName}")
