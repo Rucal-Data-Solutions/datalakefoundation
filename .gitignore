@@ -38,3 +38,7 @@ derby.log
 
 #local debugging folder
 src/test/scala/example/private/
+
+# build artifacts
+*.zip
+*.tar.gz
