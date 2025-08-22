@@ -40,7 +40,7 @@ class Entity(
     val settings: JObject,
     val transformations: Array[EntityTransformation]
 ) extends Serializable {
-  private implicit val spark: SparkSession =
+  implicit val spark: SparkSession =
     SparkSession.builder().getOrCreate()
   
   implicit val environment: Environment = metadata.getEnvironment
