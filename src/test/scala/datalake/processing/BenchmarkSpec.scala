@@ -1,9 +1,7 @@
-package datalake.metadata
+package datalake.processing
 
 import org.scalatest.funsuite.AnyFunSuite
-
 import datalake.metadata._
-import datalake.processing._
 
 class BenchmarkSpec extends AnyFunSuite with SparkSessionTest {
   test("Benchmark Full, Merge and Historic processing") {
@@ -30,7 +28,8 @@ class BenchmarkSpec extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${destination}",
       "-secure", 
-      output_method = "paths"
+      output_method = "paths",
+      log_level = "WARN"
     )
 
     val settings = new JsonMetadataSettings()

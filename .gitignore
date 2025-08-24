@@ -4,6 +4,9 @@
 .metals
 project/metals.sbt
 
+# Spark
+spark-warehouse
+
 # vs code
 .vscode
 

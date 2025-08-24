@@ -6,6 +6,7 @@ import datalake.processing._
 import java.util.TimeZone
 
 import org.apache.logging.log4j.{Logger, Level, LogManager}
+import datalake.log.DatalakeLogManager
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -30,8 +31,11 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
     SparkSession.builder().getOrCreate()
   import spark.implicits._
 
+  metadataSettings.setMetadata(this)
+  implicit val environment: Environment = env
+
   @transient 
-  lazy private val logger: Logger = LogManager.getLogger(this.getClass())
+  lazy private val logger: Logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
   if (!metadataSettings.isInitialized()) {
     val e = new MetadataNotInitializedException("Config is not initialized")
@@ -41,10 +45,6 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
   else {
     logger.info("Datalake metadata class Initialized.")
   }
-  
-
-  metadataSettings.setMetadata(this)
-  implicit val environment: Environment = env
 
   def getEntity(id: Int): Entity = {
     val entity = metadataSettings.getEntity(id)
