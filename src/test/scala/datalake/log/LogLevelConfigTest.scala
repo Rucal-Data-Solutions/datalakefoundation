@@ -25,7 +25,7 @@ class LogLevelConfigTest extends AnyFunSuite with SparkSessionTest {
     // Reset Log4jConfigurator before test
     val initializedField = Log4jConfigurator.getClass.getDeclaredField("initialized")
     initializedField.setAccessible(true)
-    Log4jConfigurator.reset()
+    initializedField.set(Log4jConfigurator, false)
     
     // Initialize log4j with INFO level
     Log4jConfigurator.init(spark, Some(infoEnv))
