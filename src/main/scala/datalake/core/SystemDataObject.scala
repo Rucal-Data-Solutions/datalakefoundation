@@ -6,6 +6,7 @@ import org.apache.spark.sql.{ DataFrame, SparkSession, Row }
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.functions.col
 import scala.jdk.CollectionConverters._
+import scala.util.control.NonFatal
 import org.apache.logging.log4j.Logger
 import datalake.log.DatalakeLogManager
 
@@ -47,16 +48,14 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
     append_df.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
   }
 
-  final def Append(row: Row): Unit = {
-    val rows = Seq(row)
-    this.Append(rows)
-  }
+  final def Append(row: Row): Unit =
+    this.Append(Seq(row))
 
   final def getDataFrame: Option[DataFrame] =
     try
       Some(spark.read.format("delta").load(deltaTablePath))
     catch {
-      case e: Throwable =>
+      case NonFatal(e) =>
         logger.error(s"Error reading delta table at $deltaTablePath", e)
         None
     }
