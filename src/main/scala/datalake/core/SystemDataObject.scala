@@ -6,6 +6,8 @@ import org.apache.spark.sql.{ DataFrame, SparkSession, Row }
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.functions.col
 import scala.jdk.CollectionConverters._
+import org.apache.logging.log4j.Logger
+import datalake.log.DatalakeLogManager
 
 import io.delta.tables._
 import java.sql.Timestamp
@@ -28,8 +30,11 @@ class SystemDataTableDefinition(name: String, schema: List[DatalakeColumn]) exte
 class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
     environment: Environment
 ) extends Serializable {
-  private val spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
+  private implicit val spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
   import spark.implicits._
+
+  @transient
+  private lazy val logger: Logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
   val deltaTablePath = s"${environment.RootFolder}/system/${table_definition.Name}"
   val partition = table_definition.Columns.filter(c => c.partOfPartition == true).map(c => c.name)
@@ -43,7 +48,7 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
   }
 
   final def Append(row: Row): Unit = {
-    var rows = Seq(row)
+    val rows = Seq(row)
     this.Append(rows)
   }
 
@@ -51,7 +56,9 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
     try
       Some(spark.read.format("delta").load(deltaTablePath))
     catch {
-      case e: Throwable => None
+      case e: Throwable =>
+        logger.error(s"Error reading delta table at $deltaTablePath", e)
+        None
     }
 
 }
