@@ -42,8 +42,8 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
     "/${connection}/${entity}",
     "/${connection}/${entity}",
     "/${connection}/${destination}",
-    "-secure",
-    systemfield_prefix = randomPrefix,
+    secure_container_suffix = Some("-secure"),
+    systemfield_prefix = Some(randomPrefix),
     output_method = "paths"
   )
 
@@ -380,8 +380,8 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${entity}",
       "/${connection}/${destination}",
-      "-secure",
-      systemfield_prefix = randomPrefix,
+      secure_container_suffix = Some("-secure"),
+      systemfield_prefix = Some(randomPrefix),
       output_method = "paths"
     )
 

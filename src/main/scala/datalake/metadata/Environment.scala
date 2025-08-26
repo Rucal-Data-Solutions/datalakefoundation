@@ -19,11 +19,11 @@ case class Environment(
   private val raw_path: String,
   private val bronze_path: String,
   private val silver_path: String,
-  private val secure_container_suffix: String,
-  private val systemfield_prefix: String = null,
+  private val secure_container_suffix: Option[String] = None,
+  private val systemfield_prefix: Option[String] = None,
   private val output_method: String = "paths",
-  private val bronze_output: String = null,
-  private val silver_output: String = null,
+  private val bronze_output: Option[String] = None,
+  private val silver_output: Option[String] = None,
   private val log_level: String = "WARN"
 ) extends Serializable {
 
@@ -76,21 +76,19 @@ case class Environment(
     silverPath
   }
 
-  def SystemFieldPrefix: String = {
-    if (this.systemfield_prefix == null) "" else this.systemfield_prefix
-  }
+  def SystemFieldPrefix: String =
+    this.systemfield_prefix.getOrElse("")
 
-  def SecureContainerSuffix: String = {
-      if (this.secure_container_suffix == null) "" else this.secure_container_suffix
-  }
+  def SecureContainerSuffix: String =
+    this.secure_container_suffix.getOrElse("")
 
   def OutputMethod: String = this.output_method
 
   def BronzeOutput: String =
-    if (this.bronze_output == null) this.output_method else this.bronze_output
+    this.bronze_output.getOrElse(this.output_method)
 
   def SilverOutput: String =
-    if (this.silver_output == null) this.output_method else this.silver_output
+    this.silver_output.getOrElse(this.output_method)
 
   def LogLevel: String = this.log_level
 }

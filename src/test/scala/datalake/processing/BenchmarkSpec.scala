@@ -27,7 +27,7 @@ class BenchmarkSpec extends AnyFunSuite with SparkSessionTest {
       "/${connection}/${entity}",
       "/${connection}/${entity}",
       "/${connection}/${destination}",
-      "-secure", 
+      secure_container_suffix = Some("-secure"),
       output_method = "paths",
       log_level = "WARN"
     )

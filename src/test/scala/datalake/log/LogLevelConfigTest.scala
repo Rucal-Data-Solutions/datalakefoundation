@@ -15,9 +15,8 @@ class LogLevelConfigTest extends AnyFunSuite with SparkSessionTest {
       "/tmp/test",
       "UTC",
       "raw",
-      "bronze", 
+      "bronze",
       "silver",
-      "",
       output_method = "paths",
       log_level = "INFO"
     )
@@ -47,7 +46,6 @@ class LogLevelConfigTest extends AnyFunSuite with SparkSessionTest {
       "raw",
       "bronze",
       "silver",
-      "",
       output_method = "paths"
       // log_level not specified, should default to WARN
     )

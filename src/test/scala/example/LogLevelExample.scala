@@ -95,7 +95,7 @@ object LogLevelExample {
       raw_path = "raw",
       bronze_path = "bronze",
       silver_path = "silver",
-      secure_container_suffix = "",
+      secure_container_suffix = Some(""),
       output_method = "paths",
       log_level = "WARN"
     )
