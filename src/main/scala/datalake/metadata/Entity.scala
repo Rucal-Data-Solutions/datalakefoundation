@@ -199,23 +199,23 @@ class Entity(
 
     // environment override for raw
     _settings.get("raw_path") match {
-      case Some(value: String) => rawPath ++= value.normalized_path
+      case Some(value: String) => rawPath ++= value.normalizedPath
       case _ =>
-        rawPath ++= environment.RawPath.normalized_path
+        rawPath ++= environment.RawPath.normalizedPath
     }
 
     // environment override for bronze
     _settings.get("bronze_path") match {
-      case Some(value: String) => bronzePath ++= value.normalized_path
+      case Some(value: String) => bronzePath ++= value.normalizedPath
       case _ =>
-        bronzePath ++= environment.BronzePath.normalized_path
+        bronzePath ++= environment.BronzePath.normalizedPath
     }
 
     // environment override for silver
     _settings.get("silver_path") match {
-      case Some(value: String) => silverPath ++= value.normalized_path
+      case Some(value: String) => silverPath ++= value.normalizedPath
       case _ =>
-        silverPath ++= environment.SilverPath.normalized_path
+        silverPath ++= environment.SilverPath.normalizedPath
     }
 
     val retRawPath = parseString(rawPath.toString)

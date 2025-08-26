@@ -58,7 +58,7 @@ final object Historic extends ProcessStrategy {
       val explicit_partFilter = partition_filters.mkString(" AND ")
       
       // Check for schema changes
-      val schemaChanges = source.datalake_schemacompare(deltaTable.toDF.schema)
+      val schemaChanges = source.datalakeSchemaCompare(deltaTable.toDF.schema)
       if (schemaChanges.nonEmpty) {
         logger.warn(s"Schema changes detected during Historic processing:")
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
