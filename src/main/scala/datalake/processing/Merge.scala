@@ -63,7 +63,7 @@ final object Merge extends ProcessStrategy {
       }
       val explicit_partFilter = partition_values.mkString(" AND ")
 
-      val schemaChanges = source.datalake_schemacompare(deltaTable.toDF.schema)
+      val schemaChanges = source.datalakeSchemaCompare(deltaTable.toDF.schema)
       if (schemaChanges.nonEmpty) {
         logger.warn(s"Schema changes detected during Merge processing:")
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))

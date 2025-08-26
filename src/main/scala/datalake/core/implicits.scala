@@ -11,9 +11,11 @@ import java.time.LocalDateTime
 
 object implicits {
 
+  // Extension helpers for DataFrame normalization, schema comparison, and path utilities
+
   implicit class DatalakeDataFrame(df: DataFrame) {
 
-    def datalake_normalize(): DataFrame = {
+    def datalakeNormalize(): DataFrame = {
       val columns = df.columns
 
       // drop sys columns
@@ -25,10 +27,10 @@ object implicits {
         tempdf.withColumnRenamed(name._2, name._1)
       }
 
-      return resultingDf
+      resultingDf
     }
 
-    def datalake_schemacompare(targetSchema: StructType): Array[(DatalakeColumn, String)] = {
+    def datalakeSchemaCompare(targetSchema: StructType): Array[(DatalakeColumn, String)] = {
 
       val targetColumns = targetSchema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) )
       val sourceColumns = df.schema.fields.map(fld => DatalakeColumn(fld.name.toLowerCase(), fld.dataType, fld.nullable ) )
@@ -65,16 +67,15 @@ object implicits {
         }
       }
 
-      return schemaDifferences.toArray
+      schemaDifferences.toArray
     }
 
   }
 
   implicit class StringFunctions(str: String) {
 
-    def normalized_path: String ={
-      return s"${if (str.toString.startsWith("/")) str else "/" + str}"
-    }
+    def normalizedPath: String =
+      s"${if (str.toString.startsWith("/")) str else "/" + str}"
 
   }
 

@@ -87,7 +87,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       .transform(addDeletedColumn)
       .transform(addLastSeen)
       .transform(addFilenameColumn(_, sliceFile))
-      .datalake_normalize()
+      .datalakeNormalize()
       .cache() // Cache the DataFrame since it will be used multiple times
 
     // Now trigger actions after all transformations are done
