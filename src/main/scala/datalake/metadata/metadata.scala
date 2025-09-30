@@ -47,7 +47,7 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
   }
 
   def getEntity(id: Int): Entity = {
-    val entity = metadataSettings.getEntity(id)
+    val entity = metadataSettings.getEntitiesById(id)
     entity match {
       case Some(entity) => entity
       case None         => throw EntityNotFoundException(s"Entity (${id}) not found")
@@ -64,11 +64,18 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
   }
 
   def getEntities(entityId: Int): List[Entity] = {
-    metadataSettings.getEntity(entityId) match{
+    metadataSettings.getEntitiesById(entityId) match{
       case Some(value) => List(value)
       case None => List.empty[Entity]
     }
   }
+
+  def getEntities(entityIds: Array[Int]): List[Entity] = {
+    metadataSettings.getEntitiesById(entityIds) match{
+      case Some(value) => value
+      case None => List.empty[Entity]
+    }
+  } 
 
   def getConnection(connectionCode: String): Connection = {
     val connection = metadataSettings.getConnection(connectionCode)
