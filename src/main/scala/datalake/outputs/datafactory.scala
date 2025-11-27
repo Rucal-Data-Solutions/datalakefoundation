@@ -23,10 +23,11 @@ object DataFactory {
   def getConfigItems(arg: Any)(implicit metadata: Metadata): String = {
     implicit val formats: Formats = DefaultFormats + FieldSerializer[EntityColumn]() + new EntitySerializer(metadata) + new WatermarkSerializer(metadata)
 
-    val entities = arg match {
+    val entities: List[Entity] = arg match {
       case group: EntityGroup => metadata.getEntities(group).filter(_.isEnabled())
       case connection: Connection => metadata.getEntities(connection).filter(_.isEnabled())
       case entityId: Int => metadata.getEntities(entityId)
+      case entities: Array[Int] => metadata.getEntities(entities)
       case _ => throw new Exception(s"Invalid parameter type ${arg.getClass().getTypeName()}")
     }
 

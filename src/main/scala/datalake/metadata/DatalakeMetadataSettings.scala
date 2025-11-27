@@ -22,6 +22,7 @@ abstract class DatalakeMetadataSettings extends Serializable {
 
   private var _connections: List[JValue] = _
   private var _entities: List[JValue] = _
+  private var _entitiesById: Map[Int, JValue] = _
   private var _environment_settings: JValue = _
 
   implicit val spark: SparkSession =
@@ -45,6 +46,10 @@ abstract class DatalakeMetadataSettings extends Serializable {
 
     _connections = (json \ "connections").extract[List[JValue]]
     _entities = (json \ "entities").extract[List[JValue]]
+
+    // Build cached map for efficient lookups
+    _entitiesById = _entities.map(j => (j \ "id").extract[Int] -> j).toMap
+
     _environment_settings = json \ "environment"
 
     // Check if all entity IDs are unique using safer extraction
@@ -64,11 +69,17 @@ abstract class DatalakeMetadataSettings extends Serializable {
     _metadata = metadata
   }
   
-  final def getEntity(id: Int): Option[Entity] = {
+  final def getEntitiesById(id: Int): Option[Entity] = {
     implicit var formats: Formats =
       DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
-    val entity = _entities.find(j => (j \ "id").extract[Int] == id).map(j => j.extract[Entity])
-    entity
+    _entitiesById.get(id).map(_.extract[Entity])
+  }
+
+  final def getEntitiesById(ids: Array[Int]): Option[List[Entity]] = {
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
+    val entities = ids.flatMap(_entitiesById.get).map(_.extract[Entity]).toList
+    if(entities.nonEmpty) Some(entities) else None
   }
 
   final def getConnectionEntities(connection: Connection): List[Entity] = {
