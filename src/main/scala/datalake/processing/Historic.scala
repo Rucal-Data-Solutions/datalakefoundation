@@ -56,6 +56,21 @@ final object Historic extends ProcessStrategy {
         case TableLocation(table) => DeltaTable.forName(table)
       }
       val explicit_partFilter = partition_filters.mkString(" AND ")
+      val partitionFilterColumn = if (partition_filters.nonEmpty) Some(expr(explicit_partFilter)) else None
+      val watermarkCondition = watermarkWindowCondition(
+        processing,
+        datalake_source.current_watermark_values,
+        datalake_source.watermark_values,
+        deltaTable.toDF
+      )
+      val deleteCondition =
+        if (processing.inferDeletesFromMissing) {
+          watermarkCondition.map { wmCondition =>
+            val isCurrentFilter = col(s"target.${env.SystemFieldPrefix}IsCurrent") === lit(true)
+            val withPartition = partitionFilterColumn.map(wmCondition && _).getOrElse(wmCondition)
+            withPartition && isCurrentFilter
+          }
+        } else None
       
       // Check for schema changes
       val schemaChanges = source.datalakeSchemaCompare(deltaTable.toDF.schema)
@@ -67,7 +82,7 @@ final object Historic extends ProcessStrategy {
       logger.debug("Starting Historic Merge operation")
 
       // merge operation for SCD Type 2
-      deltaTable.as("target")
+      val mergeBuilder = deltaTable.as("target")
         .merge(
           source.as("source"),
           s"target.${processing.primaryKeyColumnName} = source.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = true" +
@@ -83,7 +98,22 @@ final object Historic extends ProcessStrategy {
         )
         .whenNotMatched() // Insert actual new records (new PrimaryKey)
         .insertAll()
-        .execute()
+
+      val mergeWithDeletes = deleteCondition match {
+        case Some(cond) =>
+          mergeBuilder.whenNotMatchedBySource(cond.expr.sql).update(
+            Map(
+              s"${env.SystemFieldPrefix}deleted" -> lit(true),
+              s"${env.SystemFieldPrefix}IsCurrent" -> lit(false),
+              s"${env.SystemFieldPrefix}ValidTo" -> to_timestamp(lit(processing.processingTime)),
+              s"${env.SystemFieldPrefix}lastSeen" -> to_timestamp(lit(processing.processingTime))
+            )
+          )
+        case None => mergeBuilder
+      }
+
+      // Execute the merge before computing new version rows so the target reflects closed records
+      mergeWithDeletes.execute()
 
       // Insert new versions for updated records
       val updatedRecords = source.as("source")

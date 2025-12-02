@@ -24,7 +24,12 @@ import org.apache.logging.log4j.LogManager
 import datalake.log.DatalakeLogManager
 
 
-case class DatalakeSource(source_df: DataFrame, watermark_values: Option[Array[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
+case class DatalakeSource(
+    source_df: DataFrame,
+    watermark_values: Option[Array[(Watermark, Any)]],
+    partition_columns: Option[List[(String, Any)]],
+    current_watermark_values: Option[Array[(Watermark, Any)]]
+)
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
@@ -41,6 +46,11 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   final val ioLocations = entity.OutputMethod
   final val watermarkColumns = entity.Watermark
   final val entitySettings = entity.Settings
+  
+  private val inferMissingDeletes: Boolean = entity.Settings
+    .get("delete_missing")
+    .flatMap(v => Try(v.toString.toBoolean).toOption)
+    .getOrElse(false)
   
   // final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: OutputLocation = ioLocations.silver
@@ -65,6 +75,8 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   @transient 
   private lazy val logger = DatalakeLogManager.getLogger(this.getClass, environment)
+
+  def inferDeletesFromMissing: Boolean = inferMissingDeletes
 
   def getSource: DatalakeSource = {
     logger.debug(s"getSource called by ${Thread.currentThread().getName}")
@@ -96,9 +108,10 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     }
 
     val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
+    val current_watermark_values = getCurrentWatermarkValues(watermarkColumns)
     val part_values = getPartitionValues(transformedDF)
 
-    new DatalakeSource(transformedDF, new_watermark_values, part_values)
+    new DatalakeSource(transformedDF, new_watermark_values, part_values, current_watermark_values)
   }
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: Array[Watermark]): Option[Array[(Watermark, Any)]] = {
@@ -113,6 +126,13 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     } else {
       None
     }
+  }
+
+  private def getCurrentWatermarkValues(wm_columns: Array[Watermark]): Option[Array[(Watermark, Any)]] = {
+    if (wm_columns.nonEmpty) {
+      val values: Array[(Watermark, Any)] = wm_columns.flatMap(wm => wm.Value.map(v => (wm, v.asInstanceOf[Any])))
+      if (values.nonEmpty) Some(values) else None
+    } else None
   }
 
   private def getPartitionValues(slice: DataFrame): Option[List[(String, String)]] = {

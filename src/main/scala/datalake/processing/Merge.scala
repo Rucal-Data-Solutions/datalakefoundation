@@ -51,6 +51,7 @@ final object Merge extends ProcessStrategy {
     } else {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
+      
 
       val partition_values: Array[String] = datalake_source.partition_columns match {
         case Some(part) => part.toArray.map(c => s"target.${c._1} IN(${c._2.toString()})")
@@ -62,6 +63,20 @@ final object Merge extends ProcessStrategy {
         case TableLocation(table) => DeltaTable.forName(table)
       }
       val explicit_partFilter = partition_values.mkString(" AND ")
+      val partitionFilterColumn = if (partition_values.nonEmpty) Some(expr(explicit_partFilter)) else None
+      val watermarkCondition = watermarkWindowCondition(
+        processing,
+        datalake_source.current_watermark_values,
+        datalake_source.watermark_values,
+        deltaTable.toDF
+      )
+
+      val deleteCondition =
+        if (processing.inferDeletesFromMissing) {
+          watermarkCondition.map { wmCondition =>
+            partitionFilterColumn.map(wmCondition && _).getOrElse(wmCondition)
+          }
+        } else None
 
       val schemaChanges = source.datalakeSchemaCompare(deltaTable.toDF.schema)
       if (schemaChanges.nonEmpty) {
@@ -71,7 +86,7 @@ final object Merge extends ProcessStrategy {
       
       logger.debug("Starting Merge operation")
       
-      deltaTable
+      val mergeBuilder = deltaTable
         .as("target")
         .merge(
           source.as("source"),
@@ -86,8 +101,20 @@ final object Merge extends ProcessStrategy {
         .update(Map(s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
         .whenNotMatched(s"source.${env.SystemFieldPrefix}deleted = false")
         .insertAll()
-        .execute()
 
+      // Add the delete condition handling
+      val mergeWithDeletes = deleteCondition match {
+        case Some(cond) =>
+          mergeBuilder.whenNotMatchedBySource(cond.expr.sql).update(
+            Map(
+              s"${env.SystemFieldPrefix}deleted" -> lit(true),
+              s"${env.SystemFieldPrefix}lastSeen" -> to_timestamp(lit(processing.processingTime))
+            )
+          )
+        case None => mergeBuilder
+      }
+
+      mergeWithDeletes.execute()
     }
     
 
