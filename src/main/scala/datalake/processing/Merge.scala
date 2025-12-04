@@ -105,7 +105,7 @@ final object Merge extends ProcessStrategy {
       // Add the delete condition handling
       val mergeWithDeletes = deleteCondition match {
         case Some(cond) =>
-          mergeBuilder.whenNotMatchedBySource(cond.expr.sql).update(
+          mergeBuilder.whenNotMatchedBySource(cond).update(
             Map(
               s"${env.SystemFieldPrefix}deleted" -> lit(true),
               s"${env.SystemFieldPrefix}lastSeen" -> to_timestamp(lit(processing.processingTime))

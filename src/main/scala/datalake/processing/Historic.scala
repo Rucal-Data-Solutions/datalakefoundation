@@ -101,7 +101,7 @@ final object Historic extends ProcessStrategy {
 
       val mergeWithDeletes = deleteCondition match {
         case Some(cond) =>
-          mergeBuilder.whenNotMatchedBySource(cond.expr.sql).update(
+          mergeBuilder.whenNotMatchedBySource(cond).update(
             Map(
               s"${env.SystemFieldPrefix}deleted" -> lit(true),
               s"${env.SystemFieldPrefix}IsCurrent" -> lit(false),

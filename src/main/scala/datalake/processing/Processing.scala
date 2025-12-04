@@ -36,14 +36,14 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 class Processing(private val entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment: datalake.metadata.Environment = entity.Environment
   
-  def getOutputMethod: Output = entity.OutputMethod
+  // def getOutputMethod: Output = entity.getOutput
   
   private val columns = entity.Columns
 
   final val entity_id = entity.Id
   final val primaryKeyColumnName: String = s"PK_${entity.Destination}"
 
-  final val ioLocations = entity.OutputMethod
+  final val ioLocations = entity.getOutput
   final val watermarkColumns = entity.Watermark
   final val entitySettings = entity.Settings
   
