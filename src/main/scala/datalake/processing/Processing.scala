@@ -55,17 +55,20 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   // final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: OutputLocation = ioLocations.silver
 
-  final lazy val processingTime = {
-    if (options.contains("processing.time")) {
-      try {
-        LocalDateTime.parse(options("processing.time")).toString
-      } catch {
-        case _: Exception =>
-          logger.error(s"Invalid processing.time value: ${options("processing.time")} - falling back to current time.")
-          LocalDateTime.now(environment.Timezone.toZoneId).toString
-      }
-    } else {
-      LocalDateTime.now(environment.Timezone.toZoneId).toString
+  final lazy val processingTime: String = {
+    val now = LocalDateTime.now(environment.Timezone.toZoneId).toString
+
+    options.get("processing.time") match {
+      case Some(value) =>
+        Try(LocalDateTime.parse(value)) match {
+          case Success(_) =>
+            logger.debug(s"Using $value for processing time.")
+            value
+          case Failure(_) =>
+            logger.error(s"Invalid processing.time value: $value - falling back to current time.")
+            now
+        }
+      case None => now
     }
   }
 
