@@ -99,7 +99,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 		val metadata = new Metadata(settings, override_env)
 		val testEntity = metadata.getEntity(1)
 		val paths = testEntity.getPaths
-		val ioLocations = testEntity.OutputMethod
+		val ioLocations = testEntity.getOutput
 
 		val (bronzePath, silverPath) = (paths.bronzepath, paths.silverpath)
 
@@ -170,7 +170,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 		val metadata = new Metadata(settings, override_env)
 		val testEntity = metadata.getEntity(1)
 		val paths = testEntity.getPaths
-		val ioLocations = testEntity.OutputMethod
+		val ioLocations = testEntity.getOutput
 
 		val initialSlice = s"initial_slice_${testId}.parquet"
 		val updatedSlice = s"updated_slice_${testId}.parquet"
@@ -246,7 +246,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
 		val metadata = new Metadata(settings, override_env)
 		val testEntity = metadata.getEntity(1)
-		val ioLocations = testEntity.OutputMethod
+		val ioLocations = testEntity.getOutput
 
 		val inMemoryDataFile = s"inmemory_data_${testId}.parquet"
 		df.write.mode("overwrite").parquet(s"${testEntity.getPaths.bronzepath}/$inMemoryDataFile")
@@ -311,7 +311,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 
 		val metadata = new Metadata(settings, env)
 		val testEntity = metadata.getEntity(2)
-		val om = testEntity.OutputMethod 
+		val om = testEntity.getOutput 
 
 		// Generate unique test identifier to avoid conflicts with concurrent tests
 		val testId = s"watermark_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -352,7 +352,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 		val metadata = new Metadata(settings, override_env)
 		val testEntity = metadata.getEntity(3) // Using entity 3 which has delta processtype but no silver_table setting
 		val paths = testEntity.getPaths
-		val ioLocations = testEntity.OutputMethod
+		val ioLocations = testEntity.getOutput
 
 		// Generate unique test identifier to avoid conflicts with concurrent tests
 		val testId = s"merge_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -460,7 +460,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 		val metadata = new Metadata(settings, override_env)
 		val testEntity = metadata.getEntity(1)
 		val paths = testEntity.getPaths
-		val ioLocations = testEntity.OutputMethod
+		val ioLocations = testEntity.getOutput
 
 		// Generate unique test identifier to avoid conflicts with concurrent tests
 		val testId = s"blank_slice_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -529,7 +529,7 @@ class ProcessingTests extends AnyFunSuite with SparkSessionTest {
 		val metadata = new Metadata(settings, env)
 		val testEntity = metadata.getEntity(2) // has SeqNr watermark
 		val watermark = testEntity.Watermark.head
-		val ioLocations = testEntity.OutputMethod
+		val ioLocations = testEntity.getOutput
 
 		// Seed previous watermark value (simulating a prior processing run)
 		val wmd = new WatermarkData(testEntity.Id)
