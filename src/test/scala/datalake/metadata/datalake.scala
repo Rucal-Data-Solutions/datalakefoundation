@@ -20,11 +20,26 @@ import org.apache.hadoop.fs.Path
 import java.sql.Timestamp
 
 trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterEach with Matchers {
+  // Use unique app name and warehouse per test class instance to avoid session sharing
+  private val uniqueId = s"${this.getClass.getSimpleName}-${System.nanoTime()}"
+
+  // Enable forced shutdown after cleanup when running in debug mode
+  // Set system property: -Dspark.test.forceShutdown=true
+  private val forceShutdown = sys.props.get("spark.test.forceShutdown").exists(_.toBoolean)
+
   val conf: SparkConf = new SparkConf()
     .setMaster("local[*]")
-    .setAppName("Rucal Unit Tests")
+    .setAppName(s"Rucal Unit Tests - $uniqueId")
     .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+    .set("spark.ui.enabled", "false") // Disable Spark UI to prevent port conflicts
+    .set("spark.sql.shuffle.partitions", "4") // Reduce shuffle partitions for faster tests
+    .set("spark.sql.warehouse.dir", s"${System.getProperty("java.io.tmpdir")}/spark-warehouse-$uniqueId")
+    .set("spark.driver.host", "localhost") // Explicitly set driver host
+    // Derby/Hive metastore settings to avoid locks and conflicts
+    .set("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:${uniqueId};create=true")
+    .set("spark.sql.catalogImplementation", "hive")
+    .set("spark.sql.streaming.stopTimeout", "5000") // 5 second timeout for streaming query shutdown
 
 
   lazy val spark: SparkSession = SparkSession
@@ -49,7 +64,24 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
   )
 
   override def beforeAll(): Unit = {
-    spark.sparkContext.setLogLevel("ERROR")
+    try {
+      // Ensure we have a valid SparkSession
+      // If session is stopped from a previous run, this will create a new one
+      if (spark.sparkContext.isStopped) {
+        // Clear the stopped session reference and force reinitialization
+        SparkSession.clearActiveSession()
+        SparkSession.clearDefaultSession()
+        // This is a lazy val, so we can't reinitialize it directly
+        // The test will fail here, but at least we'll know why
+        throw new IllegalStateException("SparkSession was already stopped. Please restart the test runner.")
+      }
+      spark.sparkContext.setLogLevel("ERROR")
+    } catch {
+      case e: IllegalStateException => throw e // Re-throw our custom exception
+      case _: Exception =>
+        // If we can't access the spark context, try to initialize it
+        spark.sparkContext.setLogLevel("ERROR")
+    }
     super.beforeAll()
   }
 
@@ -61,34 +93,56 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
 
   protected def cleanupTestData(): Unit = {
     import org.apache.commons.io.FileUtils
-    
+
     try {
-      // Clean up file system paths
+      // Clean up file system paths - force delete and recreate to ensure clean state
       val silverFolder = new java.io.File(s"$testBasePath/silver")
       if (silverFolder.exists()) {
-        FileUtils.cleanDirectory(silverFolder)
+        FileUtils.deleteDirectory(silverFolder)
       }
-      
+      silverFolder.mkdirs()
+
+      val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
+      if (bronzeFolder.exists()) {
+        FileUtils.deleteDirectory(bronzeFolder)
+      }
+      bronzeFolder.mkdirs()
+
       // Clean up any test tables in the metastore
-      // Get list of databases that might contain test tables
+      // Get list of ALL databases except default and system databases
       val testDatabases = spark.sql("SHOW DATABASES").collect()
         .map(_.getString(0))
-        .filter(db => db.startsWith("test_") || db.startsWith("silver_"))
-      
+        .filter(db => db != "default" && !db.startsWith("sys_") && !db.startsWith("information_schema"))
+
       testDatabases.foreach { dbName =>
         try {
-          val tables = spark.sql(s"SHOW TABLES IN `$dbName`").collect()
-          tables.foreach { tableRow =>
-            val tableName = tableRow.getString(1)
-            try {
-              spark.sql(s"DROP TABLE IF EXISTS `$dbName`.`$tableName`")
-            } catch {
-              case _: Exception => // Ignore individual table cleanup errors
-            }
-          }
+          // Drop the entire database cascade to remove all tables and the database itself
+          spark.sql(s"DROP DATABASE IF EXISTS `$dbName` CASCADE")
         } catch {
           case _: Exception => // Ignore if database doesn't exist or can't be accessed
         }
+      }
+
+      // Also clean up spark-warehouse directory for ALL non-default databases
+      try {
+        val warehouseDir = new java.io.File("spark-warehouse")
+        if (warehouseDir.exists() && warehouseDir.isDirectory) {
+          val warehouseFiles = warehouseDir.listFiles()
+          if (warehouseFiles != null) {
+            warehouseFiles.filter(_.isDirectory).foreach { dbDir =>
+              val dbName = dbDir.getName.replace(".db", "")
+              if (dbName != "default") {
+                try {
+                  FileUtils.deleteDirectory(dbDir)
+                } catch {
+                  case _: Exception => // Ignore cleanup errors
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        case _: Exception => // Ignore warehouse cleanup errors
       }
     } catch {
       case _: Exception => // Ignore cleanup errors - tests should still run
@@ -98,13 +152,80 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
   override def afterAll(): Unit = {
     try {
       if (spark != null) {
-        spark.streams.active.foreach(_.stop())  // Stop any active streams
-        spark.stop()
-        spark.sparkContext.stop()
+        try {
+          // Stop all active streaming queries with timeout
+          spark.streams.active.foreach { query =>
+            try {
+              query.stop()
+              query.awaitTermination(5000) // Wait max 5 seconds for graceful shutdown
+            } catch {
+              case _: Exception => // Ignore if already stopped or timeout
+            }
+          }
+        } catch {
+          case _: Exception => // Ignore if streams is not accessible
+        }
+
+        try {
+          // Stop spark session (this also stops the context)
+          spark.stop()
+        } catch {
+          case _: Exception => // Ignore if already stopped
+        }
       }
-      SparkSession.clearActiveSession()  // Clear the active session
-      SparkSession.clearDefaultSession() // Clear the default session
-      org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
+
+      // Clear session references
+      SparkSession.clearActiveSession()
+      SparkSession.clearDefaultSession()
+
+      // Shutdown Derby to release its threads
+      try {
+        java.sql.DriverManager.getConnection(s"jdbc:derby:memory:${uniqueId};drop=true")
+      } catch {
+        case _: java.sql.SQLException => // Derby throws SQLException on successful shutdown
+        case _: Exception => // Ignore other exceptions
+      }
+
+      // Clean up test directory
+      try {
+        org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
+      } catch {
+        case _: Exception => // Ignore if directory doesn't exist or can't be deleted
+      }
+
+      // Clean up temporary warehouse directory
+      try {
+        val warehouseDir = new java.io.File(s"${System.getProperty("java.io.tmpdir")}/spark-warehouse-$uniqueId")
+        if (warehouseDir.exists()) {
+          org.apache.commons.io.FileUtils.deleteDirectory(warehouseDir)
+        }
+      } catch {
+        case _: Exception => // Ignore if directory doesn't exist or can't be deleted
+      }
+
+      // If forceShutdown is enabled (for debug mode), schedule JVM exit
+      // This helps debug sessions terminate cleanly in IDEs
+      if (forceShutdown) {
+        // Give it 2 seconds to finish cleanup, then force exit
+        val shutdownThread = new Thread(() => {
+          try {
+            Thread.sleep(2000)
+            println("SparkSessionTest: Forcing JVM shutdown after cleanup")
+            // Print remaining non-daemon threads for debugging
+            Thread.getAllStackTraces.keySet().toArray.foreach {
+              case t: Thread if !t.isDaemon && t.isAlive =>
+                println(s"  Non-daemon thread still running: ${t.getName} (${t.getState})")
+              case _ => // Skip daemon threads
+            }
+            System.exit(0)
+          } catch {
+            case _: InterruptedException => // Cancelled, normal termination happened
+          }
+        })
+        shutdownThread.setDaemon(true)
+        shutdownThread.setName("test-force-shutdown")
+        shutdownThread.start()
+      }
     } finally {
       super.afterAll()
     }

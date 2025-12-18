@@ -22,23 +22,11 @@ class BenchmarkSpec extends AnyFunSuite with SparkSessionTest {
     val silverFolder = new java.io.File(s"$testBasePath/silver")
     if (!silverFolder.exists()) silverFolder.mkdirs()
 
-    val env = new Environment(
-      "DEBUG (OVERRIDE)",
-      testBasePath.replace("\\", "/"),
-      "Europe/Amsterdam",
-      "/${connection}/${entity}",
-      "/${connection}/${entity}",
-      "/${connection}/${destination}",
-      secure_container_suffix = Some("-secure"),
-      output_method = "paths",
-      log_level = "WARN"
-    )
-
     val settings = new JsonMetadataSettings()
     val user_dir = System.getProperty("user.dir")
     settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
 
-    val metadata = new Metadata(settings, env)
+    val metadata = new Metadata(settings, override_env)
     val mergeEntity = metadata.getEntity(2)
     val historicEntity = metadata.getEntity(1)
 
