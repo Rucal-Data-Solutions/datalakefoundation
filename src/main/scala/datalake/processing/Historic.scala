@@ -57,15 +57,23 @@ final object Historic extends ProcessStrategy {
       }
       val explicit_partFilter = partition_filters.mkString(" AND ")
       val partitionFilterColumn = if (partition_filters.nonEmpty) Some(expr(explicit_partFilter)) else None
+      // Build the watermark window condition to scope delete detection
       val watermarkCondition = watermarkWindowCondition(
         processing,
         datalake_source.current_watermark_values,
         datalake_source.watermark_values,
         deltaTable.toDF
       )
+
+      // inferDeletesFromMissing for SCD Type 2: Mark current records as deleted if missing from source
+      // Similar to Merge strategy, but only operates on current versions (IsCurrent=true)
+      // When a record is marked deleted, both deleted=true AND IsCurrent=false are set,
+      // which prevents it from being updated again on subsequent runs
       val deleteCondition =
         if (processing.inferDeletesFromMissing) {
           watermarkCondition.map { wmCondition =>
+            // IsCurrent=true ensures we only operate on current versions, not historical records
+            // This also excludes already-deleted records since they have IsCurrent=false
             val isCurrentFilter = col(s"target.${env.SystemFieldPrefix}IsCurrent") === lit(true)
             val withPartition = partitionFilterColumn.map(wmCondition && _).getOrElse(wmCondition)
             withPartition && isCurrentFilter
