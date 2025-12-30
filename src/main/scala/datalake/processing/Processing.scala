@@ -102,6 +102,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       .transform(addDeletedColumn)
       .transform(addLastSeen)
       .transform(addFilenameColumn(_, sliceFile))
+      .transform(filterByFilename)
       .datalakeNormalize()
       .cache() // Cache the DataFrame since it will be used multiple times
 
@@ -289,6 +290,15 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       input.withColumn(filenameField, lit(filename))
     } else {
       input
+    }
+  }
+
+  private def filterByFilename(input: Dataset[Row])(implicit env: Environment): Dataset[Row] = {
+    ioLocations.bronze match {
+      case TableLocation(_) =>
+        val filenameField = s"${env.SystemFieldPrefix}source_filename"
+        input.filter(col(filenameField) === sliceFile)
+      case _ => input
     }
   }
 
