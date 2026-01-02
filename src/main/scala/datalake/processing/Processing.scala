@@ -97,15 +97,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       val transformedDF = dfSlice
         .transform(injectTransformations)
         .transform(addCalculatedColumns)
-        .transform(filterByFilename)
         .transform(calculateSourceHash)
         .transform(addTemporalTrackingColumns)
+        .transform(addFilenameColumn(_, sliceFile))
         .transform(addPrimaryKey)
         .transform(castColumns)
         .transform(renameColumns)
         .transform(addDeletedColumn)
         .transform(addLastSeen)
-        .transform(addFilenameColumn(_, sliceFile))
         .datalakeNormalize()
         .cache() // Cache the DataFrame since it will be used multiple times
 
@@ -292,23 +291,19 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
     val filenameField = s"${env.SystemFieldPrefix}source_filename"
-    if (!Utils.hasColumn(input, filenameField)) {
+    val inputWithFilename = if (!Utils.hasColumn(input, filenameField)) {
+      logger.warn(
+        s"Bronze table is missing column '$filenameField' for slice filtering. " +
+        s"Adding column with value '$filename'."
+      )
       input.withColumn(filenameField, lit(filename))
     } else {
       input
     }
-  }
 
-  private def filterByFilename(input: Dataset[Row])(implicit env: Environment): Dataset[Row] = {
     ioLocations.bronze match {
-      case TableLocation(_) =>
-        val filenameField = s"${env.SystemFieldPrefix}source_filename"
-        if (Utils.hasColumn(input, filenameField)) {
-          input.filter(col(filenameField) === sliceFile)
-        } else {
-          input
-        }
-      case _ => input
+      case TableLocation(_) => inputWithFilename.filter(col(filenameField) === sliceFile)
+      case _ => inputWithFilename
     }
   }
 
