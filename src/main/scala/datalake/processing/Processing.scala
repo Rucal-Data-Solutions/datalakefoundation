@@ -51,7 +51,10 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     .get("delete_missing")
     .flatMap(v => Try(v.toString.toBoolean).toOption)
     .getOrElse(false)
-  
+
+  // Memoization for getSource to prevent creating multiple cached DataFrames
+  private var _cachedSource: Option[DatalakeSource] = None
+
   // final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: OutputLocation = ioLocations.silver
 
@@ -82,40 +85,43 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   def inferDeletesFromMissing: Boolean = inferMissingDeletes
 
   def getSource: DatalakeSource = {
-    logger.debug(s"getSource called by ${Thread.currentThread().getName}")
-    // logger.info(f"loading slice: ${sliceFileFullPath}")
+    _cachedSource.getOrElse {
+      logger.debug(s"getSource called by ${Thread.currentThread().getName} - computing source")
 
-    val dfSlice = ioLocations.bronze match {
-      case PathLocation(path) => spark.read.parquet(s"$path/$sliceFile")
-      case TableLocation(table) => spark.read.table(table)
+      val dfSlice = ioLocations.bronze match {
+        case PathLocation(path) => spark.read.parquet(s"$path/$sliceFile")
+        case TableLocation(table) => spark.read.table(table)
+      }
+
+      // Combine all transformations into a single chain before any actions
+      val transformedDF = dfSlice
+        .transform(injectTransformations)
+        .transform(addCalculatedColumns)
+        .transform(filterByFilename)
+        .transform(calculateSourceHash)
+        .transform(addTemporalTrackingColumns)
+        .transform(addPrimaryKey)
+        .transform(castColumns)
+        .transform(renameColumns)
+        .transform(addDeletedColumn)
+        .transform(addLastSeen)
+        .transform(addFilenameColumn(_, sliceFile))
+        .datalakeNormalize()
+        .cache() // Cache the DataFrame since it will be used multiple times
+
+      // Now trigger actions after all transformations are done
+      if (transformedDF.isEmpty) {
+        logger.warn("Slice contains no data (RowCount=0)")
+      }
+
+      val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
+      val current_watermark_values = getCurrentWatermarkValues(watermarkColumns)
+      val part_values = getPartitionValues(transformedDF)
+
+      val source = new DatalakeSource(transformedDF, new_watermark_values, part_values, current_watermark_values)
+      _cachedSource = Some(source)
+      source
     }
-
-    // Combine all transformations into a single chain before any actions
-    val transformedDF = dfSlice
-      .transform(injectTransformations)
-      .transform(addCalculatedColumns)
-      .transform(filterByFilename)
-      .transform(calculateSourceHash)
-      .transform(addTemporalTrackingColumns)
-      .transform(addPrimaryKey)
-      .transform(castColumns)
-      .transform(renameColumns)
-      .transform(addDeletedColumn)
-      .transform(addLastSeen)
-      .transform(addFilenameColumn(_, sliceFile))
-      .datalakeNormalize()
-      .cache() // Cache the DataFrame since it will be used multiple times
-
-    // Now trigger actions after all transformations are done
-    if (transformedDF.isEmpty) {
-      logger.warn("Slice contains no data (RowCount=0)")
-    }
-
-    val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
-    val current_watermark_values = getCurrentWatermarkValues(watermarkColumns)
-    val part_values = getPartitionValues(transformedDF)
-
-    new DatalakeSource(transformedDF, new_watermark_values, part_values, current_watermark_values)
   }
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: Array[Watermark]): Option[Array[(Watermark, Any)]] = {
@@ -317,7 +323,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
     try {
       strategy.Process(this)
-      WriteWatermark(getSource.watermark_values) 
+      WriteWatermark(getSource.watermark_values)
     }
     catch {
       case e:Throwable => {
@@ -325,6 +331,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
         // e.printStackTrace()
         throw e
       }
+    }
+    finally {
+      // Clean up cached DataFrame to free memory
+      _cachedSource.foreach { source =>
+        logger.debug("Unpersisting cached DataFrame")
+        source.source_df.unpersist()
+      }
+      _cachedSource = None
     }
 
 }
