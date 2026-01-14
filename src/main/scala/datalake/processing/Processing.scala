@@ -171,9 +171,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   private def calculateSourceHash(input: Dataset[Row])(implicit env: Environment): Dataset[Row] ={
     val hashfield = s"${env.SystemFieldPrefix}SourceHash"
     if (Utils.hasColumn(input, hashfield) == false) {
+      val nonSystemColumns = {
+        // If prefix is empty, filter out known system column names
+        val systemColumnNames = Set(s"${env.SystemFieldPrefix}source_filename")
+        input.columns.filterNot(systemColumnNames.contains)
+      }
       input.withColumn(
         hashfield,
-        sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
+        sha2(concat_ws("", nonSystemColumns.map(c => col("`" + c + "`").cast("string")): _*), 256)
       )
     } else
       input
