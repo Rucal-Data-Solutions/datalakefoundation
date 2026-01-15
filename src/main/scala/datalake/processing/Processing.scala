@@ -173,7 +173,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     if (Utils.hasColumn(input, hashfield) == false) {
       val nonSystemColumns = {
         // If prefix is empty, filter out known system column names
-        val systemColumnNames = Set(s"${env.SystemFieldPrefix}source_filename")
+        val systemColumnNames = Set(s"${env.SystemFieldPrefix}source_filename", s"${env.SystemFieldPrefix}metadata")
         input.columns.filterNot(systemColumnNames.contains)
       }
       input.withColumn(
