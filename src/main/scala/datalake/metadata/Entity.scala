@@ -117,7 +117,7 @@ class Entity(
     mergedSettings.values
   }
 
-  final def OutputMethod: Output = resolvedOutput
+  final def getOutput: Output = resolvedOutput
 
   final def getPaths: Paths = {
     val output = resolvedOutput
@@ -313,14 +313,14 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
           val combinedSettings = entity.Connection.settings merge entity.settings
 
           val outputField = {
-            val o = entity.OutputMethod
+            val o = entity.getOutput
             
             // Get the output_method setting to determine the node name
             val outputMethod = entity.Settings.getOrElse("output_method", entity.Environment.OutputMethod).toString.toLowerCase
             
             // Use the output_method setting to determine node name
             val nodeName = outputMethod match {
-              case "output" => "output"  // When "output" is specified, use "output" node
+              case "output" => "output"  // When "catalog" is specified, use "output" node
               case _ => "paths"          // Default to "paths" for backward compatibility
             }
             

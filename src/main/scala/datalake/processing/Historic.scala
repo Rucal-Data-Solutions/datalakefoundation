@@ -56,6 +56,29 @@ final object Historic extends ProcessStrategy {
         case TableLocation(table) => DeltaTable.forName(table)
       }
       val explicit_partFilter = partition_filters.mkString(" AND ")
+      val partitionFilterColumn = if (partition_filters.nonEmpty) Some(expr(explicit_partFilter)) else None
+      // Build the watermark window condition to scope delete detection
+      val watermarkCondition = watermarkWindowCondition(
+        processing,
+        datalake_source.current_watermark_values,
+        datalake_source.watermark_values,
+        deltaTable.toDF
+      )
+
+      // inferDeletesFromMissing for SCD Type 2: Mark current records as deleted if missing from source
+      // Similar to Merge strategy, but only operates on current versions (IsCurrent=true)
+      // When a record is marked deleted, both deleted=true AND IsCurrent=false are set,
+      // which prevents it from being updated again on subsequent runs
+      val deleteCondition =
+        if (processing.inferDeletesFromMissing) {
+          watermarkCondition.map { wmCondition =>
+            // IsCurrent=true ensures we only operate on current versions, not historical records
+            // This also excludes already-deleted records since they have IsCurrent=false
+            val isCurrentFilter = col(s"target.${env.SystemFieldPrefix}IsCurrent") === lit(true)
+            val withPartition = partitionFilterColumn.map(wmCondition && _).getOrElse(wmCondition)
+            withPartition && isCurrentFilter
+          }
+        } else None
       
       // Check for schema changes
       val schemaChanges = source.datalakeSchemaCompare(deltaTable.toDF.schema)
@@ -67,7 +90,7 @@ final object Historic extends ProcessStrategy {
       logger.debug("Starting Historic Merge operation")
 
       // merge operation for SCD Type 2
-      deltaTable.as("target")
+      val mergeBuilder = deltaTable.as("target")
         .merge(
           source.as("source"),
           s"target.${processing.primaryKeyColumnName} = source.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = true" +
@@ -83,7 +106,22 @@ final object Historic extends ProcessStrategy {
         )
         .whenNotMatched() // Insert actual new records (new PrimaryKey)
         .insertAll()
-        .execute()
+
+      val mergeWithDeletes = deleteCondition match {
+        case Some(cond) =>
+          mergeBuilder.whenNotMatchedBySource(cond).update(
+            Map(
+              s"${env.SystemFieldPrefix}deleted" -> lit(true),
+              s"${env.SystemFieldPrefix}IsCurrent" -> lit(false),
+              s"${env.SystemFieldPrefix}ValidTo" -> to_timestamp(lit(processing.processingTime)),
+              s"${env.SystemFieldPrefix}lastSeen" -> to_timestamp(lit(processing.processingTime))
+            )
+          )
+        case None => mergeBuilder
+      }
+
+      // Execute the merge before computing new version rows so the target reflects closed records
+      mergeWithDeletes.execute()
 
       // Insert new versions for updated records
       val updatedRecords = source.as("source")

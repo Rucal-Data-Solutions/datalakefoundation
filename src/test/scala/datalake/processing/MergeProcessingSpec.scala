@@ -22,7 +22,7 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(2)
     val paths = testEntity.getPaths
-    val ioLocations = testEntity.OutputMethod
+    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier to avoid conflicts with concurrent tests
     val testId = s"merge_first_run_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -126,7 +126,7 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     ).toDF("id", "name", "data", "test_id")
 
     val slice = s"schema_test_slice_${testId}.parquet"
-    val bronzePath = testEntity.OutputMethod.bronze.asInstanceOf[PathLocation].path
+    val bronzePath = testEntity.getOutput.bronze.asInstanceOf[PathLocation].path
     
     testData.write.mode("overwrite").parquet(s"$bronzePath/$slice")
 
@@ -164,7 +164,7 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(2)
     val paths = testEntity.getPaths
-    val ioLocations = testEntity.OutputMethod
+    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier
     val testId = s"merge_operations_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -248,7 +248,7 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(2) // Has partition column "Administration"
     val paths = testEntity.getPaths
-    val ioLocations = testEntity.OutputMethod
+    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier
     val testId = s"merge_partitions_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
@@ -330,7 +330,7 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     val metadata = new Metadata(settings, override_env)
     val testEntity = metadata.getEntity(3)
     val paths = testEntity.getPaths
-    val ioLocations = testEntity.OutputMethod
+    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier
     val testId = s"merge_schema_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"

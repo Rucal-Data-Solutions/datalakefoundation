@@ -3,7 +3,7 @@ lazy val scala212 = "2.12.18"
 lazy val supportedScalaVersions = List(scala212, scala213)
 
 ThisBuild / scalaVersion     := scala213
-ThisBuild / version          := "1.4.7"
+ThisBuild / version          := "1.5.1"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 lazy val sparkVersion = "3.5.2"

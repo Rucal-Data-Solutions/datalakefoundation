@@ -37,7 +37,20 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
   @transient
   private lazy val logger: Logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
+  private val unityCatalogEnabled: Boolean =
+    spark.conf.getOption("spark.databricks.unityCatalog.enabled").exists(_.toBoolean)
+
+  private val useCatalogSystemTable: Boolean =
+    environment.OutputMethod.equalsIgnoreCase("output") && unityCatalogEnabled
+
+  private val ucNamespace: String =
+    spark.conf.getOption("spark.databricks.defaultCatalog") match {
+      case Some(cat) if cat.nonEmpty => s"$cat.system"
+      case _                         => "system"
+    }
+
   val deltaTablePath = s"${environment.RootFolder}/system/${table_definition.Name}"
+  private val catalogTableName = s"$ucNamespace.${table_definition.Name}"
   val partition = table_definition.Columns.filter(c => c.partOfPartition == true).map(c => c.name)
   val schema = table_definition.Schema
 
@@ -45,7 +58,13 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
     // val data = spark.sparkContext.parallelize(rows)
     val append_df = spark.createDataFrame(rows.asJava, schema)
 
-    append_df.write.format("delta").partitionBy(partition: _*).mode("append").save(deltaTablePath)
+    val writer = append_df.write.format("delta").partitionBy(partition: _*).mode("append")
+
+    if (useCatalogSystemTable) {
+      writer.saveAsTable(catalogTableName)
+    } else {
+      writer.save(deltaTablePath)
+    }
   }
 
   final def Append(row: Row): Unit =
@@ -53,10 +72,16 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
 
   final def getDataFrame: Option[DataFrame] =
     try
-      Some(spark.read.format("delta").load(deltaTablePath))
+      Some(
+        if (useCatalogSystemTable)
+          spark.table(catalogTableName)
+        else
+          spark.read.format("delta").load(deltaTablePath)
+      )
     catch {
       case NonFatal(e) =>
-        logger.error(s"Error reading delta table at $deltaTablePath", e)
+        val target = if (useCatalogSystemTable) s"catalog table $catalogTableName" else s"delta table at $deltaTablePath"
+        logger.error(s"Error reading $target", e)
         None
     }
 

@@ -51,6 +51,7 @@ final object Merge extends ProcessStrategy {
     } else {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
+      
 
       val partition_values: Array[String] = datalake_source.partition_columns match {
         case Some(part) => part.toArray.map(c => s"target.${c._1} IN(${c._2.toString()})")
@@ -62,6 +63,42 @@ final object Merge extends ProcessStrategy {
         case TableLocation(table) => DeltaTable.forName(table)
       }
       val explicit_partFilter = partition_values.mkString(" AND ")
+      val partitionFilterColumn = if (partition_values.nonEmpty) Some(expr(explicit_partFilter)) else None
+      // Build the watermark window condition to scope delete detection
+      // This creates a filter like: target.watermark_col >= previousValue AND target.watermark_col <= currentValue
+      val watermarkCondition = watermarkWindowCondition(
+        processing,
+        datalake_source.current_watermark_values,
+        datalake_source.watermark_values,
+        deltaTable.toDF
+      )
+
+      // inferDeletesFromMissing: Automatically soft-delete records that exist in the target
+      // but are missing from the source slice, within the watermark window.
+      //
+      // How it works:
+      // 1. The watermark defines the window of data we expect in this slice
+      // 2. Any target records in that window that don't match source records are considered deleted
+      // 3. Uses whenNotMatchedBySource to find target-only records
+      //
+      // Safety filters applied:
+      // - Watermark window: Only considers records in the expected data range
+      // - Partition filter: Only considers records in partitions present in the source
+      // - Not already deleted: Avoids repeatedly updating already-deleted records
+      //
+      // Edge cases to be aware of:
+      // - First run: No previous watermark, so no deletes will be inferred (safe default)
+      // - NULL watermarks: Records with NULL in watermark columns won't be considered
+      // - Gaps in processing: Large gaps between previous and current watermarks may miss deletes
+      val deleteCondition =
+        if (processing.inferDeletesFromMissing) {
+          watermarkCondition.map { wmCondition =>
+            // Only mark records as deleted if they're not already deleted
+            val notAlreadyDeleted = col(s"target.${env.SystemFieldPrefix}deleted") === lit(false)
+            val withPartition = partitionFilterColumn.map(wmCondition && _).getOrElse(wmCondition)
+            withPartition && notAlreadyDeleted
+          }
+        } else None
 
       val schemaChanges = source.datalakeSchemaCompare(deltaTable.toDF.schema)
       if (schemaChanges.nonEmpty) {
@@ -71,7 +108,7 @@ final object Merge extends ProcessStrategy {
       
       logger.debug("Starting Merge operation")
       
-      deltaTable
+      val mergeBuilder = deltaTable
         .as("target")
         .merge(
           source.as("source"),
@@ -86,8 +123,20 @@ final object Merge extends ProcessStrategy {
         .update(Map(s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
         .whenNotMatched(s"source.${env.SystemFieldPrefix}deleted = false")
         .insertAll()
-        .execute()
 
+      // Add the delete condition handling
+      val mergeWithDeletes = deleteCondition match {
+        case Some(cond) =>
+          mergeBuilder.whenNotMatchedBySource(cond).update(
+            Map(
+              s"${env.SystemFieldPrefix}deleted" -> lit(true),
+              s"${env.SystemFieldPrefix}lastSeen" -> to_timestamp(lit(processing.processingTime))
+            )
+          )
+        case None => mergeBuilder
+      }
+
+      mergeWithDeletes.execute()
     }
     
 
