@@ -55,9 +55,9 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     )
 
     // Assert that the entity returns Output with PathLocations
-    entity.OutputMethod shouldBe a [Output]
+    entity.getOutput shouldBe a [Output]
 
-    val output = entity.OutputMethod
+    val output = entity.getOutput
     output.bronze shouldBe a [PathLocation]
     output.silver shouldBe a [PathLocation]
     
@@ -119,8 +119,8 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     )
 
     // Assert that the entity returns TableLocation
-    entity.OutputMethod shouldBe a[Output]
-    val tables = entity.OutputMethod.asInstanceOf[Output]
+    entity.getOutput shouldBe a[Output]
+    val tables = entity.getOutput.asInstanceOf[Output]
     tables.bronze shouldBe TableLocation("custom_bronze")
     tables.silver shouldBe TableLocation("custom_silver")
   }
@@ -175,8 +175,8 @@ class IOOutputSpec extends AnyFunSuite with SparkSessionTest {
     val entity = metadata.getEntity(3)
 
     // Assert that the entity returns CatalogTables despite environment setting
-    entity.OutputMethod shouldBe a[Output]
-    val tables = entity.OutputMethod.asInstanceOf[Output]
+    entity.getOutput shouldBe a[Output]
+    val tables = entity.getOutput.asInstanceOf[Output]
     tables.bronze shouldBe PathLocation("/data/bronze/test__test_connection.test_entity")
     tables.silver shouldBe TableLocation("silver__test_connection.test_entity")
   }

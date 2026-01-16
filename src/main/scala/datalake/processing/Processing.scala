@@ -24,38 +24,54 @@ import org.apache.logging.log4j.LogManager
 import datalake.log.DatalakeLogManager
 
 
-case class DatalakeSource(source_df: DataFrame, watermark_values: Option[Array[(Watermark, Any)]], partition_columns: Option[List[(String, Any)]])
+case class DatalakeSource(
+    source_df: DataFrame,
+    watermark_values: Option[Array[(Watermark, Any)]],
+    partition_columns: Option[List[(String, Any)]],
+    current_watermark_values: Option[Array[(Watermark, Any)]]
+)
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(private val entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment: datalake.metadata.Environment = entity.Environment
   
-  def getOutputMethod: Output = entity.OutputMethod
+  // def getOutputMethod: Output = entity.getOutput
   
   private val columns = entity.Columns
 
   final val entity_id = entity.Id
   final val primaryKeyColumnName: String = s"PK_${entity.Destination}"
 
-  final val ioLocations = entity.OutputMethod
+  final val ioLocations = entity.getOutput
   final val watermarkColumns = entity.Watermark
   final val entitySettings = entity.Settings
   
+  private val inferMissingDeletes: Boolean = entity.Settings
+    .get("delete_missing")
+    .flatMap(v => Try(v.toString.toBoolean).toOption)
+    .getOrElse(false)
+
+  // Memoization for getSource to prevent creating multiple cached DataFrames
+  private var _cachedSource: Option[DatalakeSource] = None
+
   // final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: OutputLocation = ioLocations.silver
 
-  final lazy val processingTime = {
-    if (options.contains("processing.time")) {
-      try {
-        LocalDateTime.parse(options("processing.time")).toString
-      } catch {
-        case _: Exception =>
-          logger.error(s"Invalid processing.time value: ${options("processing.time")} - falling back to current time.")
-          LocalDateTime.now(environment.Timezone.toZoneId).toString
-      }
-    } else {
-      LocalDateTime.now(environment.Timezone.toZoneId).toString
+  final lazy val processingTime: String = {
+    val now = LocalDateTime.now(environment.Timezone.toZoneId).toString
+
+    options.get("processing.time") match {
+      case Some(value) =>
+        Try(LocalDateTime.parse(value)) match {
+          case Success(_) =>
+            logger.debug(s"Using $value for processing time.")
+            value
+          case Failure(_) =>
+            logger.error(s"Invalid processing.time value: $value - falling back to current time.")
+            now
+        }
+      case None => now
     }
   }
 
@@ -66,39 +82,45 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   @transient 
   private lazy val logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
+  def inferDeletesFromMissing: Boolean = inferMissingDeletes
+
   def getSource: DatalakeSource = {
-    logger.debug(s"getSource called by ${Thread.currentThread().getName}")
-    // logger.info(f"loading slice: ${sliceFileFullPath}")
+    _cachedSource.getOrElse {
+      logger.debug(s"getSource called by ${Thread.currentThread().getName} - computing source")
 
-    val dfSlice = ioLocations.bronze match {
-      case PathLocation(path) => spark.read.parquet(s"$path/$sliceFile")
-      case TableLocation(table) => spark.read.table(table)
+      val dfSlice = ioLocations.bronze match {
+        case PathLocation(path) => spark.read.parquet(s"$path/$sliceFile")
+        case TableLocation(table) => spark.read.table(table)
+      }
+
+      // Combine all transformations into a single chain before any actions
+      val transformedDF = dfSlice
+        .transform(injectTransformations)
+        .transform(addCalculatedColumns)
+        .transform(calculateSourceHash)
+        .transform(addTemporalTrackingColumns)
+        .transform(addFilenameColumn(_, sliceFile))
+        .transform(addPrimaryKey)
+        .transform(castColumns)
+        .transform(renameColumns)
+        .transform(addDeletedColumn)
+        .transform(addLastSeen)
+        .datalakeNormalize()
+        .cache() // Cache the DataFrame since it will be used multiple times
+
+      // Now trigger actions after all transformations are done
+      if (transformedDF.isEmpty) {
+        logger.warn("Slice contains no data (RowCount=0)")
+      }
+
+      val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
+      val current_watermark_values = getCurrentWatermarkValues(watermarkColumns)
+      val part_values = getPartitionValues(transformedDF)
+
+      val source = new DatalakeSource(transformedDF, new_watermark_values, part_values, current_watermark_values)
+      _cachedSource = Some(source)
+      source
     }
-
-    // Combine all transformations into a single chain before any actions
-    val transformedDF = dfSlice
-      .transform(injectTransformations)
-      .transform(addCalculatedColumns)
-      .transform(calculateSourceHash)
-      .transform(addTemporalTrackingColumns)
-      .transform(addPrimaryKey)
-      .transform(castColumns)
-      .transform(renameColumns)
-      .transform(addDeletedColumn)
-      .transform(addLastSeen)
-      .transform(addFilenameColumn(_, sliceFile))
-      .datalakeNormalize()
-      .cache() // Cache the DataFrame since it will be used multiple times
-
-    // Now trigger actions after all transformations are done
-    if (transformedDF.isEmpty) {
-      logger.warn("Slice contains no data (RowCount=0)")
-    }
-
-    val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
-    val part_values = getPartitionValues(transformedDF)
-
-    new DatalakeSource(transformedDF, new_watermark_values, part_values)
   }
 
   private def getWatermarkValues(slice: DataFrame, wm_columns: Array[Watermark]): Option[Array[(Watermark, Any)]] = {
@@ -113,6 +135,13 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     } else {
       None
     }
+  }
+
+  private def getCurrentWatermarkValues(wm_columns: Array[Watermark]): Option[Array[(Watermark, Any)]] = {
+    if (wm_columns.nonEmpty) {
+      val values: Array[(Watermark, Any)] = wm_columns.flatMap(wm => wm.Value.map(v => (wm, v.asInstanceOf[Any])))
+      if (values.nonEmpty) Some(values) else None
+    } else None
   }
 
   private def getPartitionValues(slice: DataFrame): Option[List[(String, String)]] = {
@@ -142,9 +171,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   private def calculateSourceHash(input: Dataset[Row])(implicit env: Environment): Dataset[Row] ={
     val hashfield = s"${env.SystemFieldPrefix}SourceHash"
     if (Utils.hasColumn(input, hashfield) == false) {
+      val nonSystemColumns = {
+        // If prefix is empty, filter out known system column names
+        val systemColumnNames = Set(s"${env.SystemFieldPrefix}source_filename", s"${env.SystemFieldPrefix}metadata")
+        input.columns.filterNot(systemColumnNames.contains)
+      }
       input.withColumn(
         hashfield,
-        sha2(concat_ws("", input.columns.map(c => col("`" + c + "`").cast("string")): _*), 256)
+        sha2(concat_ws("", nonSystemColumns.map(c => col("`" + c + "`").cast("string")): _*), 256)
       )
     } else
       input
@@ -262,10 +296,19 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
     val filenameField = s"${env.SystemFieldPrefix}source_filename"
-    if (!Utils.hasColumn(input, filenameField)) {
+    val inputWithFilename = if (!Utils.hasColumn(input, filenameField)) {
+      logger.warn(
+        s"Bronze table is missing column '$filenameField' for slice filtering. " +
+        s"Adding column with value '$filename'."
+      )
       input.withColumn(filenameField, lit(filename))
     } else {
       input
+    }
+
+    ioLocations.bronze match {
+      case TableLocation(_) => inputWithFilename.filter(col(filenameField) === sliceFile)
+      case _ => inputWithFilename
     }
   }
 
@@ -280,7 +323,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
     try {
       strategy.Process(this)
-      WriteWatermark(getSource.watermark_values) 
+      WriteWatermark(getSource.watermark_values)
     }
     catch {
       case e:Throwable => {
@@ -288,6 +331,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
         // e.printStackTrace()
         throw e
       }
+    }
+    finally {
+      // Clean up cached DataFrame to free memory
+      _cachedSource.foreach { source =>
+        logger.debug("Unpersisting cached DataFrame")
+        source.source_df.unpersist()
+      }
+      _cachedSource = None
     }
 
 }
