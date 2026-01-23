@@ -38,6 +38,8 @@ object Log4jConfigurator {
 
       // loggerConfig.addAppender(parquetAppender, Level.INFO, null)
 
+      // Suppress noisy Spark parser cache INFO messages
+      Configurator.setLevel("org.apache.spark.sql.catalyst.parser.AbstractParser$ParserCaches", Level.WARN)
 
       ctx.updateLoggers()
 
