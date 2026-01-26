@@ -37,6 +37,7 @@ class Entity(
     processtype: String,
     watermark: Array[Watermark],
     columns: Array[EntityColumn],
+    connectiongroup: Option[String],
     val settings: JObject,
     val transformations: Array[EntityTransformation]
 ) extends Serializable {
@@ -301,6 +302,7 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
             enabled = (j \ "enabled").extractOrElse[Boolean](true),
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
+            connectiongroup = (j \ "connectiongroup").extract[Option[String]],
             processtype = (j \ "processtype").extract[String],
             watermark = watermarkJson.extract[Array[Watermark]],
             columns = (j \ "columns").extract[Array[EntityColumn]],

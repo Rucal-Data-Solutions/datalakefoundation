@@ -26,6 +26,7 @@ object DataFactory {
     val entities: List[Entity] = arg match {
       case group: EntityGroup => metadata.getEntities(group).filter(_.isEnabled())
       case connection: Connection => metadata.getEntities(connection).filter(_.isEnabled())
+      case connectionGroup: EntityConnectionGroup => metadata.getEntities(connectionGroup).filter(_.isEnabled())
       case entityId: Int => metadata.getEntities(entityId)
       case entities: Array[Int] => metadata.getEntities(entities)
       case _ => throw new Exception(s"Invalid parameter type ${arg.getClass().getTypeName()}")
