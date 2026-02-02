@@ -327,7 +327,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
     try {
-      DatalakeLogManager.withData(entity.toJson, Some("ProcessingStart")) {
+      DatalakeLogManager.withData(entity.toJson, Some("Entity")) {
         logger.info("Processing started")
       }
       strategy.Process(this)
