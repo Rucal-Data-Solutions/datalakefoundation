@@ -7,6 +7,7 @@ import org.apache.logging.log4j.message.SimpleMessage
 import org.apache.logging.log4j.{LogManager, ThreadContext}
 
 import datalake.metadata.{SparkSessionTest, Environment}
+import org.apache.spark.sql.functions.{col, to_json}
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -231,11 +232,12 @@ class TableAppenderSpec extends AnyFlatSpec with SparkSessionTest {
     appender.stop()
 
     val logs = spark.table(testTableName)
+      .withColumn("data_json", to_json(col("data")))
     val rows = logs.collect()
 
-    val rowWithData = rows.find(r => Option(r.getString(3)).exists(_.contains("records_in_slice")))
+    val rowWithData = rows.find(r => Option(r.getAs[String]("data_json")).exists(_.contains("records_in_slice")))
     rowWithData shouldBe defined
-    rowWithData.get.getString(3) should include("\"records_in_slice\":500")
-    rowWithData.get.getString(3) should include("\"inserted\":200")
+    rowWithData.get.getAs[String]("data_json") should include("\"records_in_slice\":500")
+    rowWithData.get.getAs[String]("data_json") should include("\"inserted\":200")
   }
 }

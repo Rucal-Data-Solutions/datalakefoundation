@@ -6,6 +6,7 @@ import org.apache.logging.log4j.core.impl.Log4jLogEvent
 import org.apache.logging.log4j.message.SimpleMessage
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.{col, to_json}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -49,13 +50,14 @@ class ParquetAppenderSpec extends AnyFlatSpec with SparkSessionTest {
 
     // Verify parquet file contents
     val logs = spark.read.parquet(testParquetPath)
+      .withColumn("data_json", to_json(col("data")))
     logs.count() shouldBe 2
 
     val rows = logs.collect()
     // Column order: timestamp, level, message, data
     rows.map(_.getString(1)).toSet should contain allOf("INFO", "WARN")
     rows.map(_.getString(2)).toSet should contain allOf("Test message 1", "Test message 2")
-    rows.exists(r => r.getString(3) == """{"records": 100}""") shouldBe true
+    rows.exists(r => r.getAs[String]("data_json") == """{"records":100}""") shouldBe true
   }
 
   it should "store processing summary data as JSON" in {
@@ -90,8 +92,9 @@ class ParquetAppenderSpec extends AnyFlatSpec with SparkSessionTest {
     appender.stop()
 
     val logs = spark.read.parquet(s"${testBasePath}/test-logs-summary.parquet")
+      .withColumn("data_json", to_json(col("data")))
     val row = logs.collect().head
-    val dataJson = row.getString(3)
+    val dataJson = row.getAs[String]("data_json")
 
     dataJson should include("\"records_in_slice\":1000")
     dataJson should include("\"inserted\":500")

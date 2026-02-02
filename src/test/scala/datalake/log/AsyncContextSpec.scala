@@ -14,6 +14,7 @@ import java.util.concurrent.{CountDownLatch, CyclicBarrier, Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ArrayBuffer
 
+import org.apache.spark.sql.functions.{col, to_json}
 import datalake.metadata.SparkSessionTest
 
 /**
@@ -352,6 +353,7 @@ class AsyncContextSpec extends AnyFunSuite with SparkSessionTest {
 
       // Read back the parquet file and verify context data
       val logs = spark.read.parquet(testPath)
+        .withColumn("data_json", to_json(col("data")))
       val rows = logs.collect()
 
       rows.size shouldBe (threadCount * messagesPerThread)
@@ -359,12 +361,12 @@ class AsyncContextSpec extends AnyFunSuite with SparkSessionTest {
       var contextIssues = 0
       rows.foreach { row =>
         val message = row.getAs[String]("message")
-        val data = Option(row.getAs[String]("data"))
+        val data = Option(row.getAs[String]("data_json"))
 
         val msgParts = message.split(" ")
         val expectedThreadId = msgParts(1).toInt
         val expectedMsgId = msgParts(3).toInt
-        val expectedData = s"""{"thread":$expectedThreadId,"msg":$expectedMsgId}"""
+        val expectedData = s"""{"msg":$expectedMsgId,"thread":$expectedThreadId}"""
 
         data match {
           case Some(actualData) if actualData != expectedData =>
