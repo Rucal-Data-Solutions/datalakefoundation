@@ -14,6 +14,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.functions.{col, parse_json}
 
 @Plugin(name = "TableAppender", category = "Core", elementType = "appender", printObject = true)
 class TableAppender(
@@ -79,7 +80,7 @@ class TableAppender(
     StructField("timestamp", TimestampType, nullable = true),
     StructField("level", StringType, nullable = true),
     StructField("message", StringType, nullable = true),
-    StructField("data", StringType, nullable = true),
+    StructField("data_str", StringType, nullable = true),
     StructField("data_type", StringType, nullable = true),
     StructField("run_id", StringType, nullable = true)
   ))
@@ -103,6 +104,8 @@ class TableAppender(
         Row(entry.timestamp, entry.level, entry.message, entry.data.orNull, entry.dataType.orNull, entry.runId.orNull)
       }
       val df: DataFrame = spark.createDataFrame(rows.asJava, logSchema)
+        .withColumn("data", parse_json(col("data_str")))
+        .drop("data_str")
 
       val tableColumns = spark.table(tableName).columns
       val orderedDf = df.select(tableColumns.map(c => df.col(c)): _*)
@@ -132,7 +135,7 @@ class TableAppender(
           timestamp TIMESTAMP,
           level STRING,
           message STRING,
-          data STRING,
+          data VARIANT,
           data_type STRING,
           run_id STRING
         ) USING DELTA
