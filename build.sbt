@@ -1,12 +1,11 @@
 lazy val scala213 = "2.13.16"
-lazy val scala212 = "2.12.18"
-lazy val supportedScalaVersions = List(scala212, scala213)
+lazy val supportedScalaVersions = List(scala213)
 
 ThisBuild / scalaVersion     := scala213
-ThisBuild / version          := "1.5.2"
+ThisBuild / version          := "1.6.0"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
-lazy val sparkVersion = "3.5.2"
+lazy val sparkVersion = "4.0.0"
 
 lazy val root = (project in file("."))
   .settings(
@@ -24,12 +23,12 @@ lazy val root = (project in file("."))
       "org.apache.spark" %% "spark-hive" % sparkVersion % Provided
     ),
 
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.16" % Test,
-    libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.22.1" % Provided,
-    libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.22.1" % Provided,
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.24.3" % Provided,
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.24.3" % Provided,
 
     libraryDependencies += "com.microsoft.sqlserver" % "mssql-jdbc" % "11.2.2.jre8" % Provided,
-    libraryDependencies += "io.delta" %% "delta-spark" % "3.3.1" % Provided,
+    libraryDependencies += "io.delta" %% "delta-spark" % "4.0.0" % Provided,
 
     // Make sure we have common-io for FileUtils in tests
     libraryDependencies += "commons-io" % "commons-io" % "2.13.0",

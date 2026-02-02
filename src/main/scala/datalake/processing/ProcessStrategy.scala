@@ -20,7 +20,7 @@ import org.apache.logging.log4j.LogManager
 
 abstract class ProcessStrategy {
   implicit val spark: SparkSession =
-    SparkSession.builder().enableHiveSupport().getOrCreate()
+    SparkSession.builder().getOrCreate()
   import spark.implicits._
   
   final val logger = LogManager.getLogger(this.getClass())

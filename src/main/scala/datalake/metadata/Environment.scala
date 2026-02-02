@@ -24,7 +24,9 @@ case class Environment(
   private val output_method: String = "paths",
   private val bronze_output: Option[String] = None,
   private val silver_output: Option[String] = None,
-  private val log_level: String = "WARN"
+  private val log_level: String = "WARN",
+  private val log_appender_type: String = "parquet",
+  private val log_output: Option[String] = None
 ) extends Serializable {
 
   override def toString(): String = s"Environment: ${this.name}"
@@ -91,4 +93,13 @@ case class Environment(
     this.silver_output.getOrElse(this.output_method)
 
   def LogLevel: String = this.log_level
+
+  def LogAppenderType: String = this.log_appender_type.toLowerCase match {
+    case "table" | "unity_catalog" | "delta" => "table"
+    case _ => "parquet"
+  }
+
+  def LogOutput: String = this.log_output.getOrElse(
+    if (LogAppenderType == "table") "default.dlf_logs" else "dlf_log.parquet"
+  )
 }

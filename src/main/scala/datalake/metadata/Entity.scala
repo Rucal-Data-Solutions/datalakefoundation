@@ -54,6 +54,14 @@ class Entity(
   override def toString(): String =
     s"(${this.id}) - ${this.name}"
 
+  def toJson: String = {
+    implicit val formats: org.json4s.Formats = org.json4s.DefaultFormats +
+      org.json4s.FieldSerializer[EntityColumn]() +
+      new EntitySerializer(metadata) +
+      new WatermarkSerializer(metadata)
+    write(this)
+  }
+
   final def Id: Int =
     this.id
 

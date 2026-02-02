@@ -76,7 +76,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   }
 
   private implicit val spark: SparkSession =
-    SparkSession.builder().enableHiveSupport().getOrCreate()
+    SparkSession.builder().getOrCreate()
   import spark.implicits._
 
   @transient 
@@ -296,19 +296,24 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
     val filenameField = s"${env.SystemFieldPrefix}source_filename"
+    val isUnityCatalog = ioLocations.bronze.isInstanceOf[TableLocation]
+
     val inputWithFilename = if (!Utils.hasColumn(input, filenameField)) {
-      logger.warn(
-        s"Bronze table is missing column '$filenameField' for slice filtering. " +
-        s"Adding column with value '$filename'."
-      )
+      if (isUnityCatalog) {
+        logger.warn(
+          s"Bronze table is missing column '$filenameField' for slice filtering. " +
+          s"Adding column with value '$filename'."
+        )
+      }
       input.withColumn(filenameField, lit(filename))
     } else {
       input
     }
 
-    ioLocations.bronze match {
-      case TableLocation(_) => inputWithFilename.filter(col(filenameField) === sliceFile)
-      case _ => inputWithFilename
+    if (isUnityCatalog) {
+      inputWithFilename.filter(col(filenameField) === sliceFile)
+    } else {
+      inputWithFilename
     }
   }
 
@@ -322,6 +327,9 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
     try {
+      DatalakeLogManager.withData(entity.toJson, Some("ProcessingStart")) {
+        logger.info("Processing started")
+      }
       strategy.Process(this)
       WriteWatermark(getSource.watermark_values)
     }
@@ -339,6 +347,9 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
         source.source_df.unpersist()
       }
       _cachedSource = None
+
+      // Flush logs to ensure they are written (especially important in REPL/notebook environments)
+      DatalakeLogManager.flush()
     }
 
 }

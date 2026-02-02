@@ -15,6 +15,7 @@ import io.delta.tables._
 import datalake.core._
 import datalake.core.implicits._
 import datalake.metadata._
+import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
 
 
@@ -51,6 +52,7 @@ final object Merge extends ProcessStrategy {
     } else {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
+      val recordCount = source.count()
       
 
       val partition_values: Array[String] = datalake_source.partition_columns match {
@@ -105,7 +107,38 @@ final object Merge extends ProcessStrategy {
         logger.warn(s"Schema changes detected during Merge processing:")
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
       }
-      
+
+      // Calculate real vs touch updates before the merge
+      // Real updates: SourceHash differs (actual data change)
+      // Touch updates: SourceHash same (only lastSeen updated)
+      val targetDF = deltaTable.toDF
+      val hashColumn = s"${env.SystemFieldPrefix}SourceHash"
+      val pkColumn = processing.primaryKeyColumnName
+
+      val matchedRecords = source.as("src")
+        .join(targetDF.as("tgt"), col(s"src.$pkColumn") === col(s"tgt.$pkColumn"), "inner")
+        .select(
+          col(s"src.$hashColumn").as("src_hash"),
+          col(s"tgt.$hashColumn").as("tgt_hash"),
+          col(s"src.${env.SystemFieldPrefix}deleted").as("src_deleted")
+        )
+        .cache()
+
+      val realUpdates = matchedRecords
+        .filter(col("src_hash") =!= col("tgt_hash") && col("src_deleted") === false)
+        .count()
+
+      val touchUpdates = matchedRecords
+        .filter(col("src_hash") === col("tgt_hash") && col("src_deleted") === false)
+        .count()
+
+      // Soft deletes: records marked as deleted in source that exist in target
+      val softDeletes = matchedRecords
+        .filter(col("src_deleted") === true)
+        .count()
+
+      matchedRecords.unpersist()
+
       logger.debug("Starting Merge operation")
       
       val mergeBuilder = deltaTable
@@ -116,7 +149,7 @@ final object Merge extends ProcessStrategy {
             (if (partition_values.nonEmpty) s" AND $explicit_partFilter" else "")
         )
         .whenMatched(s"source.${env.SystemFieldPrefix}deleted = true")
-        .update(Map(s"${env.SystemFieldPrefix}deleted" -> lit("true"), s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
+        .update(Map(s"${env.SystemFieldPrefix}deleted" -> lit(true), s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
         .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash != target.${env.SystemFieldPrefix}SourceHash")
         .updateAll()
         .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash == target.${env.SystemFieldPrefix}SourceHash")
@@ -136,10 +169,27 @@ final object Merge extends ProcessStrategy {
         case None => mergeBuilder
       }
 
-      mergeWithDeletes.execute()
+      // Delta 4.0 returns metrics DataFrame directly from execute()
+      val mergeMetrics = mergeWithDeletes.execute()
+      val metricsRow = mergeMetrics.first()
+      val inserted = metricsRow.getAs[Long]("num_inserted_rows")
+
+      // Use our calculated values for accurate metrics:
+      // - realUpdates: actual data changes (SourceHash differs)
+      // - touchUpdates: lastSeen-only updates (SourceHash same, data unchanged)
+      // - softDeletes: records marked as deleted via source flag
+      // Note: Delta's num_deleted_rows only counts physical deletes, not soft deletes
+      val summary = ProcessingSummary(
+        recordsInSlice = recordCount,
+        inserted = inserted,
+        updated = realUpdates,
+        deleted = softDeletes,
+        unchanged = 0,
+        touched = touchUpdates,
+        entityId = Some(processing.entity_id.toString),
+        sliceFile = None
+      )
+      DatalakeLogManager.logSummary(logger, summary)
     }
-    
-
-
   }
 }

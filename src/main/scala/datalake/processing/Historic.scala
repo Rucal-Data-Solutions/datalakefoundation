@@ -2,6 +2,7 @@ package datalake.processing
 
 import datalake.metadata._
 import datalake.core.implicits._
+import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -44,6 +45,7 @@ final object Historic extends ProcessStrategy {
       logger.debug("Incremental load (Subsequent Runs)")
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
+      val recordCount = source.count()
 
       val part_values: List[String] = datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
       val partition_filters: Array[String] = datalake_source.partition_columns match {
@@ -121,7 +123,7 @@ final object Historic extends ProcessStrategy {
       }
 
       // Execute the merge before computing new version rows so the target reflects closed records
-      mergeWithDeletes.execute()
+      val mergeMetrics = mergeWithDeletes.execute()
 
       // Insert new versions for updated records
       val updatedRecords = source.as("source")
@@ -130,17 +132,41 @@ final object Historic extends ProcessStrategy {
           expr(s"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = false AND target.${env.SystemFieldPrefix}ValidTo = cast('${processing.processingTime}' as timestamp)")
         )
         .select("source.*")
+        .cache()
 
-      val updatewriter  =  updatedRecords.write
+      val newVersionCount = updatedRecords.count()
+
+      val updatewriter = updatedRecords.write
         .format("delta")
         .mode("append")
 
       processing.destination match {
-        case PathLocation(path) => 
+        case PathLocation(path) =>
           updatewriter.save(path)
         case TableLocation(table) =>
           updatewriter.saveAsTable(table)
       }
+
+      updatedRecords.unpersist()
+
+      // Get operation metrics from the merge execution
+      val metricsRow = mergeMetrics.first()
+      val inserted = metricsRow.getAs[Long]("num_inserted_rows")
+      val deleted = metricsRow.getAs[Long]("num_deleted_rows")
+      // Updated = records that had their version closed (from merge) = new versions inserted
+      val updated = newVersionCount
+      val unchanged = recordCount - inserted - updated
+
+      val summary = ProcessingSummary(
+        recordsInSlice = recordCount,
+        inserted = inserted,
+        updated = updated,
+        deleted = deleted,
+        unchanged = Math.max(0, unchanged),
+        entityId = Some(processing.entity_id.toString),
+        sliceFile = None
+      )
+      DatalakeLogManager.logSummary(logger, summary)
     }
   }
 }

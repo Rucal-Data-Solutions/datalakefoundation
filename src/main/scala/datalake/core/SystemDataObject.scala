@@ -31,7 +31,7 @@ class SystemDataTableDefinition(name: String, schema: List[DatalakeColumn]) exte
 class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
     environment: Environment
 ) extends Serializable {
-  private implicit val spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
+  private implicit val spark: SparkSession = SparkSession.builder().getOrCreate()
   import spark.implicits._
 
   @transient
