@@ -8,9 +8,9 @@ The documentation below explains how to use the library in your environment, des
 
 ## 2. Pre‑requisites and installation
 
-The library targets Databricks Runtime **16.4 LTS** or later and is compiled for **Scala 2.13.12** or **Scala 2.12.18** . It depends on **Spark 3.5.1** and **Delta Lake 3.3.1**. Ensure the following before deploying:
+The library targets Databricks Runtime **16.4 LTS** or later and is compiled for **Scala 2.13.16**. It depends on **Spark 4.0.0** and **Delta Lake 4.0.0**. Ensure the following before deploying:
 
-- A Spark cluster (Databricks or vanilla) with Scala 2.12 / 2.13 support and Delta Lake connectors.
+- A Spark cluster (Databricks or vanilla) with Scala 2.13 support and Delta Lake connectors.
 - Access to the Bronze and Silver storage layers using a unified path convention (see section 5).
 - A metadata repository in either JSON files or a SQL Server function (see section 4).
 - Standard build tooling such as *sbt* to compile the Scala sources into a JAR.
@@ -85,11 +85,15 @@ Use `JsonMetadataSettings` to load metadata from a JSON file. The JSON defines:
 
 Duplicate entity identifiers are rejected. Use `getEntity(id)` to retrieve an `Entity` object for processing.
 
-### 4.2. SQL Server metadata
+### 4.2. JSON folder metadata
+
+Use `DirectoryJsonMetadataSettings` to load metadata from multiple JSON files in a directory. Files are merged together, allowing modular organization of connections and entities.
+
+### 4.3. SQL Server metadata
 
 Use `SqlMetadataSettings` to read JSON configuration from SQL Server via JDBC (e.g., function `cfg.fnGetFoundationConfig()`). Provide a `SqlServerSettings` case class (server, port, database, username, password). Errors are logged and raised.
 
-### 4.3. Metadata‑driven helpers
+### 4.4. Metadata-driven helpers
 
 - `getConnectionEntities(connection)` – all entities for a connection.
 - `getGroupEntities(group)` – all entities in a logical group.
@@ -148,15 +152,28 @@ Datalake Foundation is upgraded to Scala 2.13 for Databricks Runtime 16.4 LTS
 ## 9. Summary
 
 ### IO Output
-Use `io_output` in the `environment` section to configure whether entities return file system paths (`paths`) or catalog table names (`catalog`).
-Individual entities can override this setting in their `settings` block using the same property. The default value is `paths` for backward compatibility.
-
-## Scala 2.13 Migration
-Databricks Runtime 16.4 LTS introduces Scala 2.13 support. The project now uses
-Scala 2.13.12 with Spark 3.5.1 and Delta Lake 3.3.1 to match this runtime.
-Review custom code and dependencies for compatibility with Scala 2.13 when
-upgrading your environment.
+Use `output_method` in the `environment` section to configure whether entities return file system paths (`paths`) or catalog table names (`catalog`).
+Individual entities can override this setting in their `settings` block. The default value is `paths` for backward compatibility.
+See [IO Output Modes](docs/outputs/IO_OUTPUT_MODES.md) for detailed configuration options.
 
 ---
 
-*This documentation is a work in progress. For additional details or questions, please contact the maintainer.*
+## Documentation
+
+For detailed documentation on specific topics, see:
+
+**Configuration**
+- [Entity Configuration](docs/configuration/ENTITY_CONFIGURATION.md) – Entity structure, column definitions, field roles, and settings hierarchy
+- [Metadata Sources](docs/configuration/METADATA_SOURCES.md) – JSON, SQL Server, and folder-based metadata configuration
+
+**Processing**
+- [Processing Strategies](docs/processing/PROCESSING_STRATEGIES.md) – Full, Merge, and Historic strategies in depth
+- [Watermarks](docs/processing/WATERMARKS.md) – Incremental processing with watermark expressions
+- [Delete Inference](docs/processing/DELETE_INFERENCE.md) – Automatic soft-delete detection for missing records
+
+**Outputs**
+- [IO Output Modes](docs/outputs/IO_OUTPUT_MODES.md) – File paths vs Unity Catalog table outputs
+
+---
+
+*For additional details or questions, please contact the maintainer.*
