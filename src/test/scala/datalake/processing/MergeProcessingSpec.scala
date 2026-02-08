@@ -320,6 +320,53 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     }
   }
 
+  test("Merge processing should detect and report missing columns in source") {
+    import spark.implicits._
+
+    val settings = new JsonMetadataSettings()
+    val user_dir = System.getProperty("user.dir")
+    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
+
+    val metadata = new Metadata(settings, override_env)
+    val testEntity = metadata.getEntity(3)
+    val paths = testEntity.getPaths
+    val ioLocations = testEntity.getOutput
+
+    val testId = s"merge_missing_col_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+
+    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+
+    // Step 1: Create initial data with extra column
+    val initialData = Seq(
+      (1, 100L, "John", "detail_value", testId)
+    ).toDF("ID", "SeqNr", "name", "details", "test_id")
+
+    val initialSlice = s"initial_missing_${testId}.parquet"
+    initialData.write.mode("overwrite").parquet(s"${paths.bronzepath}/$initialSlice")
+
+    val initialProc = new Processing(testEntity, initialSlice)
+    initialProc.Process(Full)
+
+    // Step 2: Merge with data that is MISSING the "details" column
+    // Delta MERGE with updateAll() cannot resolve missing columns, so this should fail
+    val mergeDataMissingCol = Seq(
+      (1, 150L, "John Updated", testId)
+    ).toDF("ID", "SeqNr", "name", "test_id")
+
+    val mergeSlice = s"merge_missing_${testId}.parquet"
+    mergeDataMissingCol.write.mode("overwrite").parquet(s"${paths.bronzepath}/$mergeSlice")
+
+    val mergeProc = new Processing(testEntity, mergeSlice)
+
+    // Schema drift with a missing column causes Delta MERGE to fail
+    // because updateAll() references all target columns including the missing one
+    val ex = intercept[Throwable] {
+      mergeProc.Process(Merge)
+    }
+    assert(ex.getMessage.contains("details") || ex.getCause.getMessage.contains("details"),
+      "Error should mention the missing column name 'details'")
+  }
+
   test("Merge processing should handle schema differences appropriately") {
     import spark.implicits._
     

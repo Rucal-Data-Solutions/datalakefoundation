@@ -18,9 +18,7 @@ import io.delta.tables._
 import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
-// import datalake.log._
 
-import org.apache.logging.log4j.LogManager
 import datalake.log.DatalakeLogManager
 
 
@@ -35,9 +33,7 @@ case class DuplicateBusinesskeyException(message: String) extends DatalakeExcept
 // Bronze(Source) -> Silver(Target)
 class Processing(private val entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
   implicit val environment: datalake.metadata.Environment = entity.Environment
-  
-  // def getOutputMethod: Output = entity.getOutput
-  
+
   private val columns = entity.Columns
 
   final val entity_id = entity.Id
@@ -55,7 +51,6 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   // Memoization for getSource to prevent creating multiple cached DataFrames
   private var _cachedSource: Option[DatalakeSource] = None
 
-  // final lazy val sliceFileFullPath: String = s"${paths.bronzepath}/${sliceFile}"
   final lazy val destination: OutputLocation = ioLocations.silver
 
   final lazy val processingTime: String = {
@@ -256,11 +251,8 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     }
 
   // add lastseen date
-  private def addLastSeen(input: Dataset[Row])(implicit env: Environment): Dataset[Row] = {
-    val timezoneId = environment.Timezone.toZoneId
-    val now = LocalDateTime.now(timezoneId)
+  private def addLastSeen(input: Dataset[Row])(implicit env: Environment): Dataset[Row] =
     input.withColumn(s"${env.SystemFieldPrefix}lastSeen", to_timestamp(lit(processingTime)))
-  }
 
   private def addCalculatedColumns(input: Dataset[Row]): Dataset[Row] =
     entity.Columns(EntityColumnFilter(HasExpression=true)).foldLeft(input) { (tempdf, column) =>
@@ -270,12 +262,10 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
         case Success(newDf) =>
           newDf
         case Failure(e) =>
-          // Log the error message and the failing expression
-          logger.error(
-            s"Failed to add calculated column ${column.Name} with expression ${column.Expression}.", e
+          throw new DatalakeException(
+            s"Failed to add calculated column '${column.Name}' with expression '${column.Expression}': ${e.getMessage}",
+            Level.ERROR
           )
-          // Continue processing with the DataFrame as it was before the failure
-          tempdf
       }
     }
   

@@ -24,27 +24,7 @@ final object Merge extends ProcessStrategy {
   def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
-    // first time? Do A full load
-    val isFirstRun = processing.destination match {
-      case PathLocation(path) => !DeltaTable.isDeltaTable(spark, path)
-      case TableLocation(table) => 
-        // For table locations, we need a more robust check
-        // isDeltaTable with table names can be unreliable, so we check if table exists and is Delta
-        try {
-          // First check if table exists at all
-          if (!spark.catalog.tableExists(table)) {
-            true // Table doesn't exist, so it's first run
-          } else {
-            // Table exists, check if it's a Delta table by trying to create a DeltaTable reference
-            DeltaTable.forName(table)
-            false // If we can create DeltaTable reference, it's Delta and not first run
-          }
-        } catch {
-          case _: Exception => 
-            // If we can't create DeltaTable reference or any other error, consider it first run
-            true
-        }
-    }
+    val isFirstRun = this.isFirstRun(processing.destination)
 
     if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
@@ -108,36 +88,8 @@ final object Merge extends ProcessStrategy {
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
       }
 
-      // Calculate real vs touch updates before the merge
-      // Real updates: SourceHash differs (actual data change)
-      // Touch updates: SourceHash same (only lastSeen updated)
-      val targetDF = deltaTable.toDF
-      val hashColumn = s"${env.SystemFieldPrefix}SourceHash"
-      val pkColumn = processing.primaryKeyColumnName
-
-      val matchedRecords = source.as("src")
-        .join(targetDF.as("tgt"), col(s"src.$pkColumn") === col(s"tgt.$pkColumn"), "inner")
-        .select(
-          col(s"src.$hashColumn").as("src_hash"),
-          col(s"tgt.$hashColumn").as("tgt_hash"),
-          col(s"src.${env.SystemFieldPrefix}deleted").as("src_deleted")
-        )
-        .cache()
-
-      val realUpdates = matchedRecords
-        .filter(col("src_hash") =!= col("tgt_hash") && col("src_deleted") === false)
-        .count()
-
-      val touchUpdates = matchedRecords
-        .filter(col("src_hash") === col("tgt_hash") && col("src_deleted") === false)
-        .count()
-
-      // Soft deletes: records marked as deleted in source that exist in target
-      val softDeletes = matchedRecords
-        .filter(col("src_deleted") === true)
-        .count()
-
-      matchedRecords.unpersist()
+      // Count soft deletes from source alone (no join needed)
+      val softDeletes = source.filter(col(s"${env.SystemFieldPrefix}deleted") === true).count()
 
       logger.debug("Starting Merge operation")
       
@@ -174,18 +126,18 @@ final object Merge extends ProcessStrategy {
       val metricsRow = mergeMetrics.first()
       val inserted = metricsRow.getAs[Long]("num_inserted_rows")
 
-      // Use our calculated values for accurate metrics:
-      // - realUpdates: actual data changes (SourceHash differs)
-      // - touchUpdates: lastSeen-only updates (SourceHash same, data unchanged)
-      // - softDeletes: records marked as deleted via source flag
-      // Note: Delta's num_deleted_rows only counts physical deletes, not soft deletes
+      // Derive updated count from source-side arithmetic:
+      // Every non-deleted source record either matched an existing target record (update/touch)
+      // or was inserted as new. The real-vs-touch distinction is not available from Delta metrics.
+      val updated = recordCount - inserted - softDeletes
+
       val summary = ProcessingSummary(
         recordsInSlice = recordCount,
         inserted = inserted,
-        updated = realUpdates,
+        updated = updated,
         deleted = softDeletes,
         unchanged = 0,
-        touched = touchUpdates,
+        touched = 0,
         entityId = Some(processing.entity_id.toString),
         sliceFile = None
       )

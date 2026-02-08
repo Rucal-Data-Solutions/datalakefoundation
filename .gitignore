@@ -39,3 +39,5 @@ derby.log
 #local debugging folder
 src/test/scala/example/private/
 src/test/scala/private_tests/
+.claude
+dlf_log.parquet

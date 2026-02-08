@@ -4,13 +4,14 @@ import scala.tools.reflect._
 import scala.reflect.runtime._
 
 import org.apache.spark.sql.{ SparkSession}
+import org.apache.logging.log4j.Logger
 
 import datalake.core._
 import datalake.core.Utils._
+import datalake.log.DatalakeLogManager
 
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{ JField, JObject, JInt, JNull, JValue, JString }
-import org.joda.time.DateTime
 
 class Watermark(
     environment: Environment,
@@ -20,6 +21,11 @@ class Watermark(
     operation_group: Option[Integer],
     expression: String
 ) extends Serializable {
+
+  implicit val spark: SparkSession = SparkSession.builder().getOrCreate()
+
+  @transient
+  private lazy val logger: Logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
   private val wmd = new WatermarkData(entity_id)(environment = environment)
 
@@ -37,11 +43,11 @@ class Watermark(
           Some(_expressions.EvaluateExpression(this.expression))
         } catch {
           case e: java.lang.reflect.InvocationTargetException => {
-            println(e.getTargetException().toString())
+            logger.warn(s"Watermark expression evaluation failed for column '$column_name': ${e.getTargetException().toString()}")
             None
           }
           case e: Exception => {
-            println(e.getMessage())
+            logger.warn(s"Watermark expression evaluation failed for column '$column_name': ${e.getMessage()}")
             None
           }
         }

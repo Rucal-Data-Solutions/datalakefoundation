@@ -16,27 +16,7 @@ final object Historic extends ProcessStrategy {
   def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
-    val isFirstRun = processing.destination match {
-      case PathLocation(path) => 
-        !DeltaTable.isDeltaTable(spark, path)
-      case TableLocation(table) => 
-        // For table locations, we need a more robust check
-        // isDeltaTable with table names can be unreliable, so we check if table exists and is Delta
-        try {
-          // First check if table exists at all
-          if (!spark.catalog.tableExists(table)) {
-            true // Table doesn't exist, so it's first run
-          } else {
-            // Table exists, check if it's a Delta table by trying to create a DeltaTable reference
-            DeltaTable.forName(table)
-            false // If we can create DeltaTable reference, it's Delta and not first run
-          }
-        } catch {
-          case _: Exception => 
-            // If we can't create DeltaTable reference or any other error, consider it first run
-            true
-        }
-    }
+    val isFirstRun = this.isFirstRun(processing.destination)
 
     if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
@@ -149,20 +129,35 @@ final object Historic extends ProcessStrategy {
 
       updatedRecords.unpersist()
 
-      // Get operation metrics from the merge execution
-      val metricsRow = mergeMetrics.first()
-      val inserted = metricsRow.getAs[Long]("num_inserted_rows")
-      val deleted = metricsRow.getAs[Long]("num_deleted_rows")
-      // Updated = records that had their version closed (from merge) = new versions inserted
+      // Derive all metrics from source-side data to ensure the identity:
+      //   inserted + updated + unchanged = recordCount
+      //
+      // updated = newVersionCount (source records that matched a current target record with
+      //           a different hash, causing the old version to be closed and a new one inserted)
+      // unchanged = source records that matched a current target record with the same hash
+      //             (after the merge, these still have IsCurrent=true in the target)
+      // inserted = genuinely new source records (no matching PK in target)
+      // deleted = target-side metric from whenNotMatchedBySource (reported separately)
       val updated = newVersionCount
-      val unchanged = recordCount - inserted - updated
+      val unchanged = source.as("src")
+        .join(
+          deltaTable.toDF
+            .filter(col(s"${env.SystemFieldPrefix}IsCurrent") === true)
+            .as("tgt"),
+          col(s"src.${processing.primaryKeyColumnName}") === col(s"tgt.${processing.primaryKeyColumnName}")
+        )
+        .count()
+      val inserted = recordCount - updated - unchanged
+
+      val metricsRow = mergeMetrics.first()
+      val deleted = metricsRow.getAs[Long]("num_deleted_rows")
 
       val summary = ProcessingSummary(
         recordsInSlice = recordCount,
         inserted = inserted,
         updated = updated,
         deleted = deleted,
-        unchanged = Math.max(0, unchanged),
+        unchanged = unchanged,
         entityId = Some(processing.entity_id.toString),
         sliceFile = None
       )

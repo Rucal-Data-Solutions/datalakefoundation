@@ -122,13 +122,21 @@ Incremental processing using Delta Lake MERGE operations. Handles inserts, updat
 
 ### Metrics
 
+Metrics are reported for incremental runs. On first run, processing diverts to the Full strategy.
+
 After processing, the strategy logs detailed metrics:
 
-- **recordsInSlice** - Total records in source slice
-- **inserted** - New records added
-- **updated** - Records with actual data changes (hash differs)
-- **touched** - Records with only lastSeen update (hash same)
-- **deleted** - Records marked as soft-deleted
+| Metric | Description |
+|--------|-------------|
+| **recordsInSlice** | Total records in the source slice |
+| **inserted** | New records added (no matching primary key in target) |
+| **updated** | All matched records, including both data changes and lastSeen-only touches |
+| **deleted** | Source records that arrived with the deleted flag set to true. This is a source-side metric and does not include records removed via [delete inference](DELETE_INFERENCE.md) |
+
+The metric identity holds: **`inserted + updated + deleted = recordsInSlice`**
+
+> **Note: Breaking change from previous versions.**
+> Earlier versions reported separate `updated` (source hash changed) and `touched` (source hash unchanged, only lastSeen updated) metrics. These have been intentionally combined into a single `updated` metric to eliminate an expensive pre-merge join. The `touched` metric is always reported as 0 and should not be relied upon. If you have monitoring dashboards or alerting that depends on the old `updated` vs `touched` distinction, you must update them to use the combined `updated` metric. Users who need to distinguish real data changes from touch-only updates should compare source hashes independently.
 
 ### Delete Inference
 
@@ -190,6 +198,24 @@ After processing:
 - Regulatory/compliance requirements for history
 - Analytics needing point-in-time snapshots
 - Master data where changes must be tracked
+
+### Metrics
+
+Metrics are reported for incremental runs. On first run, processing diverts to the Full strategy.
+
+After processing, the strategy logs detailed metrics:
+
+| Metric | Description |
+|--------|-------------|
+| **recordsInSlice** | Total records in the source slice |
+| **inserted** | New records with no matching primary key in the target |
+| **updated** | Records where the source hash differs from the current target version. Each updated record closes the previous version (sets ValidTo and IsCurrent=false) and appends a new current version. The `updated` count directly equals the number of new historical versions created in this processing run. |
+| **unchanged** | Records that matched a current target record with the same hash. No new version is created. |
+| **deleted** | Target records removed via [delete inference](DELETE_INFERENCE.md) (not matched by source). This is a target-side metric from the Delta merge operation and is not included in the source-side identity. |
+
+Source-side identity: **`inserted + updated + unchanged = recordsInSlice`**
+
+> **Note:** The `deleted` metric has different semantics between Merge and Historic strategies. In Merge, `deleted` counts source records arriving with the deleted flag (source-side). In Historic, `deleted` counts target records removed via delete inference (target-side). These values are not directly comparable. Unlike Merge metrics, Historic metrics also include an `unchanged` count for records that matched but did not require a new version.
 
 ### Querying Historic Data
 

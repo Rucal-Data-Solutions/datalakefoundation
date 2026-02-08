@@ -3,7 +3,6 @@ package datalake.processing
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
-// import org.apache.logging.log4j.LogManager
 
 import scala.util.{ Try, Success, Failure }
 import java.util.TimeZone
@@ -16,18 +15,53 @@ import datalake.core._
 import datalake.metadata._
 import datalake.core.implicits._
 
-import org.apache.logging.log4j.LogManager
+import org.apache.spark.sql.AnalysisException
+
+import datalake.log.DatalakeLogManager
 
 abstract class ProcessStrategy {
   implicit val spark: SparkSession =
     SparkSession.builder().getOrCreate()
   import spark.implicits._
-  
-  final val logger = LogManager.getLogger(this.getClass())
+
+  @transient protected lazy val logger = DatalakeLogManager.getLogger(this.getClass)
 
   final val Name: String = {
     val cls = this.getClass()
     cls.getSimpleName().dropRight(1).toLowerCase()
+  }
+
+  /**
+    * Checks whether this is the first run for the given destination.
+    *
+    * For PathLocation: checks if a Delta table exists at the path.
+    * For TableLocation: checks if the table exists in the catalog and is a Delta table.
+    *
+    * Only AnalysisException (table/path not found) is treated as a legitimate first run.
+    * All other exceptions (permission errors, network issues, catalog misconfiguration)
+    * are re-thrown to prevent accidentally triggering a full overwrite on an existing table.
+    */
+  protected def isFirstRun(destination: OutputLocation): Boolean = {
+    destination match {
+      case PathLocation(path) =>
+        !DeltaTable.isDeltaTable(spark, path)
+      case TableLocation(table) =>
+        try {
+          if (!spark.catalog.tableExists(table)) {
+            true
+          } else {
+            DeltaTable.forName(table)
+            false
+          }
+        } catch {
+          case _: AnalysisException =>
+            true
+          case e: Exception =>
+            logger.error(s"Unexpected error checking Delta table existence for '$table'. " +
+              "Refusing to default to full overwrite to prevent data loss.", e)
+            throw e
+        }
+    }
   }
 
   /**
