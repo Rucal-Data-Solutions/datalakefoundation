@@ -82,16 +82,31 @@ class ParquetAppender(
 
   private def writeToParquet(batch: Seq[LogEntry]): Unit = {
     try {
-      val rows = batch.map { entry =>
-        Row(entry.timestamp, entry.level, entry.message, entry.data.orNull, entry.dataType.orNull, entry.runId.orNull)
+      val isStopped = try {
+        spark.sql("SELECT 1")
+        false
+      } catch {
+        case _: Exception => true
       }
-      val df: DataFrame = spark.createDataFrame(rows.asJava, logSchema)
-        .withColumn("data", parse_json(col("data_str")))
-        .drop("data_str")
-      df.write.mode("append").parquet(parquetFilePath)
+
+      if (isStopped) {
+        System.err.println(s"[ParquetAppender] WARNING: SparkSession stopped, cannot flush ${batch.size} log entries")
+        return
+      }
+
+      spark.withActive {
+        val rows = batch.map { entry =>
+          Row(entry.timestamp, entry.level, entry.message, entry.data.orNull, entry.dataType.orNull, entry.runId.orNull)
+        }
+        val df: DataFrame = spark.createDataFrame(rows.asJava, logSchema)
+          .withColumn("data", parse_json(col("data_str")))
+          .drop("data_str")
+        df.write.mode("append").parquet(parquetFilePath)
+      }
     } catch {
       case e: Exception =>
         error("Failed to flush logs to parquet", e)
+        e.printStackTrace()
     }
   }
 

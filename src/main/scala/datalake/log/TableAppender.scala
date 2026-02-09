@@ -100,16 +100,18 @@ class TableAppender(
         return
       }
 
-      val rows = batch.map { entry =>
-        Row(entry.timestamp, entry.level, entry.message, entry.data.orNull, entry.dataType.orNull, entry.runId.orNull)
-      }
-      val df: DataFrame = spark.createDataFrame(rows.asJava, logSchema)
-        .withColumn("data", parse_json(col("data_str")))
-        .drop("data_str")
+      spark.withActive {
+        val rows = batch.map { entry =>
+          Row(entry.timestamp, entry.level, entry.message, entry.data.orNull, entry.dataType.orNull, entry.runId.orNull)
+        }
+        val df: DataFrame = spark.createDataFrame(rows.asJava, logSchema)
+          .withColumn("data", parse_json(col("data_str")))
+          .drop("data_str")
 
-      val tableColumns = spark.table(tableName).columns
-      val orderedDf = df.select(tableColumns.map(c => df.col(c)): _*)
-      orderedDf.write.insertInto(tableName)
+        val tableColumns = spark.table(tableName).columns
+        val orderedDf = df.select(tableColumns.map(c => df.col(c)): _*)
+        orderedDf.write.insertInto(tableName)
+      }
     } catch {
       case e: Exception =>
         error("Failed to flush logs to table", e)
