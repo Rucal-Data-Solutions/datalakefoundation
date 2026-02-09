@@ -9,7 +9,7 @@ All metadata sources extend `DatalakeMetadataSettings` and provide the same conf
 | Source | Class | Use Case |
 |--------|-------|----------|
 | JSON File | `JsonMetadataSettings` | Single configuration file |
-| JSON Folder | `DirectoryJsonMetadataSettings` | Split configuration across files |
+| JSON Folder | `JsonFolderMetadataSettings` | Split configuration across files |
 | SQL Server | `SqlMetadataSettings` | Central database-driven configuration |
 | String | `StringMetadataSettings` | Programmatic/embedded configuration |
 
@@ -73,7 +73,7 @@ Split configuration across multiple JSON files in a directory. Files are merged 
 ```scala
 import datalake.metadata._
 
-val settings = new DirectoryJsonMetadataSettings()
+val settings = new JsonFolderMetadataSettings()
 settings.initialize("/path/to/config/directory")
 
 val metadata = new Metadata(settings)

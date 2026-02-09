@@ -87,7 +87,7 @@ Duplicate entity identifiers are rejected. Use `getEntity(id)` to retrieve an `E
 
 ### 4.2. JSON folder metadata
 
-Use `DirectoryJsonMetadataSettings` to load metadata from multiple JSON files in a directory. Files are merged together, allowing modular organization of connections and entities.
+Use `JsonFolderMetadataSettings` to load metadata from multiple JSON files in a directory. Files are merged together, allowing modular organization of connections and entities.
 
 ### 4.3. SQL Server metadata
 
