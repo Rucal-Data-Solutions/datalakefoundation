@@ -1,4 +1,4 @@
-# Datalake Foundation – usage and functionality guide
+# Datalake Foundation – usage and functionality guide.
 
 ## 1. Introduction and scope
 
