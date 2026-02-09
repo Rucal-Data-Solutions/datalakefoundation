@@ -14,7 +14,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.functions.{col, parse_json}
+import org.apache.spark.sql.functions.{col, parse_json, when, struct, to_json}
 
 @Plugin(name = "TableAppender", category = "Core", elementType = "appender", printObject = true)
 class TableAppender(
@@ -38,6 +38,7 @@ class TableAppender(
   }
 
   override def append(event: LogEvent): Unit = {
+    if (!isStarted) return
     val context = event.getContextData
 
     val timestamp = new Timestamp(event.getTimeMillis)
@@ -105,7 +106,13 @@ class TableAppender(
           Row(entry.timestamp, entry.level, entry.message, entry.data.orNull, entry.dataType.orNull, entry.runId.orNull)
         }
         val df: DataFrame = spark.createDataFrame(rows.asJava, logSchema)
-          .withColumn("data", parse_json(col("data_str")))
+          .withColumn("data",
+            when(col("data_type") === "stacktrace" && col("data_str").isNotNull,
+              parse_json(to_json(struct(col("data_str").as("stacktrace"))))
+            ).when(col("data_str").isNotNull,
+              parse_json(col("data_str"))
+            )
+          )
           .drop("data_str")
 
         val tableColumns = spark.table(tableName).columns
@@ -115,7 +122,6 @@ class TableAppender(
     } catch {
       case e: Exception =>
         error("Failed to flush logs to table", e)
-        e.printStackTrace()
     }
   }
 

@@ -236,7 +236,7 @@ val metadata = new Metadata(settings)
 A convenience factory method is available:
 
 ```scala
-val settings = StringMetadataSettings.fromString(configJson)
+val settings = StringMetadataSettings(configJson)
 ```
 
 ## Common Operations

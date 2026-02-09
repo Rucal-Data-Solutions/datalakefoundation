@@ -25,6 +25,7 @@ All strategies share a common transformation pipeline before writing:
 9. **Add deleted flag** - Soft-delete tracking column
 10. **Add lastSeen timestamp** - Track when record was last processed
 11. **Normalize column names** - Standardize naming format
+12. **Cache DataFrame** - Cache the result for reuse during processing
 
 ## Full Strategy
 

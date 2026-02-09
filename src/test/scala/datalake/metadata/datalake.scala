@@ -147,6 +147,9 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
 
   override def afterAll(): Unit = {
     try {
+      // Shutdown log appenders before stopping Spark to avoid "non-started appender" errors
+      datalake.log.DatalakeLogManager.shutdown()
+
       if (spark != null) {
         try {
           // Stop all active streaming queries with timeout

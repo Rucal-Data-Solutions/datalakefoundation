@@ -5,6 +5,7 @@ import org.apache.logging.log4j.core.LoggerContext
 import org.apache.logging.log4j.core.Appender
 import org.apache.logging.log4j.core.appender.AsyncAppender
 import org.apache.logging.log4j.core.config.{AppenderRef, Configurator, LoggerConfig}
+import org.apache.logging.log4j.status.StatusLogger
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
 import datalake.metadata.Environment
@@ -18,6 +19,9 @@ object Log4jConfigurator {
 
   def init(spark: SparkSession, environment: Option[Environment] = None): Unit = synchronized {
     if (!initialized) {
+      // Suppress noisy Log4j internal lifecycle messages (e.g., "Attempted to append to non-started appender")
+      StatusLogger.getLogger.setLevel(Level.OFF)
+
       // Generate a unique run ID for this session
       val runId = UUID.randomUUID().toString
       currentRunId = Some(runId)
@@ -75,6 +79,9 @@ object Log4jConfigurator {
       Configurator.setLevel("com.databricks.DatabricksEdgeConfigs", Level.WARN)
       Configurator.setLevel("com.databricks.logging.Log4jUsageLogger", Level.WARN)
 
+      // Suppress noisy Hive metastore alter table errors (expected in local/test environments)
+      Configurator.setLevel("org.apache.hadoop.hive.metastore.HiveAlterHandler", Level.OFF)
+
       ctx.updateLoggers()
 
       // Register SparkListener to flush logs before SparkContext stops
@@ -99,10 +106,25 @@ object Log4jConfigurator {
     }
   }
 
+  private val APPENDER_STOP_TIMEOUT_MS = 2000L
+
   def shutdown(): Unit = synchronized {
     if (initialized) {
-      // Stop appenders in reverse order - async first, then base
-      currentAsyncAppender.foreach(_.stop())
+      val ctx = LoggerContext.getContext(false)
+      val config = ctx.getConfiguration
+
+      // Remove appenders from the datalake logger to prevent events reaching stopped appenders
+      Option(config.getLoggerConfig("datalake"))
+        .filter(_.getName == "datalake")
+        .foreach { loggerConfig =>
+          currentAsyncAppender.foreach(a => loggerConfig.removeAppender(a.getName))
+        }
+      ctx.updateLoggers()
+
+      // Stop async appender first with timeout to let dispatcher drain its queue
+      currentAsyncAppender.foreach(
+        _.stop(APPENDER_STOP_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+      )
       currentBaseAppender.foreach(_.stop())
       currentAsyncAppender = None
       currentBaseAppender = None
@@ -114,8 +136,10 @@ object Log4jConfigurator {
 
   def flush(): Unit = synchronized {
     if (initialized) {
-      // Stop and restart async appender to flush its queue
-      currentAsyncAppender.foreach(_.stop())
+      // Stop async appender with timeout to drain its queue to the base appender
+      currentAsyncAppender.foreach(
+        _.stop(APPENDER_STOP_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+      )
 
       // Flush the base appender (TableAppender or ParquetAppender)
       currentBaseAppender.foreach {
@@ -124,7 +148,7 @@ object Log4jConfigurator {
         case _ => // Other appenders don't need explicit flushing
       }
 
-      // Restart async appender if it was stopped
+      // Restart async appender
       currentAsyncAppender.foreach(_.start())
     }
   }

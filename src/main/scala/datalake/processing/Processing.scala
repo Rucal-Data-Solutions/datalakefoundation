@@ -324,11 +324,15 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       WriteWatermark(getSource.watermark_values)
     }
     catch {
-      case e:Throwable => {
-        logger.error("Unhandled exception during processing", e)
-        // e.printStackTrace()
+      case e: DatalakeException =>
+        // Already logged at construction — just re-throw
         throw e
-      }
+      case e: Throwable =>
+        DatalakeLogManager.logException(
+          logger, org.apache.logging.log4j.Level.ERROR,
+          s"Unhandled exception during processing: ${e.getMessage}", e
+        )
+        throw e
     }
     finally {
       // Clean up cached DataFrame to free memory

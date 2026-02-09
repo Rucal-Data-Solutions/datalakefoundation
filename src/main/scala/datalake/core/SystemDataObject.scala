@@ -79,6 +79,10 @@ class SystemDataObject(table_definition: SystemDataTableDefinition)(implicit
           spark.read.format("delta").load(deltaTablePath)
       )
     catch {
+      case e: org.apache.spark.sql.AnalysisException =>
+        val target = if (useCatalogSystemTable) s"catalog table $catalogTableName" else deltaTablePath
+        logger.debug(s"System table not found at $target (expected on first run)")
+        None
       case NonFatal(e) =>
         val target = if (useCatalogSystemTable) s"catalog table $catalogTableName" else s"delta table at $deltaTablePath"
         logger.error(s"Error reading $target", e)

@@ -1,8 +1,9 @@
 package datalake.log
 
-import org.apache.logging.log4j.{LogManager, Logger, ThreadContext}
+import org.apache.logging.log4j.{Level, LogManager, Logger, ThreadContext}
 import org.apache.spark.sql.SparkSession
 import datalake.metadata.Environment
+import java.io.{StringWriter, PrintWriter}
 
 trait LogData {
   def toJson: String
@@ -67,6 +68,14 @@ object DatalakeLogManager {
   def logSummary(logger: Logger, summary: ProcessingSummary, message: String = "Processing complete"): Unit = {
     withLogData(summary) {
       logger.info(message)
+    }
+  }
+
+  def logException(logger: Logger, level: Level, message: String, throwable: Throwable): Unit = {
+    val sw = new StringWriter()
+    throwable.printStackTrace(new PrintWriter(sw))
+    withData(sw.toString, Some("stacktrace")) {
+      logger.log(level, message)
     }
   }
 

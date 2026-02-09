@@ -202,10 +202,13 @@ Functional error handling throughout the codebase.
 Try {
   tempdf.withColumn(column.Name, expr(column.Expression))
 } match {
-  case Success(newDf) => newDf
+  case Success(newDf) =>
+    newDf
   case Failure(e) =>
-    logger.error(s"Failed to add calculated column ${column.Name}...", e)
-    tempdf
+    throw new DatalakeException(
+      s"Failed to add calculated column '${column.Name}' with expression '${column.Expression}': ${e.getMessage}",
+      Level.ERROR
+    )
 }
 ```
 
@@ -233,6 +236,7 @@ Abstract base class with multiple implementations for different configuration so
 | Implementation | Source |
 |----------------|--------|
 | `JsonMetadataSettings` | JSON file |
+| `JsonFolderMetadataSettings` | JSON files in directory (merged) |
 | `SqlMetadataSettings` | SQL Server database |
 | `StringMetadataSettings` | Direct string input |
 
@@ -253,7 +257,11 @@ case class Environment(
   private val secure_container_suffix: Option[String] = None,
   private val systemfield_prefix: Option[String] = None,
   private val output_method: String = "paths",
-  private val log_level: String = "WARN"
+  private val bronze_output: Option[String] = None,
+  private val silver_output: Option[String] = None,
+  private val log_level: String = "WARN",
+  private val log_appender_type: String = "parquet",
+  private val log_output: Option[String] = None
 ) extends Serializable
 ```
 
@@ -281,7 +289,7 @@ Base exception with automatic logging on creation.
 ```scala
 class DatalakeException(msg: String, lvl: Level) extends Exception(msg) {
   @transient private lazy val logger = LogManager.getLogger(this.getClass)
-  logger.log(lvl, msg, this)
+  DatalakeLogManager.logException(logger, lvl, msg, this)
 }
 ```
 
@@ -302,20 +310,33 @@ Try-catch-finally pattern with proper resource cleanup.
 
 ```scala
 try {
+  DatalakeLogManager.withData(entity.toJson, Some("Entity")) {
+    logger.info("Processing started")
+  }
   strategy.Process(this)
   WriteWatermark(getSource.watermark_values)
 }
 catch {
-  case e:Throwable => {
-    logger.error("Unhandled exception during processing", e)
+  case e: DatalakeException =>
+    // Already logged at construction — just re-throw
     throw e
-  }
+  case e: Throwable =>
+    DatalakeLogManager.logException(
+      logger, org.apache.logging.log4j.Level.ERROR,
+      s"Unhandled exception during processing: ${e.getMessage}", e
+    )
+    throw e
 }
 finally {
+  // Clean up cached DataFrame to free memory
   _cachedSource.foreach { source =>
+    logger.debug("Unpersisting cached DataFrame")
     source.source_df.unpersist()
   }
   _cachedSource = None
+
+  // Flush logs to ensure they are written (especially important in REPL/notebook environments)
+  DatalakeLogManager.flush()
 }
 ```
 

@@ -1,8 +1,9 @@
 package datalake.core
 
 import org.apache.logging.log4j.{LogManager, Logger, Level}
+import datalake.log.DatalakeLogManager
 
 class DatalakeException(msg: String, lvl: Level) extends Exception(msg) {
     @transient private lazy val logger = LogManager.getLogger(this.getClass)
-    logger.log(lvl, msg, this)
+    DatalakeLogManager.logException(logger, lvl, msg, this)
 }
