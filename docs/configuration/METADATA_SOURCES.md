@@ -187,6 +187,20 @@ The library builds a connection string with these defaults:
 - Azure SQL compatible hostname certificate
 - 30 second login timeout
 
+### Security Recommendation
+
+Avoid hardcoding credentials in your application. Use a Databricks secret scope backed by Azure Key Vault to retrieve `username` and `password` at runtime:
+
+```scala
+val sqlSettings = SqlServerSettings(
+  server = "sql-server.database.windows.net",
+  port = 1433,
+  database = "ConfigDB",
+  username = dbutils.secrets.get(scope = "keyvault-scope", key = "sql-username"),
+  password = dbutils.secrets.get(scope = "keyvault-scope", key = "sql-password")
+)
+```
+
 ## String Source
 
 For programmatic configuration or testing. Pass the JSON configuration directly as a string.
