@@ -6,12 +6,8 @@ import org.apache.logging.log4j.core.appender.AsyncAppender
 import org.apache.logging.log4j.core.config.AppenderRef
 import org.apache.logging.log4j.core.LoggerContext
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.BeforeAndAfterEach
 
-import java.sql.Timestamp
 import java.util.concurrent.{CountDownLatch, CyclicBarrier, Executors, TimeUnit}
-import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.functions.{col, to_json}
@@ -23,6 +19,37 @@ import datalake.metadata.SparkSessionTest
  * that can occur with mutable LogEvents and async processing.
  */
 class AsyncContextSpec extends AnyFunSuite with SparkSessionTest {
+
+  private val testAppenderNames = Seq(
+    "CapturingAppender",
+    "TestAsyncAppender",
+    "TestAsyncAppenderConcurrent",
+    "TestAsyncParquet",
+    "TestAsyncStress",
+    "ParquetAppender"
+  )
+
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+    ThreadContext.clearAll()
+  }
+
+  override def afterEach(): Unit = {
+    try {
+      val ctx = LoggerContext.getContext(false)
+      val config = ctx.getConfiguration
+      testAppenderNames.foreach { name =>
+        Option(config.getAppenders.get(name)).foreach { appender =>
+          appender.stop()
+          config.getAppenders.remove(name)
+        }
+      }
+      ctx.updateLoggers()
+      ThreadContext.clearAll()
+    } finally {
+      super.afterEach()
+    }
+  }
 
   /**
    * A test appender that captures log entries for verification.
