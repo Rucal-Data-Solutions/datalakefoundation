@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: 11
+        distribution: 'temurin'
+        cache: 'sbt'
+
+    - name: Setup sbt launcher
+      uses: sbt/setup-sbt@v1
+
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=$(grep 'ThisBuild / version' build.sbt | sed 's/.*:= *"\(.*\)"/\1/')
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Build JARs
+      run: sbt +package
+
+    - name: Delete existing release
+      run: gh release delete "v${{ steps.version.outputs.version }}" --cleanup-tag --yes || true
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Create release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: v${{ steps.version.outputs.version }}
+        generate_release_notes: true
+        make_latest: true
+        files: |
+          target/scala-2.12/*.jar
+          target/scala-2.13/*.jar
