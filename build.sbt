@@ -33,7 +33,6 @@ lazy val root = (project in file("."))
     // Make sure we have common-io for FileUtils in tests
     libraryDependencies += "commons-io" % "commons-io" % "2.13.0",
 
-    Test / parallelExecution := false,
     Test / fork := true,
     Test / javaOptions ++= Seq(
       "--add-opens=java.base/java.lang=ALL-UNNAMED",
