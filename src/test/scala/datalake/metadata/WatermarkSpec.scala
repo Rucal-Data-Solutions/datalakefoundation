@@ -70,4 +70,196 @@ class WatermarkSpec extends AnyFunSuite with SparkSessionTest {
     assert(result.isDefined, "Watermark.Value should return Some for valid expression with stored value")
     assert(result.get === "'42'", s"Watermark.Value should evaluate to the quoted last value, got: ${result.get}")
   }
+
+  test("WatermarkData.Reset with column name string resets to None") {
+    val entityId = 99996
+    implicit val env = override_env
+    val wmd = new WatermarkData(entityId)
+
+    // First write a watermark value
+    val wm = new Watermark(
+      override_env,
+      entity_id = entityId,
+      column_name = "TestCol3",
+      operation = "or",
+      operation_group = Some(0),
+      expression = "'${last_value}'"
+    )
+    wmd.WriteWatermark(Seq((wm, "100")))
+
+    // Verify it was written
+    val initialValue = wmd.getLastValue("TestCol3")
+    assert(initialValue.isDefined, "Initial watermark value should be written")
+    assert(initialValue.get.value === "100", "Initial watermark value should be 100")
+
+    // Reset using the new string-based method
+    wmd.Reset("TestCol3")
+
+    // Verify it was reset to None
+    val resetValue = wmd.getLastValue("TestCol3")
+    assert(resetValue.isEmpty, "Watermark should be reset to None")
+  }
+
+  test("WatermarkData.Reset with column name string and value resets to specified value") {
+    val entityId = 99995
+    implicit val env = override_env
+    val wmd = new WatermarkData(entityId)
+
+    // First write a watermark value
+    val wm = new Watermark(
+      override_env,
+      entity_id = entityId,
+      column_name = "TestCol4",
+      operation = "or",
+      operation_group = Some(0),
+      expression = "'${last_value}'"
+    )
+    wmd.WriteWatermark(Seq((wm, "500")))
+
+    // Verify it was written
+    val initialValue = wmd.getLastValue("TestCol4")
+    assert(initialValue.isDefined, "Initial watermark value should be written")
+    assert(initialValue.get.value === "500", "Initial watermark value should be 500")
+
+    // Reset to a new value using the new string-based method
+    wmd.Reset("TestCol4", "2024-01-01")
+
+    // Verify it was reset to the new value
+    val resetValue = wmd.getLastValue("TestCol4")
+    assert(resetValue.isDefined, "Watermark should be reset to new value")
+    assert(resetValue.get.value === "2024-01-01", "Watermark should be reset to 2024-01-01")
+  }
+
+  test("Entity.ResetWatermark with column name resets to None") {
+    val entityId = 99994
+    implicit val env = override_env
+
+    // Create a minimal metadata string for an entity
+    val metadataJson = s"""{
+      "environment": {
+        "name": "test",
+        "rootfolder": "$testBasePath",
+        "timezone": "Europe/Amsterdam"
+      },
+      "connections": [
+        {
+          "name": "test_connection",
+          "enabled": true,
+          "settings": {}
+        }
+      ],
+      "entities": [
+        {
+          "id": $entityId,
+          "name": "test_entity",
+          "connection": "test_connection",
+          "enabled": true,
+          "processtype": "full",
+          "settings": {},
+          "columns": [
+            {
+              "name": "id",
+              "datatype": "integer",
+              "fieldrole": ["businesskey"]
+            }
+          ],
+          "watermark": [
+            {
+              "column_name": "TestCol5",
+              "operation": "or",
+              "expression": "'$${last_value}'"
+            }
+          ]
+        }
+      ]
+    }"""
+
+    val settings = new StringMetadataSettings()
+    settings.initialize(metadataJson)
+    val metadata = new Metadata(settings, override_env)
+    val entity = metadata.getEntities(entityId).head
+
+    // Write a watermark value first
+    val wmd = new WatermarkData(entityId)(env)
+    val wm = entity.Watermark.head
+    wmd.WriteWatermark(Seq((wm, "999")))
+
+    // Verify it was written
+    val initialValue = wmd.getLastValue("TestCol5")
+    assert(initialValue.isDefined, "Initial watermark value should be written")
+
+    // Reset using Entity convenience method
+    entity.ResetWatermark("TestCol5")
+
+    // Verify it was reset to None
+    val resetValue = wmd.getLastValue("TestCol5")
+    assert(resetValue.isEmpty, "Watermark should be reset to None via Entity.ResetWatermark")
+  }
+
+  test("Entity.ResetWatermark with column name and value resets to specified value") {
+    val entityId = 99993
+    implicit val env = override_env
+
+    // Create a minimal metadata string for an entity
+    val metadataJson = s"""{
+      "environment": {
+        "name": "test",
+        "rootfolder": "$testBasePath",
+        "timezone": "Europe/Amsterdam"
+      },
+      "connections": [
+        {
+          "name": "test_connection",
+          "enabled": true,
+          "settings": {}
+        }
+      ],
+      "entities": [
+        {
+          "id": $entityId,
+          "name": "test_entity",
+          "connection": "test_connection",
+          "enabled": true,
+          "processtype": "full",
+          "settings": {},
+          "columns": [
+            {
+              "name": "id",
+              "datatype": "integer",
+              "fieldrole": ["businesskey"]
+            }
+          ],
+          "watermark": [
+            {
+              "column_name": "TestCol6",
+              "operation": "or",
+              "expression": "'$${last_value}'"
+            }
+          ]
+        }
+      ]
+    }"""
+
+    val settings = new StringMetadataSettings()
+    settings.initialize(metadataJson)
+    val metadata = new Metadata(settings, override_env)
+    val entity = metadata.getEntities(entityId).head
+
+    // Write a watermark value first
+    val wmd = new WatermarkData(entityId)(env)
+    val wm = entity.Watermark.head
+    wmd.WriteWatermark(Seq((wm, "777")))
+
+    // Verify it was written
+    val initialValue = wmd.getLastValue("TestCol6")
+    assert(initialValue.isDefined, "Initial watermark value should be written")
+
+    // Reset to a new value using Entity convenience method
+    entity.ResetWatermark("TestCol6", "2025-12-31")
+
+    // Verify it was reset to the new value
+    val resetValue = wmd.getLastValue("TestCol6")
+    assert(resetValue.isDefined, "Watermark should be reset to new value")
+    assert(resetValue.get.value === "2025-12-31", "Watermark should be reset to 2025-12-31 via Entity.ResetWatermark")
+  }
 }

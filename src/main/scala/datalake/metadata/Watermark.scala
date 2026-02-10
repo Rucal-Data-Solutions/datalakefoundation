@@ -30,7 +30,7 @@ class Watermark(
   private val wmd = new WatermarkData(entity_id)(environment = environment)
 
   override def toString(): String =
-    s"${operation} ${column_name} > ${Function}"
+    s"${operation} ${column_name} > ${expression}"
 
   final def Expression: String = expression
 

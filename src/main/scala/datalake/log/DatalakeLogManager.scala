@@ -61,10 +61,6 @@ object DatalakeLogManager {
     withData(logData.toJson, Some(logData.dataType))(block)
   }
 
-  def withSummary[T](summary: ProcessingSummary)(block: => T): T = {
-    withLogData(summary)(block)
-  }
-
   def logSummary(logger: Logger, summary: ProcessingSummary, message: String = "Processing complete"): Unit = {
     withLogData(summary) {
       logger.info(message)

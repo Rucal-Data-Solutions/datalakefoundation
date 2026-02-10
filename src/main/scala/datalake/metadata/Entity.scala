@@ -277,16 +277,22 @@ class Entity(
       .map(column => column.Name)
       .toList
 
-  final def getRenamedColumns: scala.collection.Map[String, String] =
-    this.columns
-      .filter(c => c.NewName.toString() != "" && c.NewName != c.Name && c.Name != "")
-      .map(c => (c.Name, c.NewName))
-      .toMap
-
   final def WriteWatermark(watermark_values: Array[(Watermark, Any)]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData(this.id)
     watermarkData.WriteWatermark(watermark_values)
+  }
+
+  final def ResetWatermark(columnName: String): Unit = {
+    // Reset watermark using column name
+    val watermarkData: WatermarkData = new WatermarkData(this.id)
+    watermarkData.Reset(columnName)
+  }
+
+  final def ResetWatermark(columnName: String, toValue: String): Unit = {
+    // Reset watermark using column name and value
+    val watermarkData: WatermarkData = new WatermarkData(this.id)
+    watermarkData.Reset(columnName, toValue)
   }
 
 }

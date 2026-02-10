@@ -199,7 +199,7 @@ class TableAppenderSpec extends AnyFlatSpec with SparkSessionTest {
     DatalakeLogManager.getRunId shouldBe None
   }
 
-  it should "write logs with structured data using withSummary helper" in {
+  it should "write logs with structured data using withLogData helper" in {
     // Use direct TableAppender to avoid Log4j configuration state issues between tests
     val appender = TableAppender.createAppender(
       spark = spark,
