@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -51,3 +52,119 @@ jobs:
     
     - name: Sbt Dependency Submission
       uses: scalacenter/sbt-dependency-submission@v2.2.2
+
+  version-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Compare version to latest tag
+      id: version
+      run: |
+        current=$(grep 'ThisBuild / version' build.sbt | sed 's/.*"\(.*\)".*/\1/')
+        latest_tag=$(git tag --sort=-v:refname | head -1 | sed 's/^v//')
+        echo "current=$current" >> "$GITHUB_OUTPUT"
+        echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+        if [ -z "$latest_tag" ]; then
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+        elif [ "$(printf '%s\n%s' "$latest_tag" "$current" | sort -V | tail -1)" = "$current" ] && [ "$current" != "$latest_tag" ]; then
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "bumped=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Delete previous version comment
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh api "repos/${{ github.repository }}/issues/${{ github.event.number }}/comments" \
+          --jq '.[] | select(.body | startswith("<!-- version-check -->")) | .id' \
+        | while read -r id; do
+            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/$id"
+          done
+
+    - name: Comment on PR
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        current="${{ steps.version.outputs.current }}"
+        latest="${{ steps.version.outputs.latest_tag }}"
+        bumped="${{ steps.version.outputs.bumped }}"
+        if [ "$bumped" = "true" ]; then
+          body="<!-- version-check -->"$'\n'"**Version bump detected:** v${latest:-none} → v${current}. Merging will trigger a release."
+        else
+          body="<!-- version-check -->"$'\n'"**No version bump.** build.sbt version (${current}) matches the latest tag (v${latest}). Merging will not trigger a release."
+        fi
+        gh pr comment "${{ github.event.number }}" --body "$body"
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check version bump
+      id: version
+      run: |
+        current=$(grep 'ThisBuild / version' build.sbt | sed 's/.*"\(.*\)".*/\1/')
+        latest_tag=$(git tag --sort=-v:refname | head -1 | sed 's/^v//')
+        echo "current=$current" >> "$GITHUB_OUTPUT"
+        echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+        if [ -z "$latest_tag" ]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        elif [ "$(printf '%s\n%s' "$latest_tag" "$current" | sort -V | tail -1)" = "$current" ] && [ "$current" != "$latest_tag" ]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Java
+      if: steps.version.outputs.changed == 'true'
+      uses: actions/setup-java@v4
+      with:
+        java-version: 17
+        distribution: 'temurin'
+        cache: 'sbt'
+
+    - name: Setup sbt launcher
+      if: steps.version.outputs.changed == 'true'
+      uses: sbt/setup-sbt@v1
+
+    - name: Import GPG key
+      if: steps.version.outputs.changed == 'true'
+      run: echo "${{ secrets.PGP_SECRET }}" | base64 --decode | gpg --batch --import
+
+    - name: Publish to Maven Central
+      if: steps.version.outputs.changed == 'true'
+      env:
+        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+      run: sbt +publishSigned sonatypeBundleRelease
+
+    - name: Build JAR for release
+      if: steps.version.outputs.changed == 'true'
+      run: sbt +package
+
+    - name: Create GitHub Release
+      if: steps.version.outputs.changed == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        version="${{ steps.version.outputs.current }}"
+        git tag "v${version}"
+        git push origin "v${version}"
+        gh release create "v${version}" \
+          --title "v${version}" \
+          --generate-notes \
+          target/scala-*/*.jar
