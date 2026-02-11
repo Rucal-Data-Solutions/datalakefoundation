@@ -5,6 +5,31 @@ ThisBuild / scalaVersion     := scala213
 ThisBuild / version          := "1.6.0"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
+
+import xerial.sbt.Sonatype.sonatypeCentralHost
+
+// Maven Central publishing metadata
+ThisBuild / description   := "A metadata-driven data ingestion library for Apache Spark and Delta Lake"
+ThisBuild / homepage      := Some(url("https://github.com/Rucal-Data-Solutions/datalakefoundation"))
+ThisBuild / licenses      := List("GPL-3.0" -> url("https://www.gnu.org/licenses/gpl-3.0.html"))
+ThisBuild / developers    := List(
+  Developer("ruben", "Ruben Geistdorfer", "support@rucal.nl", url("https://github.com/Rucal-Data-Solutions"))
+)
+ThisBuild / scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/Rucal-Data-Solutions/datalakefoundation"),
+    "scm:git@github.com:Rucal-Data-Solutions/datalakefoundation.git"
+  )
+)
+
+// Sonatype Central Portal publishing
+ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
+ThisBuild / publishMavenStyle      := true
+ThisBuild / publishTo              := sonatypePublishToBundle.value
+ThisBuild / pomIncludeRepository   := { _ => false }
+
+Global / excludeLintKeys ++= Set(publishMavenStyle, pomIncludeRepository)
+
 lazy val sparkVersion = "4.0.0"
 
 lazy val root = (project in file("."))

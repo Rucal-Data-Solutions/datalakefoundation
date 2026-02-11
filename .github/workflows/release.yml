@@ -34,6 +34,17 @@ jobs:
         VERSION=$(grep 'ThisBuild / version' build.sbt | sed 's/.*:= *"\(.*\)"/\1/')
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+    - name: Import GPG key
+      run: |
+        echo "${{ secrets.PGP_SECRET }}" | base64 --decode | gpg --batch --import
+
+    - name: Publish to Maven Central
+      env:
+        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+      run: sbt +publishSigned sonatypeBundleRelease
+
     - name: Build JARs
       run: sbt package
 
