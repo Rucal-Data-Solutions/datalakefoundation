@@ -1,6 +1,6 @@
 package datalake.log
 
-import org.apache.logging.log4j.{Level, LogManager, Logger, ThreadContext}
+import org.apache.logging.log4j.{Level, LogManager, Logger, MarkerManager, ThreadContext}
 import org.apache.spark.sql.SparkSession
 import datalake.metadata.Environment
 import java.io.{StringWriter, PrintWriter}
@@ -36,6 +36,8 @@ case class ProcessingSummary(
 }
 
 object DatalakeLogManager {
+  val AuditMarker = MarkerManager.getMarker("AUDIT")
+
   def getLogger(cls: Class[_])(implicit spark: SparkSession): Logger = {
     Log4jConfigurator.init(spark)
     LogManager.getLogger(cls)
@@ -63,7 +65,7 @@ object DatalakeLogManager {
 
   def logSummary(logger: Logger, summary: ProcessingSummary, message: String = "Processing complete"): Unit = {
     withLogData(summary) {
-      logger.info(message)
+      logger.info(AuditMarker, message)
     }
   }
 

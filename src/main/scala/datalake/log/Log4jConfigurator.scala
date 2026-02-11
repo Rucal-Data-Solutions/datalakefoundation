@@ -5,6 +5,8 @@ import org.apache.logging.log4j.core.LoggerContext
 import org.apache.logging.log4j.core.Appender
 import org.apache.logging.log4j.core.appender.AsyncAppender
 import org.apache.logging.log4j.core.config.{AppenderRef, Configurator, LoggerConfig}
+import org.apache.logging.log4j.core.filter.{CompositeFilter, MarkerFilter, ThresholdFilter}
+import org.apache.logging.log4j.core.Filter
 import org.apache.logging.log4j.status.StatusLogger
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
@@ -64,10 +66,22 @@ object Log4jConfigurator {
           newConfig
         }
 
-      // Set the logger level from environment configuration
-      loggerConfig.setLevel(logLevel)
+      // Open the logger gate to at least INFO so audit events pass through
+      val loggerLevel =
+        if (logLevel.intLevel() < Level.INFO.intLevel()) Level.INFO else logLevel
+      loggerConfig.setLevel(loggerLevel)
 
-      loggerConfig.addAppender(asyncAppender, logLevel, null)
+      // Build a composite filter: AUDIT-marked events always pass,
+      // other events are subject to the configured log level
+      val auditFilter = MarkerFilter.createFilter(
+        "AUDIT", Filter.Result.ACCEPT, Filter.Result.NEUTRAL
+      )
+      val thresholdFilter =
+        ThresholdFilter.createFilter(logLevel, Filter.Result.ACCEPT, Filter.Result.DENY)
+      val compositeFilter =
+        CompositeFilter.createFilters(Array(auditFilter, thresholdFilter))
+
+      loggerConfig.addAppender(asyncAppender, null, compositeFilter)
 
       // Suppress noisy Spark parser cache INFO messages
       Configurator.setLevel("org.apache.spark.sql.catalyst.parser.AbstractParser$ParserCaches", Level.WARN)
