@@ -2,6 +2,7 @@ package datalake.processing
 
 import datalake.metadata._
 import datalake.core.implicits._
+import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -15,27 +16,7 @@ final object Historic extends ProcessStrategy {
   def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
-    val isFirstRun = processing.destination match {
-      case PathLocation(path) => 
-        !DeltaTable.isDeltaTable(spark, path)
-      case TableLocation(table) => 
-        // For table locations, we need a more robust check
-        // isDeltaTable with table names can be unreliable, so we check if table exists and is Delta
-        try {
-          // First check if table exists at all
-          if (!spark.catalog.tableExists(table)) {
-            true // Table doesn't exist, so it's first run
-          } else {
-            // Table exists, check if it's a Delta table by trying to create a DeltaTable reference
-            DeltaTable.forName(table)
-            false // If we can create DeltaTable reference, it's Delta and not first run
-          }
-        } catch {
-          case _: Exception => 
-            // If we can't create DeltaTable reference or any other error, consider it first run
-            true
-        }
-    }
+    val isFirstRun = this.isFirstRun(processing.destination)
 
     if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
@@ -44,6 +25,7 @@ final object Historic extends ProcessStrategy {
       logger.debug("Incremental load (Subsequent Runs)")
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
+      val recordCount = source.count()
 
       val part_values: List[String] = datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
       val partition_filters: Array[String] = datalake_source.partition_columns match {
@@ -121,7 +103,7 @@ final object Historic extends ProcessStrategy {
       }
 
       // Execute the merge before computing new version rows so the target reflects closed records
-      mergeWithDeletes.execute()
+      val mergeMetrics = mergeWithDeletes.execute()
 
       // Insert new versions for updated records
       val updatedRecords = source.as("source")
@@ -130,17 +112,56 @@ final object Historic extends ProcessStrategy {
           expr(s"source.${processing.primaryKeyColumnName} = target.${processing.primaryKeyColumnName} AND target.${env.SystemFieldPrefix}IsCurrent = false AND target.${env.SystemFieldPrefix}ValidTo = cast('${processing.processingTime}' as timestamp)")
         )
         .select("source.*")
+        .cache()
 
-      val updatewriter  =  updatedRecords.write
+      val newVersionCount = updatedRecords.count()
+
+      val updatewriter = updatedRecords.write
         .format("delta")
         .mode("append")
 
       processing.destination match {
-        case PathLocation(path) => 
+        case PathLocation(path) =>
           updatewriter.save(path)
         case TableLocation(table) =>
           updatewriter.saveAsTable(table)
       }
+
+      updatedRecords.unpersist()
+
+      // Derive all metrics from source-side data to ensure the identity:
+      //   inserted + updated + unchanged = recordCount
+      //
+      // updated = newVersionCount (source records that matched a current target record with
+      //           a different hash, causing the old version to be closed and a new one inserted)
+      // unchanged = source records that matched a current target record with the same hash
+      //             (after the merge, these still have IsCurrent=true in the target)
+      // inserted = genuinely new source records (no matching PK in target)
+      // deleted = target-side metric from whenNotMatchedBySource (reported separately)
+      val updated = newVersionCount
+      val unchanged = source.as("src")
+        .join(
+          deltaTable.toDF
+            .filter(col(s"${env.SystemFieldPrefix}IsCurrent") === true)
+            .as("tgt"),
+          col(s"src.${processing.primaryKeyColumnName}") === col(s"tgt.${processing.primaryKeyColumnName}")
+        )
+        .count()
+      val inserted = recordCount - updated - unchanged
+
+      val metricsRow = mergeMetrics.first()
+      val deleted = metricsRow.getAs[Long]("num_deleted_rows")
+
+      val summary = ProcessingSummary(
+        recordsInSlice = recordCount,
+        inserted = inserted,
+        updated = updated,
+        deleted = deleted,
+        unchanged = unchanged,
+        entityId = Some(processing.entity_id.toString),
+        sliceFile = None
+      )
+      DatalakeLogManager.logSummary(logger, summary)
     }
   }
 }

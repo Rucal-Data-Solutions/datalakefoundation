@@ -14,6 +14,7 @@ import org.apache.spark.sql.SaveMode
 
 import datalake.core._
 import datalake.metadata._
+import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
 final object Full extends ProcessStrategy {
 
@@ -22,6 +23,7 @@ final object Full extends ProcessStrategy {
 
     val datalake_source = processing.getSource
     val source: DataFrame = datalake_source.source_df
+    val recordCount = source.count()
 
     val part_values: List[String] =
       datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
@@ -63,5 +65,12 @@ final object Full extends ProcessStrategy {
         writer.format("delta").saveAsTable(table)
     }
 
+    val summary = ProcessingSummary(
+      recordsInSlice = recordCount,
+      inserted = recordCount,
+      entityId = Some(processing.entity_id.toString),
+      sliceFile = None
+    )
+    DatalakeLogManager.logSummary(logger, summary)
   }
 }

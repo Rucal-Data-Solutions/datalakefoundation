@@ -23,10 +23,6 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
   // Use unique app name and warehouse per test class instance to avoid session sharing
   private val uniqueId = s"${this.getClass.getSimpleName}-${System.nanoTime()}"
 
-  // Enable forced shutdown after cleanup when running in debug mode
-  // Set system property: -Dspark.test.forceShutdown=true
-  private val forceShutdown = sys.props.get("spark.test.forceShutdown").exists(_.toBoolean)
-
   val conf: SparkConf = new SparkConf()
     .setMaster("local[*]")
     .setAppName(s"Rucal Unit Tests - $uniqueId")
@@ -151,6 +147,9 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
 
   override def afterAll(): Unit = {
     try {
+      // Shutdown log appenders before stopping Spark to avoid "non-started appender" errors
+      datalake.log.DatalakeLogManager.shutdown()
+
       if (spark != null) {
         try {
           // Stop all active streaming queries with timeout
@@ -203,29 +202,6 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
         case _: Exception => // Ignore if directory doesn't exist or can't be deleted
       }
 
-      // If forceShutdown is enabled (for debug mode), schedule JVM exit
-      // This helps debug sessions terminate cleanly in IDEs
-      if (forceShutdown) {
-        // Give it 2 seconds to finish cleanup, then force exit
-        val shutdownThread = new Thread(() => {
-          try {
-            Thread.sleep(2000)
-            println("SparkSessionTest: Forcing JVM shutdown after cleanup")
-            // Print remaining non-daemon threads for debugging
-            Thread.getAllStackTraces.keySet().toArray.foreach {
-              case t: Thread if !t.isDaemon && t.isAlive =>
-                println(s"  Non-daemon thread still running: ${t.getName} (${t.getState})")
-              case _ => // Skip daemon threads
-            }
-            System.exit(0)
-          } catch {
-            case _: InterruptedException => // Cancelled, normal termination happened
-          }
-        })
-        shutdownThread.setDaemon(true)
-        shutdownThread.setName("test-force-shutdown")
-        shutdownThread.start()
-      }
     } finally {
       super.afterAll()
     }
@@ -263,7 +239,7 @@ class SparkEnvironmentTests extends AnyFunSuite with SparkSessionTest {
     import spark.implicits._ // Now spark is a stable var, so we import implicits inside the test
 
     info(s"spark version: ${spark.version}")
-    assert(spark.version === "3.5.2", s"spark version: ${spark.version}")
+    assert(spark.version === "4.0.0", s"spark version: ${spark.version}")
 
     // spark.conf.getAll.foreach(println)
 

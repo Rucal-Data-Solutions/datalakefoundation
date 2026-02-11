@@ -99,6 +99,15 @@ abstract class DatalakeMetadataSettings extends Serializable {
       .map(j => j.extract[Entity])
   }
 
+  final def getConnectionGroupEntities(connectionGroup: EntityConnectionGroup): List[Entity] = {
+    implicit var formats: Formats =
+      DefaultFormats + new EntitySerializer(_metadata) + new WatermarkSerializer(_metadata) + new EntityTransformationSerializer(_metadata)
+
+    _entities
+      .filter(e => (e \ "connectiongroup").toOption.exists(_.extract[String].equalsIgnoreCase(connectionGroup.Name)))
+      .map(j => j.extract[Entity])
+  }
+
   final def getConnection(connectionCode: String): Option[Connection] = {
     implicit var formats: Formats =
       DefaultFormats + new ConnectionSerializer(_metadata)

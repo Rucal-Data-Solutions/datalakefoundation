@@ -16,21 +16,26 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.functions.{col, parse_json, when, struct, to_json}
 
-@Plugin(name = "ParquetAppender", category = "Core", elementType = "appender", printObject = true)
-class ParquetAppender(
+@Plugin(name = "TableAppender", category = "Core", elementType = "appender", printObject = true)
+class TableAppender(
     name: String,
     layout: org.apache.logging.log4j.core.Layout[_ <: Serializable],
     filter: Filter,
     ignoreExceptions: Boolean,
     val spark: SparkSession,
-    val parquetFilePath: String,
-    val logBufferThreshold: Int
+    val tableName: String,
+    val logBufferThreshold: Int,
+    val createTableIfNotExists: Boolean = true
 ) extends AbstractAppender(name, filter, layout, ignoreExceptions, Property.EMPTY_ARRAY) {
 
   private case class LogEntry(timestamp: Timestamp, level: String, message: String, data: Option[String], dataType: Option[String], runId: Option[String])
 
   private val logBuffer = ArrayBuffer[LogEntry]()
   private val bufferLock = new Object()
+
+  if (createTableIfNotExists) {
+    ensureTableExists()
+  }
 
   override def append(event: LogEvent): Unit = {
     if (!isStarted) return
@@ -69,7 +74,7 @@ class ParquetAppender(
       entries
     }
 
-    writeToParquet(batch)
+    writeToTable(batch)
   }
 
   private val logSchema = StructType(Seq(
@@ -81,9 +86,10 @@ class ParquetAppender(
     StructField("run_id", StringType, nullable = true)
   ))
 
-  private def writeToParquet(batch: Seq[LogEntry]): Unit = {
+  private def writeToTable(batch: Seq[LogEntry]): Unit = {
     try {
       val isStopped = try {
+        // Use SQL check for Spark Connect compatibility instead of sparkContext.isStopped
         spark.sql("SELECT 1")
         false
       } catch {
@@ -91,7 +97,7 @@ class ParquetAppender(
       }
 
       if (isStopped) {
-        System.err.println(s"[ParquetAppender] WARNING: SparkSession stopped, cannot flush ${batch.size} log entries")
+        System.err.println(s"[TableAppender] WARNING: SparkSession stopped, cannot flush ${batch.size} log entries")
         return
       }
 
@@ -108,11 +114,43 @@ class ParquetAppender(
             )
           )
           .drop("data_str")
-        df.write.mode("append").parquet(parquetFilePath)
+
+        val tableColumns = spark.table(tableName).columns
+        val orderedDf = df.select(tableColumns.map(c => df.col(c)): _*)
+        orderedDf.write.insertInto(tableName)
       }
     } catch {
       case e: Exception =>
-        error("Failed to flush logs to parquet", e)
+        error("Failed to flush logs to table", e)
+    }
+  }
+
+  private def ensureTableExists(): Unit = {
+    try {
+      val parts = tableName.split("\\.")
+      val databaseName = parts.length match {
+        case 3 => s"${parts(0)}.${parts(1)}"
+        case 2 => parts(0)
+        case _ => null
+      }
+
+      if (databaseName != null) {
+        spark.sql(s"CREATE DATABASE IF NOT EXISTS $databaseName")
+      }
+
+      spark.sql(s"""
+        CREATE TABLE IF NOT EXISTS $tableName (
+          timestamp TIMESTAMP,
+          level STRING,
+          message STRING,
+          data VARIANT,
+          data_type STRING,
+          run_id STRING
+        ) USING DELTA
+      """)
+    } catch {
+      case e: Exception =>
+        error(s"Could not ensure table exists: $tableName", e)
     }
   }
 
@@ -122,20 +160,22 @@ class ParquetAppender(
   }
 }
 
-object ParquetAppender {
+object TableAppender {
   def createAppender(
       spark: SparkSession,
-      parquetPath: String = "./spark-logs.parquet",
-      threshold: Int = 10
-  ): ParquetAppender = {
-    new ParquetAppender(
-      "ParquetAppender",
+      tableName: String,
+      threshold: Int = 10,
+      createTableIfNotExists: Boolean = true
+  ): TableAppender = {
+    new TableAppender(
+      "TableAppender",
       PatternLayout.createDefaultLayout(),
       null,
       true,
       spark,
-      parquetPath,
-      threshold
+      tableName,
+      threshold,
+      createTableIfNotExists
     )
   }
 }

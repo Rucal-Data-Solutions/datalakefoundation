@@ -1,30 +1,63 @@
 package datalake.log
 
-import org.apache.logging.log4j.{Level, LogManager}
+import org.apache.logging.log4j.{Level, LogManager, ThreadContext}
 import org.apache.logging.log4j.core.LoggerContext
-import org.apache.logging.log4j.core.config.{Configurator, LoggerConfig}
+import org.apache.logging.log4j.core.Appender
+import org.apache.logging.log4j.core.appender.AsyncAppender
+import org.apache.logging.log4j.core.config.{AppenderRef, Configurator, LoggerConfig}
+import org.apache.logging.log4j.core.filter.{CompositeFilter, MarkerFilter, ThresholdFilter}
+import org.apache.logging.log4j.core.Filter
+import org.apache.logging.log4j.status.StatusLogger
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
 import datalake.metadata.Environment
+import java.util.UUID
 
 object Log4jConfigurator {
   @volatile private var initialized = false
+  @volatile private var currentAsyncAppender: Option[AsyncAppender] = None
+  @volatile private var currentBaseAppender: Option[Appender] = None
+  @volatile private var currentRunId: Option[String] = None
 
   def init(spark: SparkSession, environment: Option[Environment] = None): Unit = synchronized {
     if (!initialized) {
+      // Suppress noisy Log4j internal lifecycle messages (e.g., "Attempted to append to non-started appender")
+      StatusLogger.getLogger.setLevel(Level.OFF)
+
+      // Generate a unique run ID for this session
+      val runId = UUID.randomUUID().toString
+      currentRunId = Some(runId)
+      ThreadContext.put("run_id", runId)
+
       val ctx = LoggerContext.getContext(false)
       val config = ctx.getConfiguration
 
-      // val parquetAppender = ParquetAppender.createAppender(spark, "dlf_log.parquet")
-      // parquetAppender.start()
+      // Create the base appender
+      val baseAppender = createLogAppender(spark, environment)
+      baseAppender.start()
+      config.addAppender(baseAppender)
+      currentBaseAppender = Some(baseAppender)
+
+      // Wrap with AsyncAppender for non-blocking logging
+      val asyncAppender = AsyncAppender.newBuilder()
+        .setName("AsyncDatalakeAppender")
+        .setAppenderRefs(Array(AppenderRef.createAppenderRef(baseAppender.getName, null, null)))
+        .setConfiguration(config)
+        .setBlocking(true)           // Block when queue is full to prevent event loss
+        .setBufferSize(1024)         // Ring buffer size
+        .build()
+      asyncAppender.start()
+      config.addAppender(asyncAppender)
+      currentAsyncAppender = Some(asyncAppender)
 
       val loggerName = "datalake"
-      
+
       // Determine log level from environment or default to WARN
       val logLevel = environment match {
         case Some(env) => parseLogLevel(env.LogLevel)
         case None => Level.WARN
       }
-      
+
       val loggerConfig = Option(config.getLoggerConfig(loggerName))
         .filter(_.getName == loggerName)
         .getOrElse {
@@ -33,18 +66,132 @@ object Log4jConfigurator {
           newConfig
         }
 
-      // Set the logger level from environment configuration
-      loggerConfig.setLevel(logLevel)
+      // Open the logger gate to at least INFO so audit events pass through
+      val loggerLevel =
+        if (logLevel.intLevel() < Level.INFO.intLevel()) Level.INFO else logLevel
+      loggerConfig.setLevel(loggerLevel)
 
-      // loggerConfig.addAppender(parquetAppender, Level.INFO, null)
+      // Build a composite filter: AUDIT-marked events always pass,
+      // other events are subject to the configured log level
+      val auditFilter = MarkerFilter.createFilter(
+        "AUDIT", Filter.Result.ACCEPT, Filter.Result.NEUTRAL
+      )
+      val thresholdFilter =
+        ThresholdFilter.createFilter(logLevel, Filter.Result.ACCEPT, Filter.Result.DENY)
+      val compositeFilter =
+        CompositeFilter.createFilters(Array(auditFilter, thresholdFilter))
 
+      loggerConfig.addAppender(asyncAppender, null, compositeFilter)
+
+      // Suppress noisy Spark parser cache INFO messages
+      Configurator.setLevel("org.apache.spark.sql.catalyst.parser.AbstractParser$ParserCaches", Level.WARN)
+
+      // Suppress SparkSession Connect mode warnings (expected when using Spark Connect)
+      Configurator.setLevel("org.apache.spark.sql.SparkSession", Level.ERROR)
+
+      // Suppress Databricks edge config INFO messages (expected during initialization)
+      Configurator.setLevel("com.databricks.DatabricksEdgeConfigs", Level.WARN)
+      Configurator.setLevel("com.databricks.logging.Log4jUsageLogger", Level.WARN)
+
+      // Suppress noisy Hive metastore alter table errors (expected in local/test environments)
+      Configurator.setLevel("org.apache.hadoop.hive.metastore.HiveAlterHandler", Level.OFF)
 
       ctx.updateLoggers()
+
+      // Register SparkListener to flush logs before SparkContext stops
+      // Wrapped in try-catch to handle Spark version incompatibilities and Spark Connect gracefully
+      try {
+        spark.sparkContext.addSparkListener(new SparkListener {
+          override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+            shutdown()
+          }
+        })
+      } catch {
+        case _: NoSuchMethodError | _: AbstractMethodError | _: UnsupportedOperationException =>
+          // Spark version mismatch or Spark Connect - rely on JVM shutdown hook instead
+        case e: Exception if e.getMessage != null && e.getMessage.contains("UNSUPPORTED_CONNECT_FEATURE") =>
+          // Spark Connect does not support SparkContext access - rely on JVM shutdown hook instead
+      }
+
+      // Also register JVM shutdown hook as a fallback
+      Runtime.getRuntime.addShutdownHook(new Thread(() => shutdown()))
 
       initialized = true
     }
   }
+
+  private val APPENDER_STOP_TIMEOUT_MS = 2000L
+
+  def shutdown(): Unit = synchronized {
+    if (initialized) {
+      val ctx = LoggerContext.getContext(false)
+      val config = ctx.getConfiguration
+
+      // Remove appenders from the datalake logger to prevent events reaching stopped appenders
+      Option(config.getLoggerConfig("datalake"))
+        .filter(_.getName == "datalake")
+        .foreach { loggerConfig =>
+          currentAsyncAppender.foreach(a => loggerConfig.removeAppender(a.getName))
+        }
+      ctx.updateLoggers()
+
+      // Stop async appender first with timeout to let dispatcher drain its queue
+      currentAsyncAppender.foreach(
+        _.stop(APPENDER_STOP_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+      )
+      currentBaseAppender.foreach(_.stop())
+      currentAsyncAppender = None
+      currentBaseAppender = None
+      currentRunId = None
+      ThreadContext.remove("run_id")
+      initialized = false
+    }
+  }
+
+  def flush(): Unit = synchronized {
+    if (initialized) {
+      // Stop async appender with timeout to drain its queue to the base appender
+      currentAsyncAppender.foreach(
+        _.stop(APPENDER_STOP_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+      )
+
+      // Flush the base appender (TableAppender or ParquetAppender)
+      currentBaseAppender.foreach {
+        case ta: TableAppender => ta.flush()
+        case pa: ParquetAppender => pa.flush()
+        case _ => // Other appenders don't need explicit flushing
+      }
+
+      // Restart async appender
+      currentAsyncAppender.foreach(_.start())
+    }
+  }
+
+  def getRunId: Option[String] = currentRunId
   
+  private def createLogAppender(spark: SparkSession, environment: Option[Environment]): Appender = {
+    environment match {
+      case Some(env) =>
+        env.LogAppenderType match {
+          case "table" =>
+            TableAppender.createAppender(
+              spark = spark,
+              tableName = env.LogOutput,
+              threshold = 10,
+              createTableIfNotExists = true
+            )
+          case _ =>
+            ParquetAppender.createAppender(
+              spark = spark,
+              parquetPath = env.LogOutput,
+              threshold = 10
+            )
+        }
+      case None =>
+        ParquetAppender.createAppender(spark, "dlf_log.parquet")
+    }
+  }
+
   private def parseLogLevel(levelString: String): Level = {
     levelString.toUpperCase match {
       case "TRACE" => Level.TRACE
