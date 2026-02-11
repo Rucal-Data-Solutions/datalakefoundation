@@ -1,13 +1,8 @@
 // Databricks notebook source
 package datalake.core
 
-// import org.apache.spark.sql.SparkSession
-// private val spark: SparkSession = SparkSession.builder.enableHiveSupport().getOrCreate()
-import org.apache.spark.sql.{ DataFrame, Dataset, Row, DataFrameWriter, DataFrameReader }
-import org.apache.spark.sql.types.{StructType}
-import java.time.LocalDateTime
-// import scala.collection.immutable.ArraySeq
-// import org.apache.derby.iapi.types.DataType
+import org.apache.spark.sql.{ DataFrame, Dataset, Row }
+import org.apache.spark.sql.types.StructType
 
 object implicits {
 
@@ -60,13 +55,6 @@ object implicits {
       }
 
 
-      if (schemaDifferences.nonEmpty) {
-        println("Schema differences found:")
-        schemaDifferences.foreach { diff =>
-          println(s"Column: ${diff._1}, Difference: ${diff._2}")
-        }
-      }
-
       schemaDifferences.toArray
     }
 
@@ -78,47 +66,5 @@ object implicits {
       s"${if (str.toString.startsWith("/")) str else "/" + str}"
 
   }
-
-  // implicit class DatalakeDataframeWriter(dfw: DataFrameWriter[Row] ){
-  //   def parquetWithLock(path: String, lockfile: String): Unit = {
-  //     if ( datalake.utils.FileOperations.check_lock(lockfile) )
-  //       throw new datalake.utils.FileOperations.FileLockedException("destination is locked.")
-  //     else {
-  //       datalake.utils.FileOperations.set_lock(lockfile)
-  //       try {
-  //         dfw.parquet(path)
-  //       }
-  //       finally {
-  //         datalake.utils.FileOperations.drop_lock(lockfile)
-  //       }
-  //     }
-  //   }
-
-  //   def parquetWithLock(path: String): Unit = {
-  //     val lockfile = s"$path.lck"
-  //     this.parquetWithLock(path, lockfile)
-  //   }
-  // }
-
-  // implicit class DatalakeDataframeReader(dfr: DataFrameReader){
-  //   def parquetWithLock(path: String, lockfile: String, timeout: Int): DataFrame = {
-  //     val startOfLoop = LocalDateTime.now()
-
-  //     do{
-  //       Thread.sleep(1000)
-  //       val diff = startOfLoop.plusSeconds(timeout).compareTo(LocalDateTime.now())
-  //       if ( diff <= 0 ){
-  //         throw new LockTimeout(f"Timeout ($timeout\fS) expired waiting for lock.")
-  //       }
-  //     }
-  //     while(datalake.utils.FileOperations.check_lock(lockfile) )
-  //     return dfr.parquet(path)
-  //   }
-
-  //   def parquetWithLock(path: String, timeout: Int = 120): DataFrame = {
-  //     val lockfile = s"$path.lck"
-  //     return this.parquetWithLock(path, lockfile, timeout)
-  //   }
-  // }
 
 }

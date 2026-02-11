@@ -38,18 +38,6 @@ class Connection(
   def isEnabled: Boolean =
     this.enabled.getOrElse(true)
 
-  def Settings: Map[String, Any] =
-    this.settings.values
-
-  def getSettingAs[T](name: String): T = {
-    val setting = this.settings.values.get(name)
-
-    setting match {
-      case Some(value) => value.asInstanceOf[T]
-      case None        => None.asInstanceOf[T]
-    }
-  }
-
 }
 
 class ConnectionSerializer(metadata: datalake.metadata.Metadata)
@@ -64,8 +52,6 @@ class ConnectionSerializer(metadata: datalake.metadata.Metadata)
             settings = (j \ "settings").extract[JObject]
           )
         },
-        { case _: Connection =>
-          JObject()
-        }
+        PartialFunction.empty
       )
     )

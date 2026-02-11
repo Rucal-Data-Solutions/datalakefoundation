@@ -37,6 +37,7 @@ class Entity(
     processtype: String,
     watermark: Array[Watermark],
     columns: Array[EntityColumn],
+    connectiongroup: Option[String],
     val settings: JObject,
     val transformations: Array[EntityTransformation]
 ) extends Serializable {
@@ -52,6 +53,14 @@ class Entity(
 
   override def toString(): String =
     s"(${this.id}) - ${this.name}"
+
+  def toJson: String = {
+    implicit val formats: org.json4s.Formats = org.json4s.DefaultFormats +
+      org.json4s.FieldSerializer[EntityColumn]() +
+      new EntitySerializer(metadata) +
+      new WatermarkSerializer(metadata)
+    write(this)
+  }
 
   final def Id: Int =
     this.id
@@ -268,16 +277,22 @@ class Entity(
       .map(column => column.Name)
       .toList
 
-  final def getRenamedColumns: scala.collection.Map[String, String] =
-    this.columns
-      .filter(c => c.NewName.toString() != "" && c.NewName != c.Name && c.Name != "")
-      .map(c => (c.Name, c.NewName))
-      .toMap
-
   final def WriteWatermark(watermark_values: Array[(Watermark, Any)]): Unit = {
     // Write the watermark values to system table
     val watermarkData: WatermarkData = new WatermarkData(this.id)
     watermarkData.WriteWatermark(watermark_values)
+  }
+
+  final def ResetWatermark(columnName: String): Unit = {
+    // Reset watermark using column name
+    val watermarkData: WatermarkData = new WatermarkData(this.id)
+    watermarkData.Reset(columnName)
+  }
+
+  final def ResetWatermark(columnName: String, toValue: String): Unit = {
+    // Reset watermark using column name and value
+    val watermarkData: WatermarkData = new WatermarkData(this.id)
+    watermarkData.Reset(columnName, toValue)
   }
 
 }
@@ -301,6 +316,7 @@ class EntitySerializer(metadata: datalake.metadata.Metadata)
             enabled = (j \ "enabled").extractOrElse[Boolean](true),
             secure = (j \ "secure").extract[Option[Boolean]],
             connection = (j \ "connection").extract[String],
+            connectiongroup = (j \ "connectiongroup").extract[Option[String]],
             processtype = (j \ "processtype").extract[String],
             watermark = watermarkJson.extract[Array[Watermark]],
             columns = (j \ "columns").extract[Array[EntityColumn]],

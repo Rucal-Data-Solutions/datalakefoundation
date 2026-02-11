@@ -21,7 +21,7 @@ jobs:
     - name: Set up Java
       uses: actions/setup-java@v4
       with:
-        java-version: 11
+        java-version: 17
         distribution: 'temurin'
         cache: 'sbt'
 
@@ -35,7 +35,7 @@ jobs:
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
     - name: Build JARs
-      run: sbt +package
+      run: sbt package
 
     - name: Delete existing release
       run: gh release delete "v${{ steps.version.outputs.version }}" --cleanup-tag --yes || true
@@ -50,5 +50,4 @@ jobs:
         generate_release_notes: true
         make_latest: true
         files: |
-          target/scala-2.12/*.jar
           target/scala-2.13/*.jar

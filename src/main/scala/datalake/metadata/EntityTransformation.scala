@@ -6,14 +6,10 @@ import org.json4s.JsonAST.JArray
 
 
 final class EntityTransformation(Expressions: List[String]) extends Serializable{
-    private var _expressions: List[String] = Expressions
+    private val _expressions: List[String] = Expressions
 
     override def toString(): String = {
       _expressions.toString()
-    }
-
-    def addExpression(expr: String): Unit = {
-      _expressions = _expressions :+ expr
     }
 
     def expressions: List[String] = {
@@ -30,10 +26,6 @@ class EntityTransformationSerializer(metadata: Metadata)
           case j: JString =>
             new EntityTransformation(List(j.extract[String]))
         },
-        {
-            case transform: EntityTransformation => {
-                JObject()
-            }
-        }
+        PartialFunction.empty
       )
     )

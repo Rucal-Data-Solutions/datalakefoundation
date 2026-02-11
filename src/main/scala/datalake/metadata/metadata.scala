@@ -63,6 +63,10 @@ class Metadata(metadataSettings: DatalakeMetadataSettings, env: Environment) ext
     metadataSettings.getGroupEntities(group)
   }
 
+  def getEntities(connectionGroup: datalake.metadata.EntityConnectionGroup): List[Entity] = {
+    metadataSettings.getConnectionGroupEntities(connectionGroup)
+  }
+
   def getEntities(entityId: Int): List[Entity] = {
     metadataSettings.getEntitiesById(entityId) match{
       case Some(value) => List(value)

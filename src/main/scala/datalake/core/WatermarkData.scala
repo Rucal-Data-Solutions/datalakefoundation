@@ -68,13 +68,31 @@ final class WatermarkData(entity_id: Integer)(implicit environment: Environment)
   final def Reset(column: Watermark): Unit = {
     WriteWatermark(Seq((column, None)))
   }
-  
-  final def Reset(columns: Seq[Watermark]): Unit = {
-    WriteWatermark(columns.map(wm => (wm, None)) )
-  }
 
   final def Reset(column: Watermark, toValue: String): Unit = {
     WriteWatermark(Seq((column, toValue)) )
+  }
+
+  final def Reset(columnName: String): Unit = {
+    // Write watermark reset directly using column name
+    val timezoneId = environment.Timezone.toZoneId
+    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+    println(s"Write watermark: <${columnName}> => None(${None.getClass().getTypeName()})")
+
+    val new_row = Row(this.entity_id, columnName, timestamp_now, None.getClass().getTypeName(), "None")
+    this.Append(Seq(new_row))
+  }
+
+  final def Reset(columnName: String, toValue: String): Unit = {
+    // Write watermark reset directly using column name and value
+    val timezoneId = environment.Timezone.toZoneId
+    val timestamp_now = java.sql.Timestamp.valueOf(LocalDateTime.now(timezoneId))
+
+    println(s"Write watermark: <${columnName}> => ${toValue}(${toValue.getClass().getTypeName()})")
+
+    val new_row = Row(this.entity_id, columnName, timestamp_now, toValue.getClass().getTypeName(), toValue)
+    this.Append(Seq(new_row))
   }
 }
 

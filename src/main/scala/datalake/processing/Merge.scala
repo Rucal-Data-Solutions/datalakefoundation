@@ -15,6 +15,7 @@ import io.delta.tables._
 import datalake.core._
 import datalake.core.implicits._
 import datalake.metadata._
+import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
 
 
@@ -23,27 +24,7 @@ final object Merge extends ProcessStrategy {
   def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
     implicit val env:Environment = processing.environment
 
-    // first time? Do A full load
-    val isFirstRun = processing.destination match {
-      case PathLocation(path) => !DeltaTable.isDeltaTable(spark, path)
-      case TableLocation(table) => 
-        // For table locations, we need a more robust check
-        // isDeltaTable with table names can be unreliable, so we check if table exists and is Delta
-        try {
-          // First check if table exists at all
-          if (!spark.catalog.tableExists(table)) {
-            true // Table doesn't exist, so it's first run
-          } else {
-            // Table exists, check if it's a Delta table by trying to create a DeltaTable reference
-            DeltaTable.forName(table)
-            false // If we can create DeltaTable reference, it's Delta and not first run
-          }
-        } catch {
-          case _: Exception => 
-            // If we can't create DeltaTable reference or any other error, consider it first run
-            true
-        }
-    }
+    val isFirstRun = this.isFirstRun(processing.destination)
 
     if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
@@ -51,6 +32,7 @@ final object Merge extends ProcessStrategy {
     } else {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
+      val recordCount = source.count()
       
 
       val partition_values: Array[String] = datalake_source.partition_columns match {
@@ -105,7 +87,10 @@ final object Merge extends ProcessStrategy {
         logger.warn(s"Schema changes detected during Merge processing:")
         schemaChanges.foreach(change => logger.warn(s"  ${change.toString}"))
       }
-      
+
+      // Count soft deletes from source alone (no join needed)
+      val softDeletes = source.filter(col(s"${env.SystemFieldPrefix}deleted") === true).count()
+
       logger.debug("Starting Merge operation")
       
       val mergeBuilder = deltaTable
@@ -116,7 +101,7 @@ final object Merge extends ProcessStrategy {
             (if (partition_values.nonEmpty) s" AND $explicit_partFilter" else "")
         )
         .whenMatched(s"source.${env.SystemFieldPrefix}deleted = true")
-        .update(Map(s"${env.SystemFieldPrefix}deleted" -> lit("true"), s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
+        .update(Map(s"${env.SystemFieldPrefix}deleted" -> lit(true), s"${env.SystemFieldPrefix}lastSeen" -> col(s"source.${env.SystemFieldPrefix}lastSeen")))
         .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash != target.${env.SystemFieldPrefix}SourceHash")
         .updateAll()
         .whenMatched(s"source.${env.SystemFieldPrefix}SourceHash == target.${env.SystemFieldPrefix}SourceHash")
@@ -136,10 +121,27 @@ final object Merge extends ProcessStrategy {
         case None => mergeBuilder
       }
 
-      mergeWithDeletes.execute()
+      // Delta 4.0 returns metrics DataFrame directly from execute()
+      val mergeMetrics = mergeWithDeletes.execute()
+      val metricsRow = mergeMetrics.first()
+      val inserted = metricsRow.getAs[Long]("num_inserted_rows")
+
+      // Derive updated count from source-side arithmetic:
+      // Every non-deleted source record either matched an existing target record (update/touch)
+      // or was inserted as new. The real-vs-touch distinction is not available from Delta metrics.
+      val updated = recordCount - inserted - softDeletes
+
+      val summary = ProcessingSummary(
+        recordsInSlice = recordCount,
+        inserted = inserted,
+        updated = updated,
+        deleted = softDeletes,
+        unchanged = 0,
+        touched = 0,
+        entityId = Some(processing.entity_id.toString),
+        sliceFile = None
+      )
+      DatalakeLogManager.logSummary(logger, summary)
     }
-    
-
-
   }
 }

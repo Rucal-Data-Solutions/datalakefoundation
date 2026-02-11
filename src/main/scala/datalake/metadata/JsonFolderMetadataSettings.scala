@@ -7,7 +7,7 @@ import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
 
-class DirectoryJsonMetadataSettings extends DatalakeMetadataSettings {
+class JsonFolderMetadataSettings extends DatalakeMetadataSettings {
     implicit val formats: Formats = DefaultFormats
 
     def initialize(directoryPath: String): Unit = {
