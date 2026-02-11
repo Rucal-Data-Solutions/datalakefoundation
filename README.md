@@ -8,7 +8,7 @@ The documentation below explains how to use the library in your environment, des
 
 ## 2. Pre‑requisites and installation
 
-The library targets Databricks Runtime **16.4 LTS** or later and is compiled for **Scala 2.13.16**. It depends on **Spark 4.0.0** and **Delta Lake 4.0.0**. Ensure the following before deploying:
+The library targets Databricks Runtime **17.3 LTS** or later and is compiled for **Scala 2.13.16**. It depends on **Spark 4.0.0** and **Delta Lake 4.0.0**. Ensure the following before deploying:
 
 - A Spark cluster (Databricks or vanilla) with Scala 2.13 support and Delta Lake connectors.
 - Access to the Bronze and Silver storage layers using a unified path convention (see section 5).
@@ -143,7 +143,7 @@ Provides a structured list (JSON/array) of connections, entities and slice files
 
 ## 8. Migration to Scala 2.13
 
-Datalake Foundation is upgraded to Scala 2.13 for Databricks Runtime 16.4 LTS. Ensure:
+Datalake Foundation is upgraded to Scala 2.13 for Databricks Runtime 17.3 LTS. Ensure:
 
 - Your custom libraries are also built for Scala 2.13.
 - Spark and Delta versions on your cluster match the requirements.
