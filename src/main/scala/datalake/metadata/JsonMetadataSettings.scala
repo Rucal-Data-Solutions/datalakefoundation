@@ -1,12 +1,15 @@
 package datalake.metadata
-import java.io.File
 
+import org.apache.hadoop.fs.{FileSystem, Path}
+import scala.io.Source
 
 class JsonMetadataSettings extends DatalakeMetadataSettings {
 
   def initialize(filepath: String): Unit = {
-    val jsonFile = new File(filepath)
-    val jsonString = scala.io.Source.fromFile(jsonFile).mkString
+    val path = new Path(filepath)
+    val fs = path.getFileSystem(spark.sparkContext.hadoopConfiguration)
+    val stream = fs.open(path)
+    val jsonString = try Source.fromInputStream(stream).mkString finally stream.close()
 
     super.initialize(jsonString.asInstanceOf[ConfigString])
   }
