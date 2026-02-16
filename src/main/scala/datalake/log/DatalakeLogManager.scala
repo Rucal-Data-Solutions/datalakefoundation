@@ -17,6 +17,7 @@ case class ProcessingSummary(
   deleted: Long = 0,
   unchanged: Long = 0,
   touched: Long = 0,
+  durationMs: Long = 0,
   entityId: Option[String] = None,
   sliceFile: Option[String] = None
 ) extends LogData {
@@ -27,7 +28,8 @@ case class ProcessingSummary(
       s""""updated":$updated""",
       s""""deleted":$deleted""",
       s""""unchanged":$unchanged""",
-      s""""touched":$touched"""
+      s""""touched":$touched""",
+      s""""duration_ms":$durationMs"""
     ) ++ entityId.map(id => s""""entity_id":"$id"""") ++
       sliceFile.map(f => s""""slice_file":"$f"""")
 

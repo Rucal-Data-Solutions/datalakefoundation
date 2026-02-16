@@ -51,6 +51,8 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   // Memoization for getSource to prevent creating multiple cached DataFrames
   private var _cachedSource: Option[DatalakeSource] = None
 
+  private[processing] var startTimeMs: Long = 0
+
   final lazy val destination: OutputLocation = ioLocations.silver
 
   final lazy val processingTime: String = {
@@ -320,6 +322,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       DatalakeLogManager.withData(entity.toJson, Some("Entity")) {
         logger.info(DatalakeLogManager.AuditMarker, "Processing started")
       }
+      startTimeMs = System.currentTimeMillis()
       strategy.Process(this)
       WriteWatermark(getSource.watermark_values)
     }

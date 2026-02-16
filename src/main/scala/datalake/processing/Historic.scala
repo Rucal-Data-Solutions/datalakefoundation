@@ -158,6 +158,7 @@ final object Historic extends ProcessStrategy {
         updated = updated,
         deleted = deleted,
         unchanged = unchanged,
+        durationMs = System.currentTimeMillis() - processing.startTimeMs,
         entityId = Some(processing.entity_id.toString),
         sliceFile = None
       )

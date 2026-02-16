@@ -2,7 +2,7 @@ lazy val scala213 = "2.13.16"
 lazy val supportedScalaVersions = List(scala213)
 
 ThisBuild / scalaVersion     := scala213
-ThisBuild / version          := "1.6.1"
+ThisBuild / version          := "1.6.2"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 

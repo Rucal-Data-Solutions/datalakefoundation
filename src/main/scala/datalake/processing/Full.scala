@@ -68,6 +68,7 @@ final object Full extends ProcessStrategy {
     val summary = ProcessingSummary(
       recordsInSlice = recordCount,
       inserted = recordCount,
+      durationMs = System.currentTimeMillis() - processing.startTimeMs,
       entityId = Some(processing.entity_id.toString),
       sliceFile = None
     )

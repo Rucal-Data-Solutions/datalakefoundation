@@ -138,6 +138,7 @@ final object Merge extends ProcessStrategy {
         deleted = softDeletes,
         unchanged = 0,
         touched = 0,
+        durationMs = System.currentTimeMillis() - processing.startTimeMs,
         entityId = Some(processing.entity_id.toString),
         sliceFile = None
       )
