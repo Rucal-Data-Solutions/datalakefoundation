@@ -2,6 +2,7 @@ package datalake.metadata
 
 import datalake.core._
 import datalake.processing._
+import datalake.log.DatalakeLogManager
 import java.util.TimeZone
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
@@ -38,7 +39,13 @@ class EntityColumn(
   final def NewName: String =
     this.newname.getOrElse("")
 
-  final def DataType: Option[DataType] =
+  final def DataType(implicit
+      environment: Environment,
+      spark: SparkSession
+  ): Option[DataType] = {
+    @transient lazy val logger =
+      DatalakeLogManager.getLogger(this.getClass, environment)
+
     this.datatype match {
       case Some(value) =>
         val split_datatype = value.split("""[\(\),]+""")
@@ -54,16 +61,24 @@ class EntityColumn(
           case "double"    => DoubleType
           case "boolean"   => BooleanType
           case "decimal" =>
-            DecimalType(split_datatype(1).toInt, split_datatype(2).toInt)
+            if (split_datatype.length >= 3)
+              DecimalType(split_datatype(1).toInt, split_datatype(2).toInt)
+            else {
+              logger.warn(
+                "Decimal type without precision and scale in column definition. Using default DecimalType(38, 18)."
+              )
+              DecimalType(38, 18)
+            }
           case unknown =>
-            println(
-              s"Warning, unsupported type in column definition (${unknown}) casting using StringType."
+            logger.warn(
+              s"Unsupported type in column definition (${unknown}) casting using StringType."
             )
             StringType
         }
         Some(_datatype)
       case None => None
     }
+  }
 
   final def FieldRoles: Seq[String] =
     this.fieldroles

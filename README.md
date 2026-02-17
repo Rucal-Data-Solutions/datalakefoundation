@@ -174,6 +174,10 @@ For detailed documentation on specific topics, see:
 **Outputs**
 - [IO Output Modes](docs/outputs/IO_OUTPUT_MODES.md) – File paths vs Unity Catalog table outputs
 
+**Other**
+- [Log Level Configuration](LOG_LEVEL_CONFIG.md) – Configuring log levels for processing output
+- [Microsoft Fabric Compatibility](docs/MICROSOFT_FABRIC_COMPATIBILITY.md) – Compatibility report for Microsoft Fabric runtime
+
 ---
 
 *For additional details or questions, please contact the maintainer.*

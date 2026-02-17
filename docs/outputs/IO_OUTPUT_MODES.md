@@ -243,42 +243,6 @@ println(paths.silverpath)
 
 Note: `getPaths` returns path strings even when catalog mode is configured. For catalog tables, it returns the underlying path if available.
 
-## Processing Behavior
-
-### Path Mode Processing
-
-```scala
-// Reads from path
-val source = spark.read.parquet(s"$bronzePath/$sliceFile")
-
-// Writes to path
-source.write.delta(silverPath)
-```
-
-### Catalog Mode Processing
-
-```scala
-// Reads from table
-val source = spark.read.table(bronzeTable)
-
-// Writes to table (creates database if needed)
-spark.sql(s"CREATE DATABASE IF NOT EXISTS $databaseName")
-source.write.format("delta").saveAsTable(silverTable)
-```
-
-### Database Creation
-
-When writing to catalog tables, the library automatically creates the database if it doesn't exist:
-
-```scala
-val (databaseName, tableName) = "silver_sales.dim_customer".split("\\.") match {
-  case Array(db, tbl) => (db, tbl)
-  case Array(tbl) => ("default", tbl)
-}
-
-spark.sql(s"CREATE DATABASE IF NOT EXISTS `$databaseName`")
-```
-
 ## Migration Considerations
 
 When migrating from paths to catalog:

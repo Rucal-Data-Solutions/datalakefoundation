@@ -1,5 +1,19 @@
 # Datalake Foundation Release Notes
 
+## v1.6.2
+
+- **Processing duration metrics** — `ProcessingSummary` now includes a `durationMs` field tracking wall-clock processing time. All three strategies (Full, Merge, Historic) report it. Emitted as `duration_ms` in structured log output.
+
+---
+
+## v1.6.1
+
+- **Hadoop FileSystem for metadata loading** — `JsonMetadataSettings` and `JsonFolderMetadataSettings` now use Hadoop `FileSystem` API instead of `java.io.File`, enabling metadata loading from cloud storage (ABFSS, S3, GCS), Databricks volumes and Microsoft Fabric Files
+- **CI/CD pipeline** — automated release workflow: version-gated Maven Central publishing (GPG-signed), GitHub Release creation with JAR artifacts, and wiki sync from `docs/`.
+- **README updates**
+
+---
+
 ## v1.6.0
 
 ### Platform upgrades
@@ -38,15 +52,6 @@ The logging subsystem has been redesigned from the ground up.
 - **Entity connection groups** — entities can now carry an optional `connectiongroup` field. A new `EntityConnectionGroup` class and `Metadata.getEntities(connectionGroup)` query enable batch-processing entities by connection group.
 - **Entity `toJson`** — `Entity` now exposes a `toJson` method for structured logging and diagnostics.
 
-### Code cleanup
-
-- Removed ~80 lines of dead commented-out code from `implicits.scala` (unused file-lock helpers, stale imports).
-- Removed unused `joda.time.DateTime` import from `Watermark.scala`.
-- Cleaned up unused imports (`DataFrameWriter`, `DataFrameReader`, `LocalDateTime`) across source files.
-- Replaced `LogManager.getLogger` with `DatalakeLogManager.getLogger` throughout processing classes.
-- Simplified `addLastSeen` (removed unused local variables).
-- Refined `addFilenameColumn` to only warn about the missing column when running against Unity Catalog table sources.
-
 ### Documentation
 
 New documentation added:
@@ -57,19 +62,6 @@ New documentation added:
 - [Watermarks](docs/processing/WATERMARKS.md)
 - [Delete Inference](docs/processing/DELETE_INFERENCE.md)
 - [IO Output Modes](docs/outputs/IO_OUTPUT_MODES.md)
-
-### Test coverage
-
-New test suites:
-
-- `AsyncContextSpec` — async logging context propagation
-- `LoggingImpactSpec` — logging performance impact
-- `TableAppenderSpec` — Delta table log appender
-- `HistoricProcessingSpec` — SCD Type 2 strategy end-to-end
-- `FullProcessingSpec` — full-load strategy end-to-end
-- `IsFirstRunSpec` — first-run detection edge cases
-- `CalculatedColumnSpec` — calculated column expression handling
-- `WatermarkSpec` — watermark expression evaluation
 
 ### Migration notes
 

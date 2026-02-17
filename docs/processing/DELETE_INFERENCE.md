@@ -144,31 +144,15 @@ If the source system only provides recent changes, records modified in the middl
 
 ### Merge Strategy
 
-Deletes are applied using `whenNotMatchedBySource`:
-
-```scala
-mergeBuilder.whenNotMatchedBySource(deleteCondition).update(
-  Map(
-    s"${prefix}deleted" -> lit(true),
-    s"${prefix}lastSeen" -> to_timestamp(lit(processingTime))
-  )
-)
-```
+When a record in the Silver table is not matched by any record in the current source batch (within the watermark window), the library marks it as soft-deleted by setting the `deleted` flag to `true` and updating `lastSeen` to the current processing timestamp.
 
 ### Historic Strategy
 
-Deletes close the current version:
-
-```scala
-mergeBuilder.whenNotMatchedBySource(deleteCondition).update(
-  Map(
-    s"${prefix}deleted" -> lit(true),
-    s"${prefix}IsCurrent" -> lit(false),
-    s"${prefix}ValidTo" -> to_timestamp(lit(processingTime)),
-    s"${prefix}lastSeen" -> to_timestamp(lit(processingTime))
-  )
-)
-```
+When a record in the Silver table is not matched by any record in the current source batch (within the watermark window), the library closes the current version by:
+- Setting `deleted` to `true`
+- Setting `IsCurrent` to `false`
+- Setting `ValidTo` to the current processing timestamp
+- Updating `lastSeen` to the current processing timestamp
 
 ## Logging
 

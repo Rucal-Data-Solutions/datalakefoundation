@@ -16,7 +16,6 @@ declare -A PAGE_MAP=(
   ["README.md"]="Home.md"
   ["RELEASE_NOTES.md"]="Release-Notes.md"
   ["LOG_LEVEL_CONFIG.md"]="Log-Level-Configuration.md"
-  ["docs/PATTERNS_AND_PRACTICES.md"]="Patterns-and-Practices.md"
   ["docs/configuration/ENTITY_CONFIGURATION.md"]="Entity-Configuration.md"
   ["docs/configuration/METADATA_SOURCES.md"]="Metadata-Sources.md"
   ["docs/processing/PROCESSING_STRATEGIES.md"]="Processing-Strategies.md"
@@ -45,7 +44,6 @@ declare -A LINK_MAP=(
   ["README.md"]="Home"
   ["RELEASE_NOTES.md"]="Release-Notes"
   ["LOG_LEVEL_CONFIG.md"]="Log-Level-Configuration"
-  ["PATTERNS_AND_PRACTICES.md"]="Patterns-and-Practices"
   ["ENTITY_CONFIGURATION.md"]="Entity-Configuration"
   ["METADATA_SOURCES.md"]="Metadata-Sources"
   ["PROCESSING_STRATEGIES.md"]="Processing-Strategies"
@@ -91,9 +89,6 @@ cat > "${WIKI_DIR}/_Sidebar.md" << 'EOF'
 
 - [[IO Output Modes]]
 
-**Reference**
-
-- [[Patterns and Practices]]
 EOF
 
 # ── Generate _Footer.md ────────────────────────────────────────────
