@@ -12,13 +12,17 @@ import io.delta.implicits._
 
 import org.apache.spark.sql.SaveMode
 
+import org.apache.spark.sql.streaming.StreamingQuery
+
 import datalake.core._
 import datalake.metadata._
 import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
 final object Full extends ProcessStrategy {
 
-  def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
+  def Process(
+      processing: Processing
+  )(implicit spark: SparkSession): Option[StreamingQuery] = {
     implicit val env: Environment = processing.environment
 
     val datalake_source = processing.getSource
@@ -73,5 +77,6 @@ final object Full extends ProcessStrategy {
       sliceFile = None
     )
     DatalakeLogManager.logSummary(logger, summary)
+    None
   }
 }

@@ -12,16 +12,18 @@ import java.sql.Timestamp
 
 import io.delta.tables._
 
+import org.apache.spark.sql.streaming.StreamingQuery
+
 import datalake.core._
 import datalake.core.implicits._
 import datalake.metadata._
 import datalake.log.{DatalakeLogManager, ProcessingSummary}
 
-
-
 final object Merge extends ProcessStrategy {
 
-  def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
+  def Process(
+      processing: Processing
+  )(implicit spark: SparkSession): Option[StreamingQuery] = {
     implicit val env:Environment = processing.environment
 
     val isFirstRun = this.isFirstRun(processing.destination)
@@ -29,6 +31,7 @@ final object Merge extends ProcessStrategy {
     if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
+      None
     } else {
       val datalake_source = processing.getSource
       val source: DataFrame = datalake_source.source_df
@@ -143,6 +146,7 @@ final object Merge extends ProcessStrategy {
         sliceFile = None
       )
       DatalakeLogManager.logSummary(logger, summary)
+      None
     }
   }
 }

@@ -8,12 +8,15 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode }
+import org.apache.spark.sql.streaming.StreamingQuery
 
 import io.delta.tables._
 
 final object Historic extends ProcessStrategy {
 
-  def Process(processing: Processing)(implicit spark: SparkSession): Unit = {
+  def Process(
+      processing: Processing
+  )(implicit spark: SparkSession): Option[StreamingQuery] = {
     implicit val env:Environment = processing.environment
 
     val isFirstRun = this.isFirstRun(processing.destination)
@@ -21,6 +24,7 @@ final object Historic extends ProcessStrategy {
     if (isFirstRun) {
       logger.info("Diverting to full load (First Run)")
       Full.Process(processing)
+      None
     } else {
       logger.debug("Incremental load (Subsequent Runs)")
       val datalake_source = processing.getSource
@@ -163,6 +167,7 @@ final object Historic extends ProcessStrategy {
         sliceFile = None
       )
       DatalakeLogManager.logSummary(logger, summary)
+      None
     }
   }
 }

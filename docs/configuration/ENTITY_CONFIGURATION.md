@@ -36,7 +36,7 @@ An entity represents a data table or dataset that flows through the bronze-to-si
 | `secure` | Boolean | No | Use secure container suffix paths (default: `false`) |
 | `connection` | String | Yes | Reference to a connection definition |
 | `connectiongroup` | String | No | Connection-level grouping |
-| `processtype` | String | Yes | Processing strategy: `full`, `merge`, or `historic` |
+| `processtype` | String | Yes | Processing strategy: `full`, `merge`, `historic`, or `stream` |
 | `watermark` | Array | No | Watermark column definitions for incremental processing |
 | `columns` | Array | No | Column definitions with types and roles |
 | `settings` | Object | No | Entity-specific settings (override connection/environment) |
@@ -136,7 +136,7 @@ Columns marked as `partition` are used as Delta Lake partition columns. This aff
 
 Calculated columns are derived from expressions rather than source data. When a column has `calculated` role:
 - The `name` field can be empty
-- The `expression` field contains a Spark SQL expression
+- The `expression` field contains a [Spark SQL expression](EXPRESSIONS.md#calculated-columns)
 - The column is added to the DataFrame during transformation
 
 ```json
@@ -242,9 +242,28 @@ Defined in each entity's `settings` block (overrides connection settings):
 | `output_method` | Environment/Entity | Output type: `paths` or `catalog` |
 | `delete_missing` | Entity | Enable delete inference (see [Delete Inference](../processing/DELETE_INFERENCE.md)) |
 
+### Streaming Settings
+
+When `processtype` is set to `stream`, the following additional settings configure the streaming behavior:
+
+| Setting | Level | Required | Default | Description |
+|---------|-------|----------|---------|-------------|
+| `stream_source` | Entity | No | `rate` | Streaming source format: `parquet`, `json`, `csv`, `orc`, `avro`, `kafka`, `kinesis`, or `rate` |
+| `stream_write_strategy` | Entity | No | `merge` | Write strategy for micro-batches: `full`, `merge`, `delta`, or `historic` |
+| `stream_trigger` | Entity | No | `processingTime` | Trigger type: `processingTime`, `availableNow`, or `once` (deprecated) |
+| `stream_trigger_interval` | Entity | No | `0 seconds` | Trigger interval (only applies to `processingTime` trigger) |
+| `stream_path` | Entity | Conditional | — | Source path (required for file-based sources: parquet, json, csv, orc, avro) |
+| `checkpoint_location` | Entity | Conditional | Auto-computed | Checkpoint directory (required for `catalog` output, auto-computed for `paths` output) |
+| `stream_max_offsets` | Entity | No | — | Maximum offsets per trigger (maps to `maxOffsetsPerTrigger`) |
+| `stream_option.*` | Entity | No | — | Passthrough options to the stream reader (prefix stripped) |
+| `reader_option_*` | Entity | No | — | Passthrough options with underscore-to-dot mapping (e.g., `reader_option_kafka_bootstrap_servers` becomes `kafka.bootstrap.servers`) |
+| `{source}.*` | Entity | No | — | Source-specific options (e.g., `kafka.bootstrap.servers`) |
+
+See [Streaming Processing](../processing/STREAMING.md) for detailed documentation.
+
 ### Expression Variables
 
-Path and table settings support expression variables:
+Path and table settings support [expression variables](EXPRESSIONS.md#path-and-table-settings):
 
 | Variable | Description |
 |----------|-------------|
@@ -264,22 +283,18 @@ Example:
 
 ## Entity Transformations
 
-Transformations allow injecting custom Spark SQL expressions during processing:
+Transformations allow injecting custom [Spark SQL expressions](EXPRESSIONS.md#entity-transformations) during processing. Each transformation is an array of SELECT expressions applied to the DataFrame:
 
 ```json
 {
   "transformations": [
-    {
-      "column": "full_name",
-      "expression": "concat(first_name, ' ', last_name)"
-    },
-    {
-      "column": "is_active",
-      "expression": "status = 'A'"
-    }
+    ["customer_id", "concat(first_name, ' ', last_name) as FullName", "upper(region) as Region"],
+    ["*", "year(order_date) as OrderYear"]
   ]
 }
 ```
+
+Each array represents one transformation step. Only columns listed in the expression array are kept in the output — use `"*"` to include all existing columns alongside new expressions. Multiple steps are applied in sequence.
 
 Transformations are applied early in the processing pipeline, before system columns are added.
 
@@ -334,6 +349,7 @@ Transformations are applied early in the processing pipeline, before system colu
 
 ## See Also
 
+- [Expression Languages](EXPRESSIONS.md)
 - [Processing Strategies](../processing/PROCESSING_STRATEGIES.md)
 - [Watermarks](../processing/WATERMARKS.md)
 - [IO Output Modes](../outputs/IO_OUTPUT_MODES.md)

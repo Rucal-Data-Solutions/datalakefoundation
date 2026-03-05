@@ -1,7 +1,6 @@
 package datalake.processing
 
 import org.scalatest.funsuite.AnyFunSuite
-import org.apache.commons.io.FileUtils
 import datalake.metadata._
 import org.apache.spark.sql.functions._
 
@@ -35,7 +34,7 @@ class HistoricProcessingSpec extends AnyFunSuite with SparkSessionTest {
       "entities": [
         {
           "id": ${entityId},
-          "name": "historic_test_entity",
+          "name": "historic_test_${Math.abs(testId.hashCode) % 1000000}",
           "enabled": true,
           "connection": "test_connection",
           "processtype": "historic",
@@ -87,8 +86,6 @@ class HistoricProcessingSpec extends AnyFunSuite with SparkSessionTest {
     val testId = s"historic_first_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createHistoricTestEntity(3000, testId)
 
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
     val testData = Seq(
       (1, 100L, "Alice", testId),
       (2, 100L, "Bob", testId)
@@ -120,8 +117,6 @@ class HistoricProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
     val testId = s"historic_scd2_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createHistoricTestEntity(3001, testId)
-
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial load
     val initialData = Seq(
@@ -179,8 +174,6 @@ class HistoricProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
     val testId = s"historic_delete_scope_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createHistoricTestEntity(3002, testId, inferDeletes = true)
-
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial load
     val initialData = Seq(
@@ -260,8 +253,6 @@ class HistoricProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
     val testId = s"historic_metrics_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createHistoricTestEntity(3003, testId)
-
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial load with 5 records
     val initialData = Seq(
