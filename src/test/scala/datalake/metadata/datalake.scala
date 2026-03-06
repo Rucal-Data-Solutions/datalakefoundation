@@ -142,7 +142,7 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
     "/${connection}/${destination}",
     secure_container_suffix = Some("-secure"),
     systemfield_prefix = Some(randomPrefix),
-    log_output = Some(s"${testBasePath.replace("\\", "/")}/dlf_log.parquet"),
+    log_output = Some(s"${testBasePath.replace("\\", "/")}/dlf_log"),
     output_method = "paths"
   )
 

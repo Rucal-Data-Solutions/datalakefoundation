@@ -2,7 +2,6 @@ lazy val scala213 = "2.13.16"
 lazy val supportedScalaVersions = List(scala213)
 
 ThisBuild / scalaVersion     := scala213
-ThisBuild / version          := "1.7.0"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 
@@ -78,3 +77,5 @@ lazy val root = (project in file("."))
     )
 
   )
+
+addCommandAlias("package", ";bumpVersion;Compile/package")

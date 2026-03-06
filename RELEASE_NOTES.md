@@ -110,7 +110,7 @@ New documentation added:
 |---|---|
 | **Spark version** | Upgrade your cluster to Spark 4.0.0. |
 | **Scala version** | Rebuild all dependent JARs for Scala 2.13. Scala 2.12 is no longer supported. |
-| **Logging output** | If you previously relied on `dlf_log.parquet` output, no action needed (still the default). To use the new table appender, set `log_appender_type` to `table` and `log_output` to a catalog table name in your environment configuration. |
+| **Logging output** | If you previously relied on `dlf_log` output, no action needed (still the default). To use the new table appender, set `log_appender_type` to `table` and `log_output` to a catalog table name in your environment configuration. |
 | **Error handling** | Calculated column failures now throw instead of being silently ignored. Review your entity column expressions to ensure they are valid. |
 | **First-run detection** | Permission or catalog errors during table-existence checks now throw instead of falling back to a full load. Ensure your service principal has read access to the silver catalog/paths. |
 

@@ -39,7 +39,7 @@ derby.log
 #local debugging folder
 src/test/scala/example/private/
 src/test/scala/private_tests/
-dlf_log.parquet
+dlf_log
 
 #Claude AI
 .claude
