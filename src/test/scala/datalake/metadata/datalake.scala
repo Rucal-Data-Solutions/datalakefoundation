@@ -21,7 +21,7 @@ import java.sql.Timestamp
 
 object SparkSessionTest {
   private[metadata] val isClusterMode = sys.env.get("DLF_TEST_MODE").contains("cluster")
-  private val sessionId = s"dlf-tests-${System.nanoTime()}"
+  private val sessionId = sys.env.getOrElse("SPARK_APP_ID", s"dlf-tests-${System.nanoTime()}")
 
   lazy val sharedBasePath: String = {
     val path = if (isClusterMode) {
