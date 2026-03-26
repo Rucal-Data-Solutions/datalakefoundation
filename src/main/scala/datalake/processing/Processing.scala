@@ -112,10 +112,22 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
           " - computing source"
       )
 
+      val filenameField = s"${environment.SystemFieldPrefix}source_filename"
+
       val dfSlice = ioLocations.bronze match {
         case PathLocation(path) =>
           spark.read.parquet(s"$path/$sliceFile")
-        case TableLocation(table) => spark.read.table(table)
+        case TableLocation(table) =>
+          val bronzeTable = spark.read.table(table)
+          if (Utils.hasColumn(bronzeTable, filenameField)) {
+            bronzeTable.filter(col(filenameField) === sliceFile)
+          } else {
+            logger.warn(
+              s"Bronze table is missing column '$filenameField' for slice filtering. " +
+              s"Processing entire table."
+            )
+            bronzeTable
+          }
       }
 
       val transformedDF = applyTransforms(dfSlice, sliceFile)
@@ -308,26 +320,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       input
   }
 
-  private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
+  private def addFilenameColumn(input: Dataset[Row], filename: String)(
+      implicit env: Environment
+  ): Dataset[Row] = {
     val filenameField = s"${env.SystemFieldPrefix}source_filename"
-    val isUnityCatalog = ioLocations.bronze.isInstanceOf[TableLocation]
-
-    val inputWithFilename = if (!Utils.hasColumn(input, filenameField)) {
-      if (isUnityCatalog) {
-        logger.warn(
-          s"Bronze table is missing column '$filenameField' for slice filtering. " +
-          s"Adding column with value '$filename'."
-        )
-      }
+    if (!Utils.hasColumn(input, filenameField)) {
       input.withColumn(filenameField, lit(filename))
     } else {
       input
-    }
-
-    if (isUnityCatalog) {
-      inputWithFilename.filter(col(filenameField) === sliceFile)
-    } else {
-      inputWithFilename
     }
   }
 
@@ -384,8 +384,8 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
           source.source_df.unpersist()
         }
         _cachedSource = None
+        DatalakeLogManager.flush()
       }
-      DatalakeLogManager.flush()
     }
   }
 

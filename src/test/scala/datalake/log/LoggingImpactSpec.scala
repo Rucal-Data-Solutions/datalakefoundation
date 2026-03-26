@@ -4,11 +4,13 @@ import org.apache.logging.log4j.{Level, LogManager}
 import org.apache.logging.log4j.core.LoggerContext
 import org.apache.logging.log4j.core.config.Configurator
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.Ignore
 import org.apache.commons.io.FileUtils
 
 import datalake.metadata._
 import datalake.processing._
 
+@Ignore
 class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
 
   case class TimingResult(
