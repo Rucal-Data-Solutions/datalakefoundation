@@ -196,6 +196,80 @@ class WatermarkSpec extends AnyFunSuite with SparkSessionTest {
     assert(resetValue.isEmpty, "Watermark should be reset to None via Entity.ResetWatermark")
   }
 
+  test("Watermark date arithmetic expression subtracts 7 days from last value") {
+    val entityId = 99990
+    implicit val env = override_env
+    val wmd = new WatermarkData(entityId)
+
+    val wm = new Watermark(
+      override_env,
+      entity_id = entityId,
+      column_name = "DateArithCol",
+      operation = "or",
+      operation_group = Some(0),
+      expression = "${LocalDate.parse(last_value).minusDays(7)}"
+    )
+
+    wmd.WriteWatermark(Seq((wm, "2024-06-15")))
+
+    val result = wm.Value
+    assert(result.isDefined, "Watermark.Value should return Some for date arithmetic expression")
+    assert(result.get === "2024-06-08",
+      s"Date arithmetic expression should subtract 7 days from 2024-06-15, got: ${result.get}")
+  }
+
+  test("Watermark epoch day expression returns days since 1900-01-01 minus 1") {
+    val entityId = 99989
+    implicit val env = override_env
+    val wmd = new WatermarkData(entityId)
+
+    val wm = new Watermark(
+      override_env,
+      entity_id = entityId,
+      column_name = "EpochDayCol",
+      operation = "or",
+      operation_group = Some(0),
+      expression = "${b19_epoch_day - 1}"
+    )
+
+    wmd.WriteWatermark(Seq((wm, "trigger")))
+
+    val expected =
+      java.time.LocalDate.of(1900, 1, 1)
+        .until(java.time.LocalDate.now(), java.time.temporal.ChronoUnit.DAYS) - 1
+
+    val result = wm.Value
+    assert(
+      result.isDefined,
+      "Watermark.Value should return Some for epoch day arithmetic expression"
+    )
+    assert(result.get === expected.toString,
+      s"Epoch day expression should return $expected, got: ${result.get}")
+  }
+
+  test("Watermark reformat expression parses datetime and formats as ISO local date") {
+    val entityId = 99988
+    implicit val env = override_env
+    val wmd = new WatermarkData(entityId)
+
+    val wm = new Watermark(
+      override_env,
+      entity_id = entityId,
+      column_name = "ReformatCol",
+      operation = "or",
+      operation_group = Some(0),
+      expression =
+        "${LocalDateTime.parse(last_value, defaultFormat).format(DateTimeFormatter.ISO_LOCAL_DATE)}"
+    )
+
+    wmd.WriteWatermark(Seq((wm, "2024-06-15 10:30:00.0")))
+
+    val result = wm.Value
+    assert(result.isDefined, "Watermark.Value should return Some for reformat expression")
+    assert(result.get === "2024-06-15",
+      s"Reformat expression should return date portion '2024-06-15', got: ${result.get}")
+  }
+
   test("Entity.ResetWatermark with column name and value resets to specified value") {
     val entityId = 99993
     implicit val env = override_env

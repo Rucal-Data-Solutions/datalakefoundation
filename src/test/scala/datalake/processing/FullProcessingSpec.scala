@@ -1,7 +1,6 @@
 package datalake.processing
 
 import org.scalatest.funsuite.AnyFunSuite
-import org.apache.commons.io.FileUtils
 import datalake.metadata._
 import org.apache.spark.sql.functions._
 
@@ -47,7 +46,7 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
       "entities": [
         {
           "id": ${entityId},
-          "name": "full_test_entity",
+          "name": "full_test_${Math.abs(testId.hashCode) % 1000000}",
           "enabled": true,
           "connection": "test_connection",
           "processtype": "full",
@@ -84,8 +83,6 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
     val testId = s"full_basic_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createTestEntity(2000, testId)
 
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
     val testData = Seq(
       (1, "Alice", testId),
       (2, "Bob", testId),
@@ -117,8 +114,6 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
     val testId = s"full_partition_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createTestEntity(2001, testId, hasPartition = true)
-
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial full load
     val initialData = Seq(
@@ -203,8 +198,6 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
     val testId = s"full_types_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
     val (testEntity, output, paths) = createTestEntity(2003, testId)
-
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     val testData = Seq(
       (1, "text_value", 42L, 3.14, true, testId),

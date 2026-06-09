@@ -1,6 +1,6 @@
 # Processing Strategies
 
-Datalake Foundation provides three processing strategies for moving data from bronze to silver layer. This document explains each strategy, when to use it, and how it behaves.
+Datalake Foundation provides four processing strategies for moving data from bronze to silver layer. This document explains each strategy, when to use it, and how it behaves.
 
 ## Overview
 
@@ -9,6 +9,7 @@ Datalake Foundation provides three processing strategies for moving data from br
 | **Full** | Initial loads, complete refreshes | Overwrites silver table with partition pruning |
 | **Merge** | Incremental delta processing | Upserts based on primary key and source hash |
 | **Historic** | SCD Type 2 tracking | Maintains version history with temporal columns |
+| **Stream** | Continuous micro-batch ingestion | Structured Streaming with pluggable write strategies |
 
 ## Common Processing Pipeline
 
@@ -26,6 +27,8 @@ All strategies share a common transformation pipeline before writing:
 10. **Add lastSeen timestamp** - Track when record was last processed
 11. **Normalize column names** - Standardize naming format
 12. **Cache DataFrame** - Cache the result for reuse during processing
+
+> **Note:** For streaming processing, step 12 (Cache DataFrame) is automatically skipped because micro-batch DataFrames are short-lived.
 
 ## Full Strategy
 
@@ -56,7 +59,7 @@ The simplest strategy - performs a complete overwrite of the silver table.
 - Recovery scenarios requiring complete reload
 - Tables without incremental change tracking
 
-### Code Flow
+### Usage
 
 ```scala
 val processing = new Processing(entity, "2025-07-01-slice.parquet")
@@ -137,7 +140,7 @@ After processing, the strategy logs detailed metrics:
 The metric identity holds: **`inserted + updated + deleted = recordsInSlice`**
 
 > **Note: Breaking change from previous versions.**
-> Earlier versions reported separate `updated` (source hash changed) and `touched` (source hash unchanged, only lastSeen updated) metrics. These have been intentionally combined into a single `updated` metric to eliminate an expensive pre-merge join. The `touched` metric is always reported as 0 and should not be relied upon. If you have monitoring dashboards or alerting that depends on the old `updated` vs `touched` distinction, you must update them to use the combined `updated` metric. Users who need to distinguish real data changes from touch-only updates should compare source hashes independently.
+> Earlier versions reported separate `updated` (source hash changed) and `touched` (source hash unchanged, only lastSeen updated) metrics. These have been combined into a single `updated` metric. The `touched` metric is always reported as 0 and should not be relied upon. If you have monitoring dashboards or alerting that depends on the old `updated` vs `touched` distinction, you must update them to use the combined `updated` metric. Users who need to distinguish real data changes from touch-only updates should compare source hashes independently.
 
 ### Delete Inference
 
@@ -212,7 +215,7 @@ After processing, the strategy logs detailed metrics:
 | **inserted** | New records with no matching primary key in the target |
 | **updated** | Records where the source hash differs from the current target version. Each updated record closes the previous version (sets ValidTo and IsCurrent=false) and appends a new current version. The `updated` count directly equals the number of new historical versions created in this processing run. |
 | **unchanged** | Records that matched a current target record with the same hash. No new version is created. |
-| **deleted** | Target records removed via [delete inference](DELETE_INFERENCE.md) (not matched by source). This is a target-side metric from the Delta merge operation and is not included in the source-side identity. |
+| **deleted** | Records automatically soft-deleted because they were missing from the source (via [delete inference](DELETE_INFERENCE.md)). This is a target-side metric and is not included in the source-side identity. |
 
 Source-side identity: **`inserted + updated + unchanged = recordsInSlice`**
 
@@ -234,6 +237,49 @@ SELECT * FROM silver.customer
 WHERE customer_id = 123
 ORDER BY dlf_ValidFrom
 ```
+
+## Stream Strategy
+
+Continuous ingestion using Spark Structured Streaming with a pluggable write strategy applied per micro-batch.
+
+### Configuration
+
+```json
+{
+  "id": 5,
+  "name": "event_stream",
+  "processtype": "stream",
+  "settings": {
+    "stream_source": "kafka",
+    "stream_write_strategy": "merge",
+    "stream_trigger": "processingTime",
+    "stream_trigger_interval": "30 seconds",
+    "stream_path": null,
+    "checkpoint_location": "/mnt/checkpoints/event_stream",
+    "kafka.bootstrap.servers": "broker:9092",
+    "kafka.subscribe": "events"
+  }
+}
+```
+
+### Behavior
+
+- Reads from a streaming source (file-based, Kafka, Kinesis, or rate)
+- Applies the same transformation pipeline per micro-batch (caching automatically skipped)
+- First micro-batch always writes using full/append mode
+- Subsequent batches use the configured write strategy (`full`, `merge`, or `historic`)
+- Returns a streaming query handle for lifecycle management
+
+### When to Use
+
+- Continuous ingestion from message queues (Kafka, Kinesis)
+- Near-real-time processing of file drops
+- Low-latency data pipelines
+
+### Metrics
+
+- `ProcessingSummary` emitted per micro-batch with `recordsInSlice`, `inserted`, `durationMs`
+- Empty batches are skipped with a debug log
 
 ## Processing Time Override
 
@@ -261,8 +307,8 @@ The library does not validate temporal succession. Providing an earlier `process
 
 ```
                     ┌─────────────────────────────┐
-                    │   Do you need version       │
-                    │   history (SCD Type 2)?     │
+                    │   Is data arriving as a      │
+                    │   continuous stream?          │
                     └─────────────┬───────────────┘
                                   │
                     ┌─────────────┴───────────────┐
@@ -270,17 +316,27 @@ The library does not validate temporal succession. Providing an earlier `process
                    Yes                           No
                     │                             │
                     ▼                             ▼
-               Historic              ┌────────────────────────┐
-                                     │  Is data incrementally │
-                                     │  changing?             │
-                                     └───────────┬────────────┘
-                                                 │
-                                    ┌────────────┴────────────┐
-                                    ▼                         ▼
-                                   Yes                       No
-                                    │                         │
-                                    ▼                         ▼
-                                 Merge                      Full
+                 Stream           ┌─────────────────────────────┐
+                                  │   Do you need version       │
+                                  │   history (SCD Type 2)?     │
+                                  └─────────────┬───────────────┘
+                                                │
+                                  ┌─────────────┴───────────────┐
+                                  ▼                             ▼
+                                 Yes                           No
+                                  │                             │
+                                  ▼                             ▼
+                             Historic              ┌────────────────────────┐
+                                                   │  Is data incrementally │
+                                                   │  changing?             │
+                                                   └───────────┬────────────┘
+                                                               │
+                                              ┌────────────────┴────────────┐
+                                              ▼                             ▼
+                                             Yes                           No
+                                              │                             │
+                                              ▼                             ▼
+                                           Merge                          Full
 ```
 
 ## Error Handling
@@ -303,3 +359,4 @@ Processing continues with the current source schema.
 - [Entity Configuration](../configuration/ENTITY_CONFIGURATION.md)
 - [Watermarks](WATERMARKS.md)
 - [Delete Inference](DELETE_INFERENCE.md)
+- [Streaming Processing](STREAMING.md)

@@ -1,5 +1,46 @@
 # Datalake Foundation Release Notes
 
+## v1.7.0
+
+### Streaming processing strategy
+
+Datalake Foundation now supports **continuous micro-batch ingestion** via the new `stream` processing strategy. This is the first strategy that uses Spark Structured Streaming, enabling near-real-time data pipelines alongside the existing batch strategies.
+
+**New features:**
+- **Stream strategy** (`processtype: "stream"`) — processes data continuously using `foreachBatch`, applying the same transformation pipeline as batch strategies
+- **Pluggable write strategies** — each micro-batch can write using `full` (append), `merge` (Delta MERGE with upsert), or `historic` (SCD Type 2)
+- **Multiple source types** — file-based (parquet, json, csv, orc, avro), message queues (kafka, kinesis), and test sources (rate)
+- **Configurable triggers** — `processingTime` (with interval), `availableNow`, and `once` (deprecated)
+- **Automatic checkpoint management** — auto-computed for file-path outputs; explicit configuration required for Unity Catalog table outputs
+- **Per-batch metrics** — `ProcessingSummary` emitted for each micro-batch with record counts and duration
+
+**Configuration settings:**
+- `stream_source` — streaming source format (default: `rate`)
+- `stream_write_strategy` — write strategy per micro-batch (default: `merge`)
+- `stream_trigger` / `stream_trigger_interval` — trigger configuration
+- `stream_path` — source path (required for file-based sources)
+- `checkpoint_location` — checkpoint directory
+- `stream_max_offsets` — rate limiting (maps to `maxOffsetsPerTrigger`)
+- `stream_option.*` / `{source}.*` — passthrough options to stream reader
+
+**API change:**
+- `ProcessStrategy.Process()` now returns `Option[StreamingQuery]` instead of `Unit`. Batch strategies return `None`; streaming returns `Some(StreamingQuery)`. This is a **backward-compatible** change — existing code works without modification.
+
+**Limitations:**
+- Watermark columns are accepted but ignored in streaming mode (logged as warning)
+- Delete inference (`inferDeletesFromMissing`) is disabled — micro-batches don't represent complete data slices
+- Streaming entities do not call `getSource` or write watermark values
+
+### Migration notes
+
+| Topic | Action required |
+|---|---|
+| **Existing batch code** | No changes required. This is backward-compatible — existing code works without modification. |
+| **Return type** | If you capture the return value of `Process()`, update your types from `Unit` to `Option[StreamingQuery]`. |
+| **New dependency** | No new runtime dependencies — Spark Structured Streaming is part of the Spark core. |
+
+---
+
 ## v1.6.2
 
 - **Processing duration metrics** — `ProcessingSummary` now includes a `durationMs` field tracking wall-clock processing time. All three strategies (Full, Merge, Historic) report it. Emitted as `duration_ms` in structured log output.
@@ -38,13 +79,13 @@ The logging subsystem has been redesigned from the ground up.
 
 ### Reliability and data safety
 
-- **`isFirstRun` hardened** — the duplicated first-run detection logic has been extracted to `ProcessStrategy.isFirstRun()`. It now catches only `AnalysisException` (legitimate "table does not exist") and **re-throws** all other exceptions (permission errors, network timeouts, catalog misconfiguration) instead of silently defaulting to a full overwrite. This prevents accidental data loss.
-- **Calculated column failures are now fatal** — a failing expression in `addCalculatedColumns` throws a `DatalakeException` instead of logging and continuing with a broken DataFrame.
+- **`isFirstRun` hardened** — permission, network, or catalog errors during first-run detection now raise a clear error instead of silently falling back to a full overwrite. This prevents accidental data loss.
+- **Calculated column failures now raise a clear error** — a failing expression in calculated columns throws an error instead of logging and continuing with a broken DataFrame.
 
 ### Processing metrics improvements
 
-- **Merge** — derives `inserted` / `updated` / `deleted` from Delta merge metrics and source-side arithmetic. The expensive pre-merge `source JOIN target` scan used to pre-calculate real vs. touch updates has been removed.
-- **Historic** — computes `unchanged` by joining source against current target records post-merge, guaranteeing the identity `inserted + updated + unchanged = recordCount`. `deleted` is read from the Delta metrics row.
+- **Merge** — derives `inserted` / `updated` / `deleted` directly from Delta Lake merge results, improving performance.
+- **Historic** — computes `unchanged` from source-to-target comparison, guaranteeing the identity `inserted + updated + unchanged = recordCount`.
 - **Full** — reports `inserted = recordCount`.
 
 ### New features
@@ -69,7 +110,7 @@ New documentation added:
 |---|---|
 | **Spark version** | Upgrade your cluster to Spark 4.0.0. |
 | **Scala version** | Rebuild all dependent JARs for Scala 2.13. Scala 2.12 is no longer supported. |
-| **Logging output** | If you previously relied on `dlf_log.parquet` output, no action needed (still the default). To use the new table appender, set `log_appender_type` to `table` and `log_output` to a catalog table name in your environment configuration. |
+| **Logging output** | If you previously relied on `dlf_log` output, no action needed (still the default). To use the new table appender, set `log_appender_type` to `table` and `log_output` to a catalog table name in your environment configuration. |
 | **Error handling** | Calculated column failures now throw instead of being silently ignored. Review your entity column expressions to ensure they are valid. |
 | **First-run detection** | Permission or catalog errors during table-existence checks now throw instead of falling back to a full load. Ensure your service principal has read access to the silver catalog/paths. |
 

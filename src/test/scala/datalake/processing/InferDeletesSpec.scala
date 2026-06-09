@@ -1,7 +1,6 @@
 package datalake.processing
 
 import org.scalatest.funsuite.AnyFunSuite
-import org.apache.commons.io.FileUtils
 import datalake.metadata._
 import org.apache.spark.sql.functions._
 
@@ -47,7 +46,7 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
       "entities": [
         {
           "id": ${entityId},
-          "name": "infer_delete_test_entity",
+          "name": "infer_del_${Math.abs(testId.hashCode) % 1000000}",
           "enabled": true,
           "connection": "test_connection",
           "processtype": "${processType}",
@@ -92,9 +91,6 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
     val testEntity = testData._1
     val output: Output = testData._2.asInstanceOf[Output]
     val paths = testData._3
-
-    // Clean up
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial load with SeqNr=100
     val initialData = Seq(
@@ -165,9 +161,6 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
     val output: Output = testData._2.asInstanceOf[Output]
     val paths = testData._3
 
-    // Clean up
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
     // First run with Merge strategy (will divert to Full load, no previous watermark)
     val firstData = Seq(
       (1, 100L, "Alice", testId),
@@ -200,9 +193,6 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
     val testEntity = testData._1
     val output: Output = testData._2.asInstanceOf[Output]
     val paths = testData._3
-
-    // Clean up
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial load
     val initialData = Seq(
@@ -282,9 +272,6 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
     val output: Output = testData._2.asInstanceOf[Output]
     val paths = testData._3
 
-    // Clean up
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
     // Step 1: Initial load with various SeqNr values (excluding future records for now)
     val initialData = Seq(
       (1, 50L, "Old Record", testId),      // Outside window (below)
@@ -355,9 +342,6 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
     val output: Output = testData._2.asInstanceOf[Output]
     val paths = testData._3
 
-    // Clean up
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
     // Step 1: Initial load
     val initialData = Seq(
       (1, 100L, "Alice", testId),
@@ -421,9 +405,6 @@ class InferDeletesSpec extends AnyFunSuite with SparkSessionTest {
     val testEntity = testData._1
     val output: Output = testData._2.asInstanceOf[Output]
     val paths = testData._3
-
-    // Clean up
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
 
     // Step 1: Initial load with SeqNr=100
     val initialData = Seq(

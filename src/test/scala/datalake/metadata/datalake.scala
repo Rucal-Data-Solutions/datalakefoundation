@@ -19,35 +19,121 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.hadoop.fs.Path
 import java.sql.Timestamp
 
-trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterEach with Matchers {
-  // Use unique app name and warehouse per test class instance to avoid session sharing
-  private val uniqueId = s"${this.getClass.getSimpleName}-${System.nanoTime()}"
+object SparkSessionTest {
+  private[metadata] val isClusterMode = sys.env.get("DLF_TEST_MODE").contains("cluster")
+  private val sessionId = sys.env.getOrElse("SPARK_APP_ID", s"dlf-tests-${System.nanoTime()}")
 
-  val conf: SparkConf = new SparkConf()
-    .setMaster("local[*]")
-    .setAppName(s"Rucal Unit Tests - $uniqueId")
-    .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-    .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-    .set("spark.ui.enabled", "false") // Disable Spark UI to prevent port conflicts
-    .set("spark.sql.shuffle.partitions", "4") // Reduce shuffle partitions for faster tests
-    .set("spark.sql.warehouse.dir", s"${System.getProperty("java.io.tmpdir")}/spark-warehouse-$uniqueId")
-    .set("spark.driver.host", "localhost") // Explicitly set driver host
-    // Derby/Hive metastore settings to avoid locks and conflicts
-    .set("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:${uniqueId};create=true")
-    .set("spark.sql.catalogImplementation", "hive")
-    .set("spark.sql.streaming.stopTimeout", "5000") // 5 second timeout for streaming query shutdown
+  lazy val sharedBasePath: String = {
+    val path = if (isClusterMode) {
+      val dir = sys.env.getOrElse("DLF_TEST_DIR", "/tmp/datalake-tests")
+      new java.io.File(dir).mkdirs()
+      dir
+    } else {
+      java.nio.file.Files.createTempDirectory("dlf_testdata").toString
+    }
+    new java.io.File(s"$path/bronze").mkdirs()
+    new java.io.File(s"$path/silver").mkdirs()
+    new java.io.File(s"$path/system").mkdirs()
+    path
+  }
 
+  private[metadata] lazy val sharedConf: SparkConf = {
+    val sparkMaster =
+      if (isClusterMode) sys.env.getOrElse("DLF_SPARK_MASTER", "spark://localhost:7077")
+      else "local[*]"
 
-  lazy val spark: SparkSession = SparkSession
+    val conf = new SparkConf()
+      .setMaster(sparkMaster)
+      .setAppName(s"Rucal Unit Tests - $sessionId")
+      .set("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+      .set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+      .set("spark.ui.enabled", "true")
+      .set("spark.sql.shuffle.partitions", "4")
+      .set("spark.sql.warehouse.dir", {
+        val baseDir = if (isClusterMode)
+          sys.env.getOrElse("DLF_TEST_DIR", System.getProperty("java.io.tmpdir"))
+        else
+          System.getProperty("java.io.tmpdir")
+        s"$baseDir/spark-warehouse-$sessionId"
+      })
+      .set("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:$sessionId;create=true")
+      .set("spark.sql.catalogImplementation", "hive")
+      .set("spark.sql.streaming.stopTimeout", "5000")
+
+    if (isClusterMode) {
+      conf.set("spark.driver.host",
+        sys.env.getOrElse("DLF_DRIVER_HOST", "host.docker.internal"))
+      conf.set("spark.driver.bindAddress", "0.0.0.0")
+
+      val targetDir = new java.io.File("target/scala-2.13")
+      val jar = targetDir
+        .listFiles()
+        .find(f =>
+          f.getName.endsWith(".jar") && !f.getName.contains("javadoc") && !f.getName.contains(
+            "sources"
+          )
+        )
+        .getOrElse(throw new RuntimeException("Project JAR not found. Run 'sbt package' first."))
+      conf.set("spark.jars", jar.getAbsolutePath)
+      conf.set("spark.hadoop.fs.file.impl", classOf[org.apache.hadoop.fs.RawLocalFileSystem].getName)
+      conf.set("spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version", "2")
+    } else {
+      conf.set("spark.driver.host", "localhost")
+    }
+
+    conf
+  }
+
+  lazy val sharedSpark: SparkSession = SparkSession
     .builder()
-    .config(conf)
+    .config(sharedConf)
     .enableHiveSupport()
     .getOrCreate()
 
-  val testBasePath = java.nio.file.Files.createTempDirectory("dlf_tempdir").toString
+  private[metadata] def detectExistingPrefix(
+      spark: SparkSession,
+      basePath: String
+  ): Option[String] = {
+    try {
+      val silverDir = new java.io.File(s"$basePath/silver")
+      if (!silverDir.exists()) return None
 
-  val randomPrefix = scala.util.Random.alphanumeric.filter(_.isLetter).take(3).mkString.toLowerCase + "_"
-  val override_env = new Environment(
+      import scala.collection.JavaConverters._
+      val deltaTableDir = java.nio.file.Files
+        .walk(silverDir.toPath)
+        .iterator()
+        .asScala
+        .find(p =>
+          p.getFileName.toString == "_delta_log" &&
+            java.nio.file.Files.isDirectory(p)
+        )
+        .map(_.getParent.toString)
+
+      deltaTableDir.flatMap { tablePath =>
+        val schema = io.delta.tables.DeltaTable.forPath(spark, tablePath).toDF.schema
+        schema.fieldNames
+          .find(_.endsWith("SourceHash"))
+          .map(_.stripSuffix("SourceHash"))
+      }
+    } catch {
+      case _: Exception => None
+    }
+  }
+}
+
+trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterEach with Matchers {
+  val conf: SparkConf = SparkSessionTest.sharedConf
+
+  lazy val spark: SparkSession = SparkSessionTest.sharedSpark
+
+  val testBasePath: String = SparkSessionTest.sharedBasePath
+
+  lazy val randomPrefix: String = SparkSessionTest
+    .detectExistingPrefix(spark, testBasePath)
+    .getOrElse(
+      scala.util.Random.alphanumeric.filter(_.isLetter).take(3).mkString.toLowerCase + "_"
+    )
+  lazy val override_env = new Environment(
     "DEBUG (OVERRIDE)",
     testBasePath.replace("\\", "/"),
     "Europe/Amsterdam",
@@ -56,6 +142,7 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
     "/${connection}/${destination}",
     secure_container_suffix = Some("-secure"),
     systemfield_prefix = Some(randomPrefix),
+    log_output = Some(s"${testBasePath.replace("\\", "/")}/dlf_log"),
     output_method = "paths"
   )
 
@@ -88,61 +175,9 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
   }
 
   protected def cleanupTestData(): Unit = {
-    import org.apache.commons.io.FileUtils
-
-    try {
-      // Clean up file system paths - force delete and recreate to ensure clean state
-      val silverFolder = new java.io.File(s"$testBasePath/silver")
-      if (silverFolder.exists()) {
-        FileUtils.deleteDirectory(silverFolder)
-      }
-      silverFolder.mkdirs()
-
-      val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
-      if (bronzeFolder.exists()) {
-        FileUtils.deleteDirectory(bronzeFolder)
-      }
-      bronzeFolder.mkdirs()
-
-      // Clean up any test tables in the metastore
-      // Get list of ALL databases except default and system databases
-      val testDatabases = spark.sql("SHOW DATABASES").collect()
-        .map(_.getString(0))
-        .filter(db => db != "default" && !db.startsWith("sys_") && !db.startsWith("information_schema"))
-
-      testDatabases.foreach { dbName =>
-        try {
-          // Drop the entire database cascade to remove all tables and the database itself
-          spark.sql(s"DROP DATABASE IF EXISTS `$dbName` CASCADE")
-        } catch {
-          case _: Exception => // Ignore if database doesn't exist or can't be accessed
-        }
-      }
-
-      // Also clean up spark-warehouse directory for ALL non-default databases
-      try {
-        val warehouseDir = new java.io.File("spark-warehouse")
-        if (warehouseDir.exists() && warehouseDir.isDirectory) {
-          val warehouseFiles = warehouseDir.listFiles()
-          if (warehouseFiles != null) {
-            warehouseFiles.filter(_.isDirectory).foreach { dbDir =>
-              val dbName = dbDir.getName.replace(".db", "")
-              if (dbName != "default") {
-                try {
-                  FileUtils.deleteDirectory(dbDir)
-                } catch {
-                  case _: Exception => // Ignore cleanup errors
-                }
-              }
-            }
-          }
-        }
-      } catch {
-        case _: Exception => // Ignore warehouse cleanup errors
-      }
-    } catch {
-      case _: Exception => // Ignore cleanup errors - tests should still run
-    }
+    // No-op: test isolation is achieved via unique entity names per test.
+    // In-memory Derby metastore is cleaned up on JVM exit.
+    // Blanket database dropping caused race conditions with parallel test suites.
   }
 
   override def afterAll(): Unit = {
@@ -164,44 +199,10 @@ trait SparkSessionTest extends Suite with BeforeAndAfterAll with BeforeAndAfterE
         } catch {
           case _: Exception => // Ignore if streams is not accessible
         }
-
-        try {
-          // Stop spark session (this also stops the context)
-          spark.stop()
-        } catch {
-          case _: Exception => // Ignore if already stopped
-        }
       }
 
-      // Clear session references
-      SparkSession.clearActiveSession()
-      SparkSession.clearDefaultSession()
-
-      // Shutdown Derby to release its threads
-      try {
-        java.sql.DriverManager.getConnection(s"jdbc:derby:memory:${uniqueId};drop=true")
-      } catch {
-        case _: java.sql.SQLException => // Derby throws SQLException on successful shutdown
-        case _: Exception => // Ignore other exceptions
-      }
-
-      // Clean up test directory
-      try {
-        org.apache.commons.io.FileUtils.deleteDirectory(new java.io.File(testBasePath))
-      } catch {
-        case _: Exception => // Ignore if directory doesn't exist or can't be deleted
-      }
-
-      // Clean up temporary warehouse directory
-      try {
-        val warehouseDir = new java.io.File(s"${System.getProperty("java.io.tmpdir")}/spark-warehouse-$uniqueId")
-        if (warehouseDir.exists()) {
-          org.apache.commons.io.FileUtils.deleteDirectory(warehouseDir)
-        }
-      } catch {
-        case _: Exception => // Ignore if directory doesn't exist or can't be deleted
-      }
-
+      // Session, Derby, and warehouse cleanup happen at JVM shutdown
+      // since they are shared across all test classes.
     } finally {
       super.afterAll()
     }

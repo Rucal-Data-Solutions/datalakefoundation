@@ -1,34 +1,92 @@
 package datalake.processing
 
 import org.scalatest.funsuite.AnyFunSuite
-import org.apache.commons.io.FileUtils
 import datalake.metadata._
 
 class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
-  
+
+  private def createMergeTestEntity(
+      entityId: Int,
+      testId: String,
+      hasPartition: Boolean = true,
+      administrationValue: Int = 950
+  ): (Entity, Output, Paths) = {
+    val partitionRole =
+      if (hasPartition) """"calculated", "businesskey", "partition""""
+      else """"calculated", "businesskey""""
+
+    val testMetadataJson = s"""
+    {
+      "environment": {
+        "name": "DEBUG (MERGE TEST)",
+        "timezone": "Europe/Amsterdam",
+        "root_folder": "${testBasePath.replace("\\", "/")}",
+        "raw_path": "/$${connection}/$${entity}",
+        "bronze_path": "/$${connection}/$${entity}",
+        "silver_path": "/$${connection}/$${destination}",
+        "secure_container_suffix": "-secure",
+        "systemfield_prefix": "${randomPrefix}",
+        "output_method": "paths"
+      },
+      "connections": [
+        {
+          "name": "test_connection",
+          "enabled": true,
+          "settings": {}
+        }
+      ],
+      "entities": [
+        {
+          "id": ${entityId},
+          "name": "merge_test_${Math.abs(testId.hashCode) % 1000000}",
+          "enabled": true,
+          "connection": "test_connection",
+          "processtype": "delta",
+          "watermark": [
+            {
+              "column_name": "SeqNr",
+              "operation": "or",
+              "operation_group": 0,
+              "expression": "'$${last_value}'"
+            }
+          ],
+          "columns": [
+            {
+              "name": "",
+              "newname": "Administration",
+              "datatype": "integer",
+              "fieldroles": [${partitionRole}],
+              "expression": "${administrationValue}"
+            },
+            {
+              "name": "ID",
+              "fieldroles": ["businesskey"]
+            }
+          ],
+          "settings": {},
+          "transformations": []
+        }
+      ]
+    }
+    """
+
+    val settings = new StringMetadataSettings()
+    settings.initialize(testMetadataJson)
+    val metadata = new Metadata(settings, override_env)
+    val entity = metadata.getEntity(entityId)
+    val output = entity.getOutput
+    val paths = entity.getPaths
+    (entity, output, paths)
+  }
+
   test("Merge processing first run should divert to Full load") {
     import spark.implicits._
-    
-    // Set up test directories
-    val bronzeFolder = new java.io.File(s"$testBasePath/bronze")
-    if (!bronzeFolder.exists()) bronzeFolder.mkdirs()
-    val silverFolder = new java.io.File(s"$testBasePath/silver")
-    if (!silverFolder.exists()) silverFolder.mkdirs()
-
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(2)
-    val paths = testEntity.getPaths
-    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier to avoid conflicts with concurrent tests
     val testId = s"merge_first_run_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    // Clean up any existing data
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+    val (testEntity, ioLocations, paths) =
+      createMergeTestEntity(2, testId, hasPartition = true, administrationValue = 950)
 
     val testData = Seq(
       (1, 100L, "John", "Data1", testId),
@@ -60,9 +118,9 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
   test("Merge processing should handle schema creation for table destinations") {
     import spark.implicits._
     
-    // Generate unique test identifier and database name
+    // Generate unique test identifier and database name (keep DB name short for Derby)
     val testId = s"schema_test_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
-    val testDbName = s"test_db_${testId}"
+    val testDbName = s"tdb_${Math.abs(testId.hashCode) % 1000000}"
     val testTableName = s"${testDbName}.test_table"
     
     // Create a test metadata configuration with mixed output (paths for bronze, catalog for silver)
@@ -156,21 +214,12 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
   test("Merge processing should handle updates, inserts, and lastSeen correctly") {
     import spark.implicits._
-    
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(2)
-    val paths = testEntity.getPaths
-    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier
     val testId = s"merge_operations_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    // Clean up any existing data
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+    val (testEntity, ioLocations, paths) =
+      createMergeTestEntity(2, testId, hasPartition = true, administrationValue = 950)
 
     // Step 1: Create initial data with Full load
     val initialData = Seq(
@@ -240,21 +289,12 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
   test("Merge processing should handle partition filters correctly") {
     import spark.implicits._
-    
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(2) // Has partition column "Administration"
-    val paths = testEntity.getPaths
-    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier
     val testId = s"merge_partitions_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    // Clean up any existing data
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+    val (testEntity, ioLocations, paths) =
+      createMergeTestEntity(2, testId, hasPartition = true, administrationValue = 950) // Has partition column "Administration"
 
     // Step 1: Create initial data with partitions
     val initialData = Seq(
@@ -323,18 +363,10 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
   test("Merge processing should detect and report missing columns in source") {
     import spark.implicits._
 
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(3)
-    val paths = testEntity.getPaths
-    val ioLocations = testEntity.getOutput
-
     val testId = s"merge_missing_col_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+    val (testEntity, ioLocations, paths) =
+      createMergeTestEntity(3, testId, hasPartition = false, administrationValue = 1000)
 
     // Step 1: Create initial data with extra column
     val initialData = Seq(
@@ -369,21 +401,12 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
   test("Merge processing should handle schema differences appropriately") {
     import spark.implicits._
-    
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(3)
-    val paths = testEntity.getPaths
-    val ioLocations = testEntity.getOutput
 
     // Generate unique test identifier
     val testId = s"merge_schema_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
 
-    // Clean up any existing data
-    FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
+    val (testEntity, ioLocations, paths) =
+      createMergeTestEntity(3, testId, hasPartition = false, administrationValue = 1000)
 
     // Step 1: Create initial data
     val initialData = Seq(

@@ -2,7 +2,6 @@ lazy val scala213 = "2.13.16"
 lazy val supportedScalaVersions = List(scala213)
 
 ThisBuild / scalaVersion     := scala213
-ThisBuild / version          := "1.6.2"
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 
@@ -49,6 +48,7 @@ lazy val root = (project in file("."))
     ),
 
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+    libraryDependencies += "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion % Test,
     libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.24.3" % Provided,
     libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.24.3" % Provided,
 
@@ -77,3 +77,5 @@ lazy val root = (project in file("."))
     )
 
   )
+
+addCommandAlias("package", ";bumpVersion;Compile/package")

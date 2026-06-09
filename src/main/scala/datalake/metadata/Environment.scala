@@ -100,6 +100,6 @@ case class Environment(
   }
 
   def LogOutput: String = this.log_output.getOrElse(
-    if (LogAppenderType == "table") "default.dlf_logs" else "dlf_log.parquet"
+    if (LogAppenderType == "table") "default.dlf_logs" else "dlf_log"
   )
 }

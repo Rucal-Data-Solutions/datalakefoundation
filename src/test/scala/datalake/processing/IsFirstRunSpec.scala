@@ -17,7 +17,7 @@ class IsFirstRunSpec extends AnyFunSuite with SparkSessionTest {
 
   /** Test helper that exposes the protected isFirstRun method */
   private object TestStrategy extends ProcessStrategy {
-    def Process(processing: Processing)(implicit spark: org.apache.spark.sql.SparkSession): Unit = {}
+    def Process(processing: Processing)(implicit spark: org.apache.spark.sql.SparkSession): Option[org.apache.spark.sql.streaming.StreamingQuery] = None
     def testIsFirstRun(destination: OutputLocation): Boolean = isFirstRun(destination)
   }
 

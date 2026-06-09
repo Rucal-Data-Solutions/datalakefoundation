@@ -18,6 +18,14 @@ class TableAppenderSpec extends AnyFlatSpec with SparkSessionTest {
   override def beforeEach(): Unit = {
     super.beforeEach()
     spark.sql(s"DROP TABLE IF EXISTS $testTableName")
+    // Clean up stale Delta files to avoid cached file references across tests
+    val warehouseDir = spark.conf.get("spark.sql.warehouse.dir")
+    val tablePath = new java.io.File(s"$warehouseDir/test_dlf_logs")
+    if (tablePath.exists()) {
+      import org.apache.commons.io.FileUtils
+      FileUtils.deleteDirectory(tablePath)
+    }
+    spark.catalog.clearCache()
     // Reset Log4jConfigurator state for each test
     resetLog4jConfigurator()
   }

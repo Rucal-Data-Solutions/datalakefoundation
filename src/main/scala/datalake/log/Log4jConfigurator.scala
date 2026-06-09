@@ -188,7 +188,7 @@ object Log4jConfigurator {
             )
         }
       case None =>
-        ParquetAppender.createAppender(spark, "dlf_log.parquet")
+        ParquetAppender.createAppender(spark, "dlf_log")
     }
   }
 

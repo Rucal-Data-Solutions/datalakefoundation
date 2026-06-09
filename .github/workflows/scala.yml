@@ -44,12 +44,13 @@ jobs:
 
     - name: Setup sbt launcher
       uses: sbt/setup-sbt@v1
-        
+
+    - name: Build project JAR
+      run: sbt package
 
     - name: Build and tests
       run: sbt + test
 
-    
     - name: Sbt Dependency Submission
       uses: scalacenter/sbt-dependency-submission@v2.2.2
 

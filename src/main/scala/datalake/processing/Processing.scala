@@ -5,6 +5,7 @@ import org.apache.logging.log4j.{Logger, Level}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{ DataFrame, Column, SaveMode, Row, SparkSession, Dataset }
+import org.apache.spark.sql.streaming.StreamingQuery
 import org.apache.spark.broadcast.Broadcast
 
 import scala.util.{ Try, Success, Failure }
@@ -81,40 +82,73 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
   def inferDeletesFromMissing: Boolean = inferMissingDeletes
 
+  private[processing] def getEntity: Entity = entity
+
+  private[processing] def applyTransforms(
+      df: DataFrame,
+      filename: String,
+      skipCache: Boolean = false
+  ): DataFrame = {
+    val transformed = df
+      .transform(injectTransformations)
+      .transform(addCalculatedColumns)
+      .transform(calculateSourceHash)
+      .transform(addTemporalTrackingColumns)
+      .transform(addFilenameColumn(_, filename))
+      .transform(addPrimaryKey)
+      .transform(castColumns)
+      .transform(renameColumns)
+      .transform(addDeletedColumn)
+      .transform(addLastSeen)
+      .datalakeNormalize()
+
+    if (skipCache) transformed else transformed.cache()
+  }
+
   def getSource: DatalakeSource = {
     _cachedSource.getOrElse {
-      logger.debug(s"getSource called by ${Thread.currentThread().getName} - computing source")
+      logger.debug(
+        s"getSource called by ${Thread.currentThread().getName}" +
+          " - computing source"
+      )
+
+      val filenameField = s"${environment.SystemFieldPrefix}source_filename"
 
       val dfSlice = ioLocations.bronze match {
-        case PathLocation(path) => spark.read.parquet(s"$path/$sliceFile")
-        case TableLocation(table) => spark.read.table(table)
+        case PathLocation(path) =>
+          spark.read.parquet(s"$path/$sliceFile")
+        case TableLocation(table) =>
+          val bronzeTable = spark.read.table(table)
+          if (Utils.hasColumn(bronzeTable, filenameField)) {
+            bronzeTable.filter(col(filenameField) === sliceFile)
+          } else {
+            logger.warn(
+              s"Bronze table is missing column '$filenameField' for slice filtering. " +
+              s"Processing entire table."
+            )
+            bronzeTable
+          }
       }
 
-      // Combine all transformations into a single chain before any actions
-      val transformedDF = dfSlice
-        .transform(injectTransformations)
-        .transform(addCalculatedColumns)
-        .transform(calculateSourceHash)
-        .transform(addTemporalTrackingColumns)
-        .transform(addFilenameColumn(_, sliceFile))
-        .transform(addPrimaryKey)
-        .transform(castColumns)
-        .transform(renameColumns)
-        .transform(addDeletedColumn)
-        .transform(addLastSeen)
-        .datalakeNormalize()
-        .cache() // Cache the DataFrame since it will be used multiple times
+      val transformedDF = applyTransforms(dfSlice, sliceFile)
 
       // Now trigger actions after all transformations are done
       if (transformedDF.isEmpty) {
         logger.warn("Slice contains no data (RowCount=0)")
       }
 
-      val new_watermark_values = getWatermarkValues(transformedDF, watermarkColumns)
-      val current_watermark_values = getCurrentWatermarkValues(watermarkColumns)
+      val new_watermark_values =
+        getWatermarkValues(transformedDF, watermarkColumns)
+      val current_watermark_values =
+        getCurrentWatermarkValues(watermarkColumns)
       val part_values = getPartitionValues(transformedDF)
 
-      val source = new DatalakeSource(transformedDF, new_watermark_values, part_values, current_watermark_values)
+      val source = new DatalakeSource(
+        transformedDF,
+        new_watermark_values,
+        part_values,
+        current_watermark_values
+      )
       _cachedSource = Some(source)
       source
     }
@@ -212,7 +246,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
    *         otherwise returns the original input Dataset[Row].
    */
   private def addTemporalTrackingColumns(input: Dataset[Row])(implicit env: Environment): Dataset[Row] =
-    if (entity.ProcessType == Historic) {
+    if (entity.ProcessType.Name == Historic.Name) {
       input
         .withColumn(s"${env.SystemFieldPrefix}ValidFrom", lit(processingTime).cast(TimestampType))
         .withColumn(s"${env.SystemFieldPrefix}ValidTo", lit("2999-12-31").cast(TimestampType))
@@ -286,26 +320,14 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
       input
   }
 
-  private def addFilenameColumn(input: Dataset[Row], filename: String)(implicit env: Environment): Dataset[Row] = {
+  private def addFilenameColumn(input: Dataset[Row], filename: String)(
+      implicit env: Environment
+  ): Dataset[Row] = {
     val filenameField = s"${env.SystemFieldPrefix}source_filename"
-    val isUnityCatalog = ioLocations.bronze.isInstanceOf[TableLocation]
-
-    val inputWithFilename = if (!Utils.hasColumn(input, filenameField)) {
-      if (isUnityCatalog) {
-        logger.warn(
-          s"Bronze table is missing column '$filenameField' for slice filtering. " +
-          s"Adding column with value '$filename'."
-        )
-      }
+    if (!Utils.hasColumn(input, filenameField)) {
       input.withColumn(filenameField, lit(filename))
     } else {
       input
-    }
-
-    if (isUnityCatalog) {
-      inputWithFilename.filter(col(filenameField) === sliceFile)
-    } else {
-      inputWithFilename
     }
   }
 
@@ -317,14 +339,29 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
     }
   }
 
-  final def Process(strategy: ProcessStrategy = entity.ProcessType): Unit =
+  final def Process(
+      strategy: ProcessStrategy = entity.ProcessType
+  ): Option[StreamingQuery] = {
+    var result: Option[StreamingQuery] = None
     try {
       DatalakeLogManager.withData(entity.toJson, Some("Entity")) {
         logger.info(DatalakeLogManager.AuditMarker, "Processing started")
       }
       startTimeMs = System.currentTimeMillis()
-      strategy.Process(this)
-      WriteWatermark(getSource.watermark_values)
+      result = strategy.Process(this)
+      if (result.isDefined && watermarkColumns.nonEmpty) {
+        logger.warn(
+          "Watermark columns are configured but will be ignored " +
+          "for streaming entities. " +
+          "Streaming does not currently support watermark tracking."
+        )
+      }
+      // Only write watermark for batch (None) — streaming entities
+      // do not produce watermark values (no getSource call)
+      if (result.isEmpty) {
+        WriteWatermark(getSource.watermark_values)
+      }
+      result
     }
     catch {
       case e: DatalakeException =>
@@ -338,15 +375,18 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
         throw e
     }
     finally {
-      // Clean up cached DataFrame to free memory
-      _cachedSource.foreach { source =>
-        logger.debug("Unpersisting cached DataFrame")
-        source.source_df.unpersist()
+      // Only clean up for batch processing (result is None).
+      // Streaming keeps running after Process returns —
+      // cleanup would be premature.
+      if (result.isEmpty) {
+        _cachedSource.foreach { source =>
+          logger.debug("Unpersisting cached DataFrame")
+          source.source_df.unpersist()
+        }
+        _cachedSource = None
+        DatalakeLogManager.flush()
       }
-      _cachedSource = None
-
-      // Flush logs to ensure they are written (especially important in REPL/notebook environments)
-      DatalakeLogManager.flush()
     }
+  }
 
 }

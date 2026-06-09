@@ -27,7 +27,7 @@ The library targets Databricks Runtime **17.3 LTS** or later and is compiled for
 ## 3. Processing strategies
 
 At the heart of Datalake Foundation is the `Processing` class (in `datalake.processing`). You instantiate it with an `Entity` (from metadata) and a **slice** file name. You then call `Process`.
-The process strategy is automaticaly chosen (set in metadata of the entity). the examples below are illustratory, normaly you would call processing.Process() (without parameter) the parameter forces the strategy.
+The process strategy is automatically chosen (set in metadata of the entity). The examples below are illustrative, normally you would call processing.Process() (without parameter) the parameter forces the strategy.
 
 ### 3.1. Full load
 
@@ -61,7 +61,25 @@ processing.Process(Full)
 - Changed rows are closed off (`ValidTo` set, `IsCurrent = false`) and a new row is inserted.
 - New versions are appended to the Silver table.
 
-### 3.4. Processing time override
+### 3.4. Streaming processing
+
+**Stream** enables continuous micro-batch ingestion using Spark Structured Streaming. It supports file-based sources (Parquet, JSON, CSV, ORC, Avro), message queues (Kafka, Kinesis) and a test source (rate). Each micro-batch goes through the same transformation pipeline as batch strategies, then writes using a configurable write strategy (full, merge or historic).
+
+```scala
+val entity = metadata.getEntity(42)
+val processing = new Processing(entity, "")  // streaming reads from its configured source, not a slice file
+val query: Option[StreamingQuery] = processing.Process(Stream)
+
+// StreamingQuery lifecycle
+query.foreach { q =>
+  q.awaitTermination()  // blocks until stopped or error
+  q.stop()              // graceful shutdown
+}
+```
+
+> Streaming entities return `Some(StreamingQuery)` instead of `None`. The caller is responsible for managing the query lifecycle.
+
+### 3.5. Processing time override
 
 All strategies accept an optional `processing.time` option (ISO‑8601). If absent, current time is used. Invalid timestamps are logged and default to current time.
 
@@ -168,6 +186,7 @@ For detailed documentation on specific topics, see:
 
 **Processing**
 - [Processing Strategies](docs/processing/PROCESSING_STRATEGIES.md) – Full, Merge, and Historic strategies in depth
+- [Streaming Processing](docs/processing/STREAMING.md) – Continuous micro-batch ingestion with Structured Streaming
 - [Watermarks](docs/processing/WATERMARKS.md) – Incremental processing with watermark expressions
 - [Delete Inference](docs/processing/DELETE_INFERENCE.md) – Automatic soft-delete detection for missing records
 

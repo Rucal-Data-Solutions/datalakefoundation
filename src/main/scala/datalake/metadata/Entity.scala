@@ -111,15 +111,7 @@ class Entity(
     this.watermark
 
   final def ProcessType: ProcessStrategy =
-    this.processtype.toLowerCase match {
-      case Full.Name     => Full
-      case Merge.Name    => Merge
-      case Historic.Name => Historic
-      case "delta"       => Merge // allow old delta for backwards compatibility
-      case _ => throw ProcessStrategyNotSupportedException(
-          s"Process Type ${this.processtype} not supported"
-        )
-    }
+    ProcessStrategyRegistry.getOrThrow(this.processtype)
 
   final def Settings: Map[String, Any] = {
     val mergedSettings = this.Connection.settings merge this.settings

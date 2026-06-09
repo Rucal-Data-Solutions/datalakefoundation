@@ -17,6 +17,8 @@ import datalake.core.implicits._
 
 import org.apache.spark.sql.AnalysisException
 
+import org.apache.spark.sql.streaming.StreamingQuery
+
 import datalake.log.DatalakeLogManager
 
 abstract class ProcessStrategy {
@@ -26,9 +28,11 @@ abstract class ProcessStrategy {
 
   @transient protected lazy val logger = DatalakeLogManager.getLogger(this.getClass)
 
-  final val Name: String = {
-    val cls = this.getClass()
-    cls.getSimpleName().dropRight(1).toLowerCase()
+  val Name: String = {
+    val simpleName = this.getClass.getSimpleName
+    val cleaned =
+      if (simpleName.endsWith("$")) simpleName.dropRight(1) else simpleName
+    cleaned.toLowerCase()
   }
 
   /**
@@ -152,5 +156,7 @@ abstract class ProcessStrategy {
     condition
   }
 
-  def Process(processing: Processing)(implicit spark: SparkSession): Unit
+  def Process(
+      processing: Processing
+  )(implicit spark: SparkSession): Option[StreamingQuery]
 }

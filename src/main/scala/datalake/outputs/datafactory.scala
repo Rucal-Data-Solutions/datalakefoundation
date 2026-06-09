@@ -51,4 +51,6 @@ object DataFactory {
     write(entities)
   }
 
+  def getProvider(name: String): Option[OutputProvider] =
+    OutputProviderRegistry.get(name)
 }

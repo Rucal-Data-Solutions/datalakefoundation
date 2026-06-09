@@ -37,7 +37,7 @@ Watermarks are defined in the entity's `watermark` array:
 
 ## Expression System
 
-Watermark expressions are evaluated at runtime using a dynamic expression engine. The expression produces the filter value used in processing.
+Watermark expressions are evaluated at runtime using [Scala expressions](../configuration/EXPRESSIONS.md#watermark-expressions). The expression produces the filter value used in processing.
 
 ### Available Parameters
 
@@ -297,6 +297,7 @@ Common errors:
 
 ## See Also
 
+- [Expression Languages](../configuration/EXPRESSIONS.md)
 - [Processing Strategies](PROCESSING_STRATEGIES.md)
 - [Delete Inference](DELETE_INFERENCE.md)
 - [Entity Configuration](../configuration/ENTITY_CONFIGURATION.md)

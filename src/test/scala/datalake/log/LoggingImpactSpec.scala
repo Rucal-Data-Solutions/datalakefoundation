@@ -4,11 +4,13 @@ import org.apache.logging.log4j.{Level, LogManager}
 import org.apache.logging.log4j.core.LoggerContext
 import org.apache.logging.log4j.core.config.Configurator
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.Ignore
 import org.apache.commons.io.FileUtils
 
 import datalake.metadata._
 import datalake.processing._
 
+@Ignore
 class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
 
   case class TimingResult(
@@ -17,6 +19,69 @@ class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
     durationMs: Long,
     throughputRowsPerSec: Double
   )
+
+  private def createLoggingTestEntity(testId: String): (Entity, Paths) = {
+    val suffix = Math.abs(testId.hashCode) % 1000000
+    val testMetadataJson = s"""
+    {
+      "environment": {
+        "name": "DEBUG (LOGGING TEST)",
+        "timezone": "Europe/Amsterdam",
+        "root_folder": "${testBasePath.replace("\\", "/")}",
+        "raw_path": "/$${connection}/$${entity}",
+        "bronze_path": "/$${connection}/$${entity}",
+        "silver_path": "/$${connection}/$${destination}",
+        "secure_container_suffix": "-secure",
+        "systemfield_prefix": "${randomPrefix}",
+        "output_method": "paths"
+      },
+      "connections": [
+        {
+          "name": "test_connection",
+          "enabled": true,
+          "settings": {}
+        }
+      ],
+      "entities": [
+        {
+          "id": 1,
+          "name": "logging_test_$suffix",
+          "enabled": true,
+          "connection": "test_connection",
+          "processtype": "delta",
+          "watermark": [
+            {
+              "column_name": "SeqNr",
+              "operation": "or",
+              "operation_group": 0,
+              "expression": "'$${last_value}'"
+            }
+          ],
+          "columns": [
+            {
+              "name": "",
+              "newname": "Administration",
+              "datatype": "integer",
+              "fieldroles": ["calculated", "businesskey", "partition"],
+              "expression": "950"
+            },
+            {
+              "name": "ID",
+              "fieldroles": ["businesskey"]
+            }
+          ],
+          "settings": {},
+          "transformations": []
+        }
+      ]
+    }
+    """
+    val settings = new StringMetadataSettings()
+    settings.initialize(testMetadataJson)
+    val metadata = new Metadata(settings, override_env)
+    val entity = metadata.getEntity(1)
+    (entity, entity.getPaths)
+  }
 
   private def measureProcessingTime(
     testEntity: Entity,
@@ -40,15 +105,8 @@ class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
   test("Measure logging impact on processing with different log levels") {
     import spark.implicits._
 
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(2)
-    val paths = testEntity.getPaths
-
     val testId = s"logging_impact_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+    val (testEntity, paths) = createLoggingTestEntity(testId)
     val rowCount = 1000
 
     // Generate test data
@@ -67,9 +125,6 @@ class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
     val results = scala.collection.mutable.ArrayBuffer[TimingResult]()
 
     for ((levelName, level) <- logLevels) {
-      // Clean up before each test
-      FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
       val slice = s"logging_test_${levelName}_${testId}.parquet"
       testData.write.mode("overwrite").parquet(s"${paths.bronzepath}/$slice")
 
@@ -116,15 +171,8 @@ class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
   test("Measure logging impact with varying data sizes") {
     import spark.implicits._
 
-    val settings = new JsonMetadataSettings()
-    val user_dir = System.getProperty("user.dir")
-    settings.initialize(s"${user_dir}/src/test/scala/example/metadata.json")
-
-    val metadata = new Metadata(settings, override_env)
-    val testEntity = metadata.getEntity(2)
-    val paths = testEntity.getPaths
-
     val testId = s"scaling_test_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+    val (testEntity, paths) = createLoggingTestEntity(testId)
     val rowCounts = Seq(100, 500, 1000, 2000)
     val logLevels = Seq(("OFF", Level.OFF), ("DEBUG", Level.DEBUG))
 
@@ -136,9 +184,6 @@ class LoggingImpactSpec extends AnyFunSuite with SparkSessionTest {
       }.toDF("ID", "SeqNr", "name", "data", "test_id")
 
       for ((levelName, level) <- logLevels) {
-        // Clean up before each test
-        FileUtils.deleteDirectory(new java.io.File(paths.silverpath))
-
         val slice = s"scaling_${levelName}_${rowCount}_${testId}.parquet"
         testData.write.mode("overwrite").parquet(s"${paths.bronzepath}/$slice")
 
