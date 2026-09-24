@@ -1,22 +1,54 @@
 name: Release
 
+# Stable releases are started manually only (Actions -> Release -> Run workflow).
+# Merging to main never publishes a stable release; it only updates the nightly
+# pre-release (see scala.yml). See docs/RELEASING.md.
 on:
-  workflow_run:
-    workflows: [ "Scala CI" ]
-    types: [ completed ]
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, must equal VERSION in version.properties (e.g. 1.7.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate release request
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+          echo "::error::Releases can only be made from main (got $GITHUB_REF)."
+          exit 1
+        fi
+        if ! [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::Version '$INPUT_VERSION' is not of the form x.y.z."
+          exit 1
+        fi
+        file_version=$(sed -n 's/^VERSION=//p' version.properties | tr -d '[:space:]')
+        if [ "$INPUT_VERSION" != "$file_version" ]; then
+          echo "::error::Version '$INPUT_VERSION' does not match VERSION=$file_version in version.properties."
+          exit 1
+        fi
+        if git ls-remote --exit-code --tags origin "refs/tags/v${INPUT_VERSION}" > /dev/null; then
+          echo "::error::Tag v${INPUT_VERSION} already exists; bump VERSION in version.properties first."
+          exit 1
+        fi
 
     - name: Set up Java
       uses: actions/setup-java@v4
@@ -28,37 +60,35 @@ jobs:
     - name: Setup sbt launcher
       uses: sbt/setup-sbt@v1
 
-    - name: Extract version
-      id: version
-      run: |
-        VERSION=$(grep 'ThisBuild / version' build.sbt | sed 's/.*:= *"\(.*\)"/\1/')
-        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+    - name: Build and tests
+      env:
+        DLF_VERSION: ${{ inputs.version }}
+      run: sbt +test
 
     - name: Import GPG key
-      run: |
-        echo "${{ secrets.PGP_SECRET }}" | base64 --decode | gpg --batch --import
+      run: echo "${{ secrets.PGP_SECRET }}" | base64 --decode | gpg --batch --import
 
     - name: Publish to Maven Central
       env:
+        DLF_VERSION: ${{ inputs.version }}
+        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
       run: sbt +publishSigned sonatypeBundleRelease
 
-    - name: Build JARs
-      run: sbt package
+    - name: Build JAR for release
+      env:
+        DLF_VERSION: ${{ inputs.version }}
+      run: sbt +package
 
-    - name: Delete existing release
-      run: gh release delete "v${{ steps.version.outputs.version }}" --cleanup-tag --yes || true
+    - name: Create GitHub Release
       env:
         GH_TOKEN: ${{ github.token }}
-
-    - name: Create release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v${{ steps.version.outputs.version }}
-        name: v${{ steps.version.outputs.version }}
-        generate_release_notes: true
-        make_latest: true
-        files: |
+        VERSION: ${{ inputs.version }}
+      run: |
+        gh release create "v${VERSION}" \
+          --target "$GITHUB_SHA" \
+          --title "v${VERSION}" \
+          --generate-notes \
+          --latest \
           target/scala-2.13/*.jar
