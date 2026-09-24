@@ -5,6 +5,16 @@ ThisBuild / scalaVersion     := scala213
 ThisBuild / organization     := "nl.rucal"
 ThisBuild / organizationName := "Rucal Data Solutions"
 
+// Version comes from version.properties (VERSION=x.y.z). Local and CI builds get
+// <VERSION>-SNAPSHOT; the nightly and release workflows set DLF_VERSION explicitly.
+ThisBuild / version := {
+  val props = new java.util.Properties()
+  IO.load(props, (ThisBuild / baseDirectory).value / "version.properties")
+  val base = Option(props.getProperty("VERSION")).map(_.trim).filter(_.nonEmpty)
+    .getOrElse(sys.error("VERSION is missing in version.properties"))
+  sys.env.get("DLF_VERSION").map(_.trim).filter(_.nonEmpty).getOrElse(s"$base-SNAPSHOT")
+}
+
 import xerial.sbt.Sonatype.sonatypeCentralHost
 
 // Maven Central publishing metadata
@@ -77,5 +87,3 @@ lazy val root = (project in file("."))
     )
 
   )
-
-addCommandAlias("package", ";bumpVersion;Compile/package")

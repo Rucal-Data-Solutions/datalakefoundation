@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - '*.sbt'
+      - 'version.properties'
       - 'project/**'
       - '.scalafmt.conf'
       - '.github/workflows/**'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'src/**'
       - '*.sbt'
+      - 'version.properties'
       - 'project/**'
       - '.scalafmt.conf'
       - '.github/workflows/**'
@@ -45,9 +47,6 @@ jobs:
     - name: Setup sbt launcher
       uses: sbt/setup-sbt@v1
 
-    - name: Build project JAR
-      run: sbt package
-
     - name: Build and tests
       run: sbt + test
 
@@ -64,19 +63,15 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Compare version to latest tag
+    - name: Read version
       id: version
       run: |
-        current=$(grep 'ThisBuild / version' build.sbt | sed 's/.*"\(.*\)".*/\1/')
-        latest_tag=$(git tag --sort=-v:refname | head -1 | sed 's/^v//')
-        echo "current=$current" >> "$GITHUB_OUTPUT"
-        echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
-        if [ -z "$latest_tag" ]; then
-          echo "bumped=true" >> "$GITHUB_OUTPUT"
-        elif [ "$(printf '%s\n%s' "$latest_tag" "$current" | sort -V | tail -1)" = "$current" ] && [ "$current" != "$latest_tag" ]; then
-          echo "bumped=true" >> "$GITHUB_OUTPUT"
+        version=$(sed -n 's/^VERSION=//p' version.properties | tr -d '[:space:]')
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        if git rev-parse -q --verify "refs/tags/v${version}" > /dev/null; then
+          echo "released=true" >> "$GITHUB_OUTPUT"
         else
-          echo "bumped=false" >> "$GITHUB_OUTPUT"
+          echo "released=false" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Delete previous version comment
@@ -92,45 +87,37 @@ jobs:
     - name: Comment on PR
       env:
         GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ steps.version.outputs.version }}
+        RELEASED: ${{ steps.version.outputs.released }}
       run: |
-        current="${{ steps.version.outputs.current }}"
-        latest="${{ steps.version.outputs.latest_tag }}"
-        bumped="${{ steps.version.outputs.bumped }}"
-        if [ "$bumped" = "true" ]; then
-          body="<!-- version-check -->"$'\n'"**Version bump detected:** v${latest:-none} → v${current}. Merging will trigger a release."
+        if [ "$RELEASED" = "true" ]; then
+          status="**v${VERSION} is already released.** Bump \`VERSION\` in \`version.properties\` before the next stable release."
         else
-          body="<!-- version-check -->"$'\n'"**No version bump.** build.sbt version (${current}) matches the latest tag (v${latest}). Merging will not trigger a release."
+          status="Next stable release: **v${VERSION}** (not released yet)."
         fi
+        body="<!-- version-check -->"$'\n'"${status}"$'\n\n'"Merging only updates the **nightly** pre-release. A stable release is started manually via *Actions → Release*."
         gh pr comment "${{ github.event.number }}" --body "$body"
 
-  release:
+  nightly:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: nightly
+      cancel-in-progress: true
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
-    - name: Check version bump
+    - name: Compute nightly version
       id: version
       run: |
-        current=$(grep 'ThisBuild / version' build.sbt | sed 's/.*"\(.*\)".*/\1/')
-        latest_tag=$(git tag --sort=-v:refname | head -1 | sed 's/^v//')
-        echo "current=$current" >> "$GITHUB_OUTPUT"
-        echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
-        if [ -z "$latest_tag" ]; then
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-        elif [ "$(printf '%s\n%s' "$latest_tag" "$current" | sort -V | tail -1)" = "$current" ] && [ "$current" != "$latest_tag" ]; then
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "changed=false" >> "$GITHUB_OUTPUT"
-        fi
+        base=$(sed -n 's/^VERSION=//p' version.properties | tr -d '[:space:]')
+        version="${base}-nightly.$(date -u +%Y%m%d).${GITHUB_SHA::7}"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: Set up Java
-      if: steps.version.outputs.changed == 'true'
       uses: actions/setup-java@v4
       with:
         java-version: 17
@@ -138,34 +125,24 @@ jobs:
         cache: 'sbt'
 
     - name: Setup sbt launcher
-      if: steps.version.outputs.changed == 'true'
       uses: sbt/setup-sbt@v1
 
-    - name: Import GPG key
-      if: steps.version.outputs.changed == 'true'
-      run: echo "${{ secrets.PGP_SECRET }}" | base64 --decode | gpg --batch --import
-
-    - name: Publish to Maven Central
-      if: steps.version.outputs.changed == 'true'
+    - name: Build JAR
       env:
-        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-      run: sbt +publishSigned sonatypeBundleRelease
-
-    - name: Build JAR for release
-      if: steps.version.outputs.changed == 'true'
+        DLF_VERSION: ${{ steps.version.outputs.version }}
       run: sbt +package
 
-    - name: Create GitHub Release
-      if: steps.version.outputs.changed == 'true'
+    # Rolling pre-release: never marked as latest, never published to Maven Central.
+    - name: Update nightly pre-release
       env:
         GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
-        version="${{ steps.version.outputs.current }}"
-        git tag "v${version}"
-        git push origin "v${version}"
-        gh release create "v${version}" \
-          --title "v${version}" \
-          --generate-notes \
-          target/scala-*/*.jar
+        gh release delete nightly --cleanup-tag --yes || true
+        gh release create nightly \
+          --prerelease \
+          --latest=false \
+          --target "$GITHUB_SHA" \
+          --title "Nightly (v${VERSION})" \
+          --notes "Untested nightly build of \`main\` at ${GITHUB_SHA}. Not for production use; not published to Maven Central." \
+          target/scala-2.13/*.jar
