@@ -68,6 +68,9 @@ lazy val root = (project in file("."))
     // Make sure we have common-io for FileUtils in tests
     libraryDependencies += "commons-io" % "commons-io" % "2.13.0",
 
+    // Publish the test JAR (classifier "tests") so plugins can reuse SparkSessionTest
+    Test / packageBin / publishArtifact := true,
+
     Test / fork := true,
     Test / javaOptions ++= Seq(
       "--add-opens=java.base/java.lang=ALL-UNNAMED",
