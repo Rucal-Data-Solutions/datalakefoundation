@@ -38,7 +38,7 @@ The workflow:
 
 1. refuses to run if it is not on `main`, if the input is not `x.y.z`, if it differs from `version.properties`, or if tag `v<version>` already exists;
 2. runs the full test suite;
-3. publishes the signed artifacts to Maven Central;
+3. publishes the signed artifacts to Maven Central, including the test JAR (classifier `tests`) that plugins use for `SparkSessionTest`;
 4. creates tag `v<version>` and a GitHub release with the JAR, marked as *latest*.
 
 Publishing to Maven Central cannot be undone. If a later step fails after the publish succeeded, create the GitHub release by hand instead of re-running the workflow.
