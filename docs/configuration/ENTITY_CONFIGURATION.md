@@ -241,6 +241,22 @@ Defined in each entity's `settings` block (overrides connection settings):
 | `silver_table` | Entity | Unity Catalog table name for silver |
 | `output_method` | Environment/Entity | Output type: `paths` or `catalog` |
 | `delete_missing` | Entity | Enable delete inference (see [Delete Inference](../processing/DELETE_INFERENCE.md)) |
+| `allow_empty_full_load` | Connection/Entity | Allow a `full` load with an empty slice to overwrite a destination that still holds rows. Boolean, default `false`. The entity value overrides the connection value. See [Empty slices](../processing/PROCESSING_STRATEGIES.md#empty-slices) |
+
+Example: a source that is legitimately empty at times (for instance a table that is cleared after each export) can opt in on the entity:
+
+```json
+{
+  "id": 3,
+  "name": "pending_orders",
+  "processtype": "full",
+  "settings": {
+    "allow_empty_full_load": true
+  }
+}
+```
+
+Set it on a connection to apply to all entities of that connection, and set it to `false` on an entity to switch it back off. A value that is not a valid boolean is treated as `false`.
 
 ### Streaming Settings
 

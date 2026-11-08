@@ -10,7 +10,10 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
       entityId: Int,
       testId: String,
       hasPartition: Boolean = false,
-      useCatalog: Boolean = false
+      useCatalog: Boolean = false,
+      entitySettings: Seq[String] = Seq.empty,
+      connectionSettings: Seq[String] = Seq.empty,
+      bronzeTable: Option[String] = None
   ): (Entity, Output, Paths) = {
     val partitionColumn = if (hasPartition) """
       {
@@ -22,6 +25,9 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
       },""" else ""
 
     val silverSetting = if (useCatalog) s""" "silver_table": "test_db_${testId}.test_table" """ else ""
+    val bronzeSetting = bronzeTable.map(t => s""" "bronze_table": "$t" """).toSeq
+    val allEntitySettings =
+      (Seq(silverSetting).filter(_.trim.nonEmpty) ++ bronzeSetting ++ entitySettings).mkString(",\n")
 
     val testMetadataJson = s"""
     {
@@ -40,7 +46,7 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
         {
           "name": "test_connection",
           "enabled": true,
-          "settings": {}
+          "settings": {${connectionSettings.mkString(",")}}
         }
       ],
       "entities": [
@@ -59,7 +65,7 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
             }
           ],
           "settings": {
-            ${silverSetting}
+            ${allEntitySettings}
           },
           "transformations": []
         }
@@ -227,5 +233,191 @@ class FullProcessingSpec extends AnyFunSuite with SparkSessionTest {
     // Null string should be handled
     val row2 = result.filter($"ID" === 2).first()
     assert(row2.isNullAt(row2.fieldIndex("string_col")), "Null values should be preserved")
+  }
+
+  // ---- Empty slice protection (#72) ----
+
+  private def readSilver(output: Output) = output.silver match {
+    case PathLocation(path)  => spark.read.format("delta").load(path)
+    case TableLocation(name) => spark.read.table(name)
+  }
+
+  private def writeSlice(paths: Paths, slice: String, ids: Seq[Int], testId: String): Unit = {
+    import spark.implicits._
+    ids.map(i => (i, s"name_$i", testId)).toDF("ID", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$slice")
+  }
+
+  private def writeEmptySlice(paths: Paths, slice: String): Unit = {
+    import spark.implicits._
+    Seq.empty[(Int, String, String)].toDF("ID", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$slice")
+  }
+
+  private def uniqueId(prefix: String) =
+    s"${prefix}_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+
+  test("Empty slice on first run creates an empty table") {
+    val testId = uniqueId("empty_first")
+    val (entity, output, paths) = createTestEntity(2100, testId)
+    writeEmptySlice(paths, "empty.parquet")
+
+    new Processing(entity, "empty.parquet").Process(Full)
+
+    assert(silverExists(output))
+    assert(readSilver(output).count() === 0)
+  }
+
+  private def silverExists(output: Output): Boolean = output.silver match {
+    case PathLocation(path)  => io.delta.tables.DeltaTable.isDeltaTable(spark, path)
+    case TableLocation(name) => spark.catalog.tableExists(name)
+  }
+
+  test("Empty slice on a destination with rows throws when allow_empty_full_load is absent") {
+    val testId = uniqueId("empty_guard")
+    val (entity, output, paths) = createTestEntity(2101, testId)
+    writeSlice(paths, "data.parquet", Seq(1, 2, 3), testId)
+    writeEmptySlice(paths, "empty.parquet")
+    new Processing(entity, "data.parquet").Process(Full)
+
+    val ex = intercept[EmptyFullLoadException] {
+      new Processing(entity, "empty.parquet").Process(Full)
+    }
+    assert(ex.getMessage.contains("Entity 2101"))
+    assert(ex.getMessage.contains("allow_empty_full_load"))
+    assert(readSilver(output).count() === 3, "Destination must be untouched")
+  }
+
+  test("Empty slice overwrites the destination when the entity allows it") {
+    val testId = uniqueId("empty_entity_true")
+    val (entity, output, paths) = createTestEntity(
+      2102, testId, entitySettings = Seq(""""allow_empty_full_load": true"""))
+    writeSlice(paths, "data.parquet", Seq(1, 2, 3), testId)
+    writeEmptySlice(paths, "empty.parquet")
+    new Processing(entity, "data.parquet").Process(Full)
+
+    new Processing(entity, "empty.parquet").Process(Full)
+
+    assert(readSilver(output).count() === 0)
+  }
+
+  test("Connection setting allows empty full load and the entity setting wins") {
+    val connTrue = Seq(""""allow_empty_full_load": true""")
+
+    val idA = uniqueId("empty_conn_true")
+    val (entityA, outputA, pathsA) = createTestEntity(2103, idA, connectionSettings = connTrue)
+    writeSlice(pathsA, "data.parquet", Seq(1, 2), idA)
+    writeEmptySlice(pathsA, "empty.parquet")
+    new Processing(entityA, "data.parquet").Process(Full)
+    new Processing(entityA, "empty.parquet").Process(Full)
+    assert(readSilver(outputA).count() === 0)
+
+    val idB = uniqueId("empty_entity_false")
+    val (entityB, outputB, pathsB) = createTestEntity(
+      2104, idB,
+      entitySettings = Seq(""""allow_empty_full_load": false"""),
+      connectionSettings = connTrue)
+    writeSlice(pathsB, "data.parquet", Seq(1, 2), idB)
+    writeEmptySlice(pathsB, "empty.parquet")
+    new Processing(entityB, "data.parquet").Process(Full)
+    intercept[EmptyFullLoadException] {
+      new Processing(entityB, "empty.parquet").Process(Full)
+    }
+    assert(readSilver(outputB).count() === 2)
+  }
+
+  test("Empty slice on an already empty destination does not throw") {
+    val testId = uniqueId("empty_twice")
+    val (entity, output, paths) = createTestEntity(2105, testId)
+    writeEmptySlice(paths, "empty.parquet")
+
+    new Processing(entity, "empty.parquet").Process(Full)
+    new Processing(entity, "empty.parquet").Process(Full)
+
+    assert(readSilver(output).count() === 0)
+  }
+
+  test("Empty slice on a partitioned destination with rows throws") {
+    val testId = uniqueId("empty_partitioned")
+    val (entity, output, paths) = createTestEntity(2106, testId, hasPartition = true)
+    writeSlice(paths, "data.parquet", Seq(1, 2), testId)
+    writeEmptySlice(paths, "empty.parquet")
+    new Processing(entity, "data.parquet").Process(Full)
+
+    intercept[EmptyFullLoadException] {
+      new Processing(entity, "empty.parquet").Process(Full)
+    }
+    assert(readSilver(output).count() === 2)
+  }
+
+  test("Catalog bronze and catalog silver: unknown slice does not wipe silver") {
+    import spark.implicits._
+
+    val testId = uniqueId("empty_catalog")
+    val bronzeDb = s"tdb_b_${Math.abs(testId.hashCode) % 1000000}"
+    val bronzeTable = s"$bronzeDb.bronze_table"
+    val (entity, output, _) =
+      createTestEntity(2107, testId, useCatalog = true, bronzeTable = Some(bronzeTable))
+    val filenameField = s"${randomPrefix}source_filename"
+    val silverDb = s"test_db_$testId"
+
+    try {
+      spark.sql(s"DROP DATABASE IF EXISTS `$bronzeDb` CASCADE")
+      spark.sql(s"DROP DATABASE IF EXISTS `$silverDb` CASCADE")
+      spark.sql(s"CREATE DATABASE `$bronzeDb`")
+      Seq((1, "a", testId, "sliceA"), (2, "b", testId, "sliceA"))
+        .toDF("ID", "name", "test_id", filenameField)
+        .write.format("delta").saveAsTable(bronzeTable)
+
+      new Processing(entity, "sliceA").Process(Full)
+      assert(output.silver.isInstanceOf[TableLocation])
+      assert(readSilver(output).count() === 2)
+
+      intercept[EmptyFullLoadException] {
+        new Processing(entity, "sliceDoesNotExist").Process(Full)
+      }
+      assert(readSilver(output).count() === 2, "Silver must stay intact")
+    } finally {
+      spark.sql(s"DROP DATABASE IF EXISTS `$bronzeDb` CASCADE")
+      spark.sql(s"DROP DATABASE IF EXISTS `$silverDb` CASCADE")
+    }
+  }
+
+  private def withParquetSilverTable(testId: String)(body: (Entity, Paths, String) => Unit): Unit = {
+    import spark.implicits._
+    val (entity, _, paths) = createTestEntity(2108, testId, useCatalog = true)
+    val silverDb = s"test_db_$testId"
+    val table = s"$silverDb.test_table"
+    try {
+      spark.sql(s"DROP DATABASE IF EXISTS `$silverDb` CASCADE")
+      spark.sql(s"CREATE DATABASE `$silverDb`")
+      Seq((1, "a", testId), (2, "b", testId)).toDF("ID", "name", "test_id")
+        .write.format("parquet").saveAsTable(table)
+      body(entity, paths, table)
+    } finally {
+      spark.sql(s"DROP DATABASE IF EXISTS `$silverDb` CASCADE")
+    }
+  }
+
+  test("Full load with an empty slice onto an existing non-Delta table throws and leaves it") {
+    val testId = uniqueId("empty_nondelta")
+    withParquetSilverTable(testId) { (entity, paths, table) =>
+      writeEmptySlice(paths, "empty.parquet")
+      intercept[NotADeltaTableException] {
+        new Processing(entity, "empty.parquet").Process(Full)
+      }
+      assert(spark.read.table(table).count() === 2)
+    }
+  }
+
+  test("Merge onto an existing non-Delta table throws instead of diverting to Full") {
+    val testId = uniqueId("merge_nondelta")
+    withParquetSilverTable(testId) { (entity, paths, table) =>
+      writeSlice(paths, "data.parquet", Seq(5, 6, 7), testId)
+      intercept[NotADeltaTableException] {
+        new Processing(entity, "data.parquet").Process(Merge)
+      }
+      assert(spark.read.table(table).count() === 2)
+    }
   }
 }

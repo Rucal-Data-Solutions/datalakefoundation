@@ -1,5 +1,30 @@
 # Datalake Foundation Release Notes
 
+## v1.8.0
+
+### Full load no longer overwrites data with an empty slice
+
+A `full` load that receives an empty slice (no rows, or a slice that is missing) now refuses to overwrite a destination that still holds rows. The run fails with `EmptyFullLoadException`, which names the entity, the slice and the destination. Nothing is written and the watermark is not advanced.
+
+- **New setting `allow_empty_full_load`** (boolean, default `false`), configurable on the connection or the entity. The entity value wins. When enabled, an empty slice overwrites the destination with 0 rows and a warning is logged. A value that is not a valid boolean counts as `false`.
+- **First run or empty destination:** unchanged. An empty table is written.
+- **Merge and Historic:** unchanged. On an existing destination an empty slice is a no-op. On a first run they behave as a full load and create an empty table. They ignore `allow_empty_full_load`.
+- **Log message:** the warning for an empty slice now reads `Slice '<name>' not found or empty`.
+
+### Migration notes
+
+| Topic | Action required |
+|---|---|
+| **Entities whose source can legitimately be empty** | Full loads of these entities will start failing once the destination holds rows. Set `allow_empty_full_load` to `true` on the entity or its connection to keep the previous behavior. |
+| **Destinations that are existing non-Delta tables** | Runs against these tables will fail. Drop or migrate the table to Delta, or point the entity at a different destination. |
+| **Log monitoring** | If you alert on the old message `Slice contains no data (RowCount=0)`, update it to `Slice '<name>' not found or empty`. |
+
+### Existing non-Delta catalog tables are no longer overwritten
+
+When the destination is a catalog table that already exists but is not a Delta table, every processing type (`full`, `merge` and `historic`) now fails with `NotADeltaTableException`. The message says the destination exists but is not a Delta table and that nothing was written. Before, `full` overwrote such a table, and `merge` and `historic` treated it as a first run and overwrote it as well. Path destinations are unchanged.
+
+---
+
 ## v1.7.0
 
 ### Streaming processing strategy

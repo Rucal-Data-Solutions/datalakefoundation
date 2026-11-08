@@ -41,7 +41,8 @@ abstract class ProcessStrategy {
     * For PathLocation: checks if a Delta table exists at the path.
     * For TableLocation: checks if the table exists in the catalog and is a Delta table.
     *
-    * Only AnalysisException (table/path not found) is treated as a legitimate first run.
+    * A missing table (or missing schema/catalog) is a legitimate first run. A table that
+    * exists but is not a Delta table throws NotADeltaTableException.
     * All other exceptions (permission errors, network issues, catalog misconfiguration)
     * are re-thrown to prevent accidentally triggering a full overwrite on an existing table.
     */
@@ -51,20 +52,55 @@ abstract class ProcessStrategy {
         !DeltaTable.isDeltaTable(spark, path)
       case TableLocation(table) =>
         try {
-          if (!spark.catalog.tableExists(table)) {
+          val exists =
+            try spark.catalog.tableExists(table)
+            catch {
+              // Missing schema or catalog: the table is not there yet.
+              case _: AnalysisException => false
+            }
+          if (!exists) {
             true
           } else {
-            DeltaTable.forName(table)
-            false
+            try {
+              DeltaTable.forName(table)
+              false
+            } catch {
+              case e: AnalysisException =>
+                throw NotADeltaTableException(
+                  s"Destination table '$table' exists but is not a Delta table. " +
+                    "Nothing was written. Drop or migrate the table, or point the entity " +
+                    s"at a different destination. Catalog error: ${e.getMessage}"
+                )
+            }
           }
         } catch {
-          case _: AnalysisException =>
-            true
+          case e: DatalakeException => throw e
           case e: Exception =>
             logger.error(s"Unexpected error checking Delta table existence for '$table'. " +
               "Refusing to default to full overwrite to prevent data loss.", e)
             throw e
         }
+    }
+  }
+
+  /**
+    * Checks whether the destination exists and holds at least one row.
+    *
+    * Existence is decided by isFirstRun and inherits its semantics: a missing table, schema
+    * or catalog counts as "does not exist", an existing non-Delta table throws
+    * NotADeltaTableException, and unexpected errors are re-thrown. The row check is a
+    * limit(1) read, so it stays cheap. Only call this when the answer is needed (for
+    * example on an empty slice), never on the happy path.
+    */
+  protected def destinationHasRows(destination: OutputLocation): Boolean = {
+    if (isFirstRun(destination)) {
+      false
+    } else {
+      val table = destination match {
+        case PathLocation(path)  => DeltaTable.forPath(spark, path)
+        case TableLocation(name) => DeltaTable.forName(name)
+      }
+      !table.toDF.isEmpty
     }
   }
 
