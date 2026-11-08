@@ -30,6 +30,8 @@ case class DatalakeSource(
     current_watermark_values: Option[Array[(Watermark, Any)]]
 )
 case class DuplicateBusinesskeyException(message: String) extends DatalakeException(message, Level.ERROR)
+case class NotADeltaTableException(message: String) extends DatalakeException(message, Level.ERROR)
+case class EmptyFullLoadException(message: String) extends DatalakeException(message, Level.ERROR)
 
 // Bronze(Source) -> Silver(Target)
 class Processing(private val entity: Entity, sliceFile: String, options: Map[String, String] = Map.empty) extends Serializable {
@@ -46,6 +48,11 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   
   private val inferMissingDeletes: Boolean = entity.Settings
     .get("delete_missing")
+    .flatMap(v => Try(v.toString.toBoolean).toOption)
+    .getOrElse(false)
+
+  private val allowEmptyFull: Boolean = entity.Settings
+    .get("allow_empty_full_load")
     .flatMap(v => Try(v.toString.toBoolean).toOption)
     .getOrElse(false)
 
@@ -81,6 +88,10 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
   private lazy val logger = DatalakeLogManager.getLogger(this.getClass, environment)
 
   def inferDeletesFromMissing: Boolean = inferMissingDeletes
+
+  def allowEmptyFullLoad: Boolean = allowEmptyFull
+
+  private[processing] def sliceName: String = sliceFile
 
   private[processing] def getEntity: Entity = entity
 
@@ -134,7 +145,7 @@ class Processing(private val entity: Entity, sliceFile: String, options: Map[Str
 
       // Now trigger actions after all transformations are done
       if (transformedDF.isEmpty) {
-        logger.warn("Slice contains no data (RowCount=0)")
+        logger.warn(s"Slice '$sliceFile' not found or empty (RowCount=0)")
       }
 
       val new_watermark_values =

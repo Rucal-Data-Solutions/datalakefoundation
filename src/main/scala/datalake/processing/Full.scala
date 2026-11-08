@@ -29,6 +29,34 @@ final object Full extends ProcessStrategy {
     val source: DataFrame = datalake_source.source_df
     val recordCount = source.count()
 
+    // Only an empty slice needs a look at the destination; the happy path stays untouched.
+    if (recordCount == 0) {
+      val target = processing.destination match {
+        case PathLocation(path)  => s"path '$path'"
+        case TableLocation(name) => s"table '$name'"
+      }
+      if (destinationHasRows(processing.destination)) {
+        if (!processing.allowEmptyFullLoad) {
+          throw EmptyFullLoadException(
+            s"Entity ${processing.entity_id} (${processing.getEntity.Name}): slice " +
+              s"'${processing.sliceName}' contains no rows. A full load would overwrite " +
+              s"$target, which still holds data. Nothing was written. If empty slices are " +
+              "expected for this entity, set \"allow_empty_full_load\": true in the entity " +
+              "or connection settings."
+          )
+        }
+        logger.warn(
+          s"Empty slice '${processing.sliceName}' with allow_empty_full_load enabled: " +
+            s"overwriting $target with 0 rows."
+        )
+      } else {
+        logger.info(
+          s"Empty slice '${processing.sliceName}': $target does not exist or is already " +
+            "empty, writing an empty table."
+        )
+      }
+    }
+
     val part_values: List[String] =
       datalake_source.partition_columns.getOrElse(List.empty).map(_._1)
 

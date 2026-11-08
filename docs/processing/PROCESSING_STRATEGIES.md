@@ -80,6 +80,38 @@ Result: year=2024 and year=2025 are replaced
         year=2023 is preserved
 ```
 
+### Empty slices
+
+A slice without rows is treated differently from a slice with data, because a full load would wipe the silver table:
+
+| Situation | Result |
+|-----------|--------|
+| Destination does not exist yet (first run) | An empty table is created |
+| Destination exists but holds no rows | An empty table is written |
+| Destination holds rows, `allow_empty_full_load` is `false` (default) | The load fails with `EmptyFullLoadException`. Nothing is written |
+| Destination holds rows, `allow_empty_full_load` is `true` | The destination is overwritten with 0 rows and a warning is logged |
+
+The error names the entity, the slice and the destination, for example: `Entity 1 (reference_data): slice '2025-07-01-slice.parquet' contains no rows. A full load would overwrite path '/mnt/datalake/silver/reference_data', which still holds data. Nothing was written.`
+
+An empty or missing slice is also logged as a warning: `Slice '<name>' not found or empty`.
+
+An empty slice never advances the [watermark](WATERMARKS.md), and neither does a run that fails on this check.
+
+If an entity can legitimately deliver an empty source, enable the setting on the entity or its connection:
+
+```json
+{
+  "id": 1,
+  "name": "reference_data",
+  "processtype": "full",
+  "settings": {
+    "allow_empty_full_load": true
+  }
+}
+```
+
+See [Entity Configuration](../configuration/ENTITY_CONFIGURATION.md#common-settings) for the setting.
+
 ## Merge Strategy
 
 Incremental processing using Delta Lake MERGE operations. Handles inserts, updates, and soft deletes.
@@ -104,8 +136,9 @@ Incremental processing using Delta Lake MERGE operations. Handles inserts, updat
 
 ### Behavior
 
-1. **First run**: Falls back to Full strategy (no existing table to merge into)
+1. **First run**: Falls back to Full strategy (no existing table to merge into). An empty slice creates an empty table
 2. **Subsequent runs**:
+   - An empty slice changes nothing in the destination. `allow_empty_full_load` has no effect on Merge
    - Matches records by primary key
    - Applies partition filters to limit merge scope
    - Executes merge with these rules:
@@ -174,8 +207,9 @@ The Historic strategy adds temporal tracking columns:
 
 ### Behavior
 
-1. **First run**: Falls back to Full strategy
+1. **First run**: Falls back to Full strategy. An empty slice creates an empty table
 2. **Subsequent runs**:
+   - An empty slice changes nothing in the destination. `allow_empty_full_load` has no effect on Historic
    - Matches on primary key WHERE `IsCurrent = true`
    - When source hash differs from target:
      - Close current version: Set `ValidTo` and `IsCurrent = false`
@@ -344,6 +378,14 @@ The library does not validate temporal succession. Providing an earlier `process
 ### Duplicate Business Keys
 
 If the source slice contains duplicate business keys, processing fails with `DuplicateBusinesskeyException`. This prevents data quality issues in the silver layer.
+
+### Empty Full Load
+
+If a `full` load receives an empty slice while the destination still holds rows, processing fails with `EmptyFullLoadException` and nothing is written. This prevents an empty or missing source file from wiping the silver table. Set `allow_empty_full_load` to `true` on the entity or connection if an empty slice is expected. See [Empty slices](#empty-slices).
+
+### Destination Is Not a Delta Table
+
+If the destination is a catalog table that already exists but is not a Delta table, every processing type (`full`, `merge` and `historic`) fails with `NotADeltaTableException` and nothing is written. The message reads: `Destination table '<name>' exists but is not a Delta table. Nothing was written. Drop or migrate the table, or point the entity at a different destination. Catalog error: <details>` The details come from the catalog. If they point to missing privileges rather than a non-Delta table, fix the grants first. A table that does not exist yet is a normal first run. Path destinations are not affected.
 
 ### Schema Drift
 

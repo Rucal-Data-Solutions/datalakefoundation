@@ -58,15 +58,35 @@ class IsFirstRunSpec extends AnyFunSuite with SparkSessionTest {
   }
 
   test("isFirstRun should propagate non-AnalysisException errors for table locations") {
-    // Verify that a non-AnalysisException (e.g. caused by passing null) is NOT
-    // silently swallowed as was the case before the fix. Before the fix,
-    // `case _: Exception => true` would catch everything and default to overwrite.
-    // After the fix, only AnalysisException is caught.
+    // A non-AnalysisException (e.g. caused by passing null) must propagate instead of
+    // defaulting to a first run (and thus a full overwrite). Only an AnalysisException
+    // from the existence check counts as a first run; an AnalysisException from the
+    // Delta lookup on an existing table raises NotADeltaTableException (tested below).
     val caught = intercept[Exception] {
       TestStrategy.testIsFirstRun(TableLocation(null))
     }
     // The exception should NOT be an AnalysisException (those are caught and return true)
     assert(!caught.isInstanceOf[AnalysisException],
       "Non-AnalysisException should propagate, not be silently caught")
+  }
+
+  test("isFirstRun should throw for an existing non-Delta table in catalog") {
+    import spark.implicits._
+
+    val testDb = s"isfirstrun_nd_db_${System.currentTimeMillis()}"
+    val testTable = s"$testDb.parquet_table"
+
+    spark.sql(s"CREATE DATABASE IF NOT EXISTS `$testDb`")
+    Seq((1, "a")).toDF("id", "value").write.format("parquet").saveAsTable(testTable)
+
+    try {
+      val ex = intercept[NotADeltaTableException] {
+        TestStrategy.testIsFirstRun(TableLocation(testTable))
+      }
+      assert(ex.getMessage.contains("not a Delta table"))
+      assert(ex.getMessage.contains("Nothing was written"))
+    } finally {
+      spark.sql(s"DROP DATABASE IF EXISTS `$testDb` CASCADE")
+    }
   }
 }

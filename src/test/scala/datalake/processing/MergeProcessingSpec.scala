@@ -2,6 +2,7 @@ package datalake.processing
 
 import org.scalatest.funsuite.AnyFunSuite
 import datalake.metadata._
+import org.apache.spark.sql.functions.col
 
 class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
 
@@ -9,7 +10,8 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
       entityId: Int,
       testId: String,
       hasPartition: Boolean = true,
-      administrationValue: Int = 950
+      administrationValue: Int = 950,
+      inferDeletes: Boolean = false
   ): (Entity, Output, Paths) = {
     val partitionRole =
       if (hasPartition) """"calculated", "businesskey", "partition""""
@@ -63,7 +65,7 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
               "fieldroles": ["businesskey"]
             }
           ],
-          "settings": {},
+          "settings": {"delete_missing": ${inferDeletes}},
           "transformations": []
         }
       ]
@@ -459,5 +461,46 @@ class MergeProcessingSpec extends AnyFunSuite with SparkSessionTest {
     assert(resultColumns.contains(s"${randomPrefix}SourceHash"), "Should have SourceHash field")
     assert(resultColumns.contains(s"${randomPrefix}deleted"), "Should have deleted field")
     assert(resultColumns.contains(s"${randomPrefix}lastSeen"), "Should have lastSeen field")
+  }
+
+  test("Merge processing with an empty slice on first run creates an empty table") {
+    import spark.implicits._
+
+    val testId = s"merge_empty_first_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+    val (testEntity, output, paths) = createMergeTestEntity(2010, testId)
+
+    val slice = s"empty_${testId}.parquet"
+    Seq.empty[(Int, Long, String, String)].toDF("ID", "SeqNr", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$slice")
+
+    new Processing(testEntity, slice).Process(Merge)
+
+    val silverPath = output.silver.asInstanceOf[PathLocation].path
+    assert(io.delta.tables.DeltaTable.isDeltaTable(spark, silverPath))
+    assert(spark.read.format("delta").load(silverPath).count() === 0)
+  }
+
+  test("Merge processing with an empty slice keeps existing rows when delete_missing is on") {
+    import spark.implicits._
+
+    val testId = s"merge_empty_existing_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+    val (testEntity, output, paths) = createMergeTestEntity(2011, testId, inferDeletes = true)
+    val deletedCol = s"${randomPrefix}deleted"
+
+    val dataSlice = s"data_${testId}.parquet"
+    Seq((1, 100L, "John", testId), (2, 200L, "Jane", testId))
+      .toDF("ID", "SeqNr", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$dataSlice")
+    new Processing(testEntity, dataSlice).Process(Merge)
+
+    val emptySlice = s"empty_${testId}.parquet"
+    Seq.empty[(Int, Long, String, String)].toDF("ID", "SeqNr", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$emptySlice")
+    new Processing(testEntity, emptySlice).Process(Merge)
+
+    val silverPath = output.silver.asInstanceOf[PathLocation].path
+    val result = spark.read.format("delta").load(silverPath)
+    assert(result.count() === 2)
+    assert(result.filter(col(deletedCol) === true).count() === 0, "No rows may be marked deleted")
   }
 }

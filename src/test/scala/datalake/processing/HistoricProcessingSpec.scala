@@ -316,4 +316,44 @@ class HistoricProcessingSpec extends AnyFunSuite with SparkSessionTest {
     assert(insertedCount + updatedCount + unchangedCount === recordCount,
       s"inserted($insertedCount) + updated($updatedCount) + unchanged($unchangedCount) should equal recordCount($recordCount)")
   }
+
+  test("Historic processing with an empty slice on first run creates an empty table") {
+    import spark.implicits._
+
+    val testId = s"historic_empty_first_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+    val (testEntity, output, paths) = createHistoricTestEntity(3010, testId)
+
+    val slice = s"empty_${testId}.parquet"
+    Seq.empty[(Int, Long, String, String)].toDF("ID", "SeqNr", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$slice")
+
+    new Processing(testEntity, slice).Process(Historic)
+
+    val silverPath = output.silver.asInstanceOf[PathLocation].path
+    assert(io.delta.tables.DeltaTable.isDeltaTable(spark, silverPath))
+    assert(spark.read.format("delta").load(silverPath).count() === 0)
+  }
+
+  test("Historic processing with an empty slice keeps current versions when delete_missing is on") {
+    import spark.implicits._
+
+    val testId = s"historic_empty_existing_${System.currentTimeMillis()}_${scala.util.Random.nextInt(10000)}"
+    val (testEntity, output, paths) = createHistoricTestEntity(3011, testId, inferDeletes = true)
+    val isCurrent = s"${randomPrefix}IsCurrent"
+
+    val dataSlice = s"data_${testId}.parquet"
+    Seq((1, 100L, "Alice", testId), (2, 100L, "Bob", testId))
+      .toDF("ID", "SeqNr", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$dataSlice")
+    new Processing(testEntity, dataSlice).Process(Historic)
+
+    val emptySlice = s"empty_${testId}.parquet"
+    Seq.empty[(Int, Long, String, String)].toDF("ID", "SeqNr", "name", "test_id")
+      .write.mode("overwrite").parquet(s"${paths.bronzepath}/$emptySlice")
+    new Processing(testEntity, emptySlice).Process(Historic)
+
+    val result = readResult(output, testId)
+    assert(result.count() === 2)
+    assert(result.filter(col(isCurrent) === true).count() === 2, "Current versions must be unchanged")
+  }
 }
